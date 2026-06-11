@@ -335,7 +335,7 @@ Whenever you are ready to send a propeller command, send in the second terminal:
   ros2 topic pub /defenseScenario/lrauvpropeller0/control_lrauv std_msgs/msg/Bool "data:  true"
   ```
 
-You can change the value of the `rpm` sent by modifying the file `/home/marie/Documents/workspace/lotusim/lotusim-generic-scenario/src/external_packages/lrauv_propeller/lrauv_propeller/lrauv_propeller.py`, in this line:
+You can change the value of the `rpm` sent by modifying the file `$HOME/Documents/workspace/lotusim/lotusim-generic-scenario/src/external_packages/lrauv_propeller/lrauv_propeller/lrauv_propeller.py`, in this line:
   ```py
   self.send_propeller_command(rpm=100.0, pd=0.88) # example to send a propeller command
   ```
