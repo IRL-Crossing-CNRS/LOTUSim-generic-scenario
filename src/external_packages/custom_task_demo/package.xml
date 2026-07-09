@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>custom_task_demo</name>
+  <version>0.0.1</version>
+  <description>Example external package registering a custom BT task (no lotusim_sdk edit required)</description>
+  <maintainer email="lotusim@naval-group.com">Naval Group</maintainer>
+  <author email="lotusim@naval-group.com">Naval Group</author>
+  <license>EPL-2.0</license>
+
+  <depend>lotusim_sdk</depend>
+  <depend>bluerov2_heavy</depend>
+  <depend>simulation_run</depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

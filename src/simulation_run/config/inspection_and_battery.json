@@ -1,0 +1,29 @@
+{
+  "world_file": "energy.world",
+  "agents": [
+    {
+      "id": "inspector",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "inspection_mission",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            { "id": "corrosion_crack_inspection", "type": "action", "task": "fault_inspection",
+              "params": { "show_window": false } },
+            { "id": "led_from_battery", "type": "action", "task": "check_battery_state",
+              "params": { "threshold": 80.0 } }
+          ]
+        }
+      ]
+    }
+  ],
+  "aerial_domain": false,
+  "renderer_unity": true
+}

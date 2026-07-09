@@ -1,0 +1,48 @@
+{
+  "MyBluerov": {
+    "origin": [50.32879166666667, -4.195226666666667],
+    "nb_agents": 2,
+    "tick_rate_hz": 1.0,
+    "sdf_file": "model-battery.sdf",
+    "poses": [
+        [0.0, 0.0, -10.0, 0,0,0],
+        [-6.0, 0.0, -10.0, 0,0,0]
+    ],
+    "missions": [
+      {
+        "id": "demo_mission",
+        "type": "sequence",
+        "children": [
+          {
+            "id": "patrol",
+            "type": "action",
+            "task": "waypoint_follower",
+            "params": {
+              "waypoints": [
+                { "lat": 50.32969, "lon": -4.19523 }
+              ],
+              "loop": false,
+              "guidance_mode": "bang_bang",
+              "control_rate_hz": 20.0,
+              "linear_velocities_limits": [0.0, 1.0],
+              "linear_accel_limit": 0.2,
+              "angular_velocities_limits": 0.5,
+              "angular_accel_limit": 0.1,
+              "range_tolerance": 3.0
+            }
+          },
+          {
+            "id": "monitor",
+            "type": "parallel",
+            "children": [
+              { "id": "inspection", "type": "action", "task": "fault_inspection",
+                "params": { "show_window": true } },
+              { "id": "battery_led", "type": "action", "task": "check_battery_state",
+                "params": { "threshold": 80.0 } }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

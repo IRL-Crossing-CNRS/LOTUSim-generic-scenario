@@ -33,23 +33,15 @@ Copyright (c) 2025 Naval Group
 """
 
 
-import atexit
+import logging
 import os
 import signal
-import threading
 
 from ament_index_python.packages import get_package_share_directory
 
-from simulation_run import simulation_runner, utils
+from simulation_run import ros_manager, simulation_runner, utils
 
-# ----------------------------------------------------------------------
-# Globals
-# ----------------------------------------------------------------------
-executor = None
-shutdown_flag = False
-shutdown_flag_lock = threading.Lock()
-
-atexit.register(lambda: simulation_runner.stop_simulation(executor))
+logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------
@@ -57,14 +49,12 @@ atexit.register(lambda: simulation_runner.stop_simulation(executor))
 # ----------------------------------------------------------------------
 def signal_handler(signum, frame):
     """
-    Handle Ctrl+C (SIGINT) gracefully by stopping the simulation.
+    Handle Ctrl+C (SIGINT) by signalling the executor loop to exit cleanly.
+    Cleanup is handled by run_simulation's finally block — no exit() call needed.
     """
-    global shutdown_flag
-    print("\033[91m\nReceived Ctrl+C! Cleaning up and exiting...\033[0m")
-    with shutdown_flag_lock:
-        shutdown_flag = True
-    simulation_runner.stop_simulation(executor)
-    exit(0)
+    logger.info("Ctrl+C received — shutting down simulation...")
+    with ros_manager.shutdown_flag_lock:
+        ros_manager.shutdown_flag = True
 
 
 # ----------------------------------------------------------------------
@@ -76,8 +66,8 @@ def main():
     """
     args = utils.get_cli_args()
 
-    print(f"\033[93m[DEBUG] Debug mode is {'ENABLED' if args.debug else 'DISABLED'}\033[0m")
-    print(f"\033[93m[DEBUG] GUI mode is {'ENABLED' if args.gui else 'DISABLED'}\033[0m")
+    logger.debug("Debug mode is %s", "ENABLED" if args.debug else "DISABLED")
+    logger.debug("GUI mode is %s", "ENABLED" if args.gui else "DISABLED")
 
     # Determine config path
     try:
@@ -93,22 +83,29 @@ def main():
             f"Configuration file not found: {config_path}\nExpected in {os.path.dirname(config_path)}"
         )
 
-    print(f"Using configuration file: {config_path}")
+    logger.info("Using configuration file: %s", config_path)
 
     # Setup signal handling
     signal.signal(signal.SIGINT, signal_handler)
 
     # Load config
     config = utils.load_config_from_json(config_path)
-    print("Configuration loaded successfully.")
+    logger.info("Configuration loaded.")
+
+    # Inject AIS trajectory into agents
+    agents = config.get("agents", {})
+
+    # Inject AIS poses and trajectories
+    utils.inject_first_ais_pose(agents, base_dir=os.path.dirname(config_path))
 
     # Parse config
     world_file, agents, aerial_enabled = utils.parse_simulation_config(config)
 
     # Run simulation
-    print("Starting Simulation...")
     simulation_runner.run_simulation(
-        world_file, agents, aerial_domain=aerial_enabled, debug_mode=args.debug, gui=args.gui
+        world_file, agents, aerial_domain=aerial_enabled,
+        debug_mode=args.debug, gui=args.gui,
+        config_dir=os.path.dirname(config_path),
     )
 
 

@@ -1,0 +1,37 @@
+{
+  "world_file": "energy.world",
+  "agents": [
+    {
+      "id": "wp_follower",
+      "class": "Bluerov2_heavy",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "patrol_mission",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [0.0, 1.0],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.5,
+            "angular_accel_limit": 0.1,
+            "range_tolerance": 3.0,
+            "waypoints": [
+              { "lat": 50.32879, "lon": -4.19523 },
+              { "lat": 50.32950, "lon": -4.19400 },
+              { "lat": 50.32820, "lon": -4.19300 }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "aerial_domain": false,
+  "renderer_unity": true
+}

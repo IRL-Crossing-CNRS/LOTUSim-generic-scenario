@@ -34,11 +34,9 @@ from typing import Any, Dict, Optional
 
 import rclpy
 from simulation_run import agents_manager
+from simulation_run.dynamic_spawn import DynamicSpawnService
 
-# -------------------------------------------------------------------------
-# Logging Configuration
-# -------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------------
 # Global Shutdown State
@@ -54,7 +52,9 @@ def initialize_ros_components(
     executor: Any,
     agents: Dict[str, Any],
     world_name: str,
+    world_file: str = "",
     aerial_domain: bool = False,
+    config_dir: Optional[str] = None,
 ) -> agents_manager.AgentsManager:
     """
     Initialize simulation components using a full agents dictionary.
@@ -64,6 +64,8 @@ def initialize_ros_components(
         agents: Dictionary containing agent types, their number, poses, model paths, and xdyn flag.
         world_name: Name of the simulation world.
         aerial_domain: Whether to enable aerial domain.
+        config_dir: Directory containing the scenario JSON (forwarded to
+            ``AgentsManager.add_agents`` — see its docstring).
 
     Returns:
         AgentsManager instance with all agents initialized and registered.
@@ -72,8 +74,12 @@ def initialize_ros_components(
 
     # Initialize and spawn all agents
     manager = agents_manager.AgentsManager()
+    manager.add_agents(agents, world_name, executor, aerial_domain, world_file, config_dir)
 
-    manager.add_agents(agents, world_name, executor, aerial_domain)
+    # Register dynamic spawn/despawn service
+    spawn_service = DynamicSpawnService(manager, executor, world_name, world_file)
+    executor.add_node(spawn_service)
+
     return manager
 
 
@@ -108,33 +114,26 @@ def run_executor(executor: Any, max_simulation_time: Optional[float] = None) -> 
             # Check external shutdown flag
             with shutdown_flag_lock:
                 if shutdown_flag:
-                    logging.info(f"run_executor EXIT: shutdown_flag=True at t={elapsed:.1f}s")
+                    logger.info("run_executor EXIT: shutdown_flag=True at t=%.1fs", elapsed)
                     break
 
             # Check maximum simulation time
             if max_simulation_time is not None and elapsed > max_simulation_time:
-                logging.info(f"run_executor EXIT: max_simulation_time={max_simulation_time}s reached")
+                logger.info("run_executor EXIT: max_simulation_time=%ss reached", max_simulation_time)
                 break
 
             # Spin executor once
             try:
                 executor.spin_once(timeout_sec=0.1)
-            except Exception as e:
-                logging.error(
-                    f"run_executor EXCEPTION at t={elapsed:.1f}s: " f"{type(e).__name__}: {e}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("run_executor EXCEPTION at t=%.1fs", elapsed)
                 break
 
         if not rclpy.ok():
-            logging.info(f"run_executor EXIT: rclpy.ok()=False at t={time.time() - start_time:.1f}s")
+            logger.info("run_executor EXIT: rclpy.ok()=False at t=%.1fs", time.time() - start_time)
 
+    except SystemExit:
+        pass
     except BaseException as e:
-        logging.error(
-            f"run_executor BASE EXCEPTION: {type(e).__name__}: {e}",
-            exc_info=True,
-        )
+        logger.exception("run_executor BASE EXCEPTION: %s", type(e).__name__)
         raise
-
-    finally:
-        logging.info(f"run_executor: cleanup reached at t={time.time() - start_time:.1f}s")

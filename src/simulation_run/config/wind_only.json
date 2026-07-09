@@ -1,0 +1,39 @@
+{
+  "world_file": "energy.world",
+  "agents": {
+    "Wind": {
+      "wake_model": "jensen",
+      "model_params": { "kw": 0.065 },
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "maintenance_cost": 100000.0,
+      "lcoe": {
+        "alpha_r_aud_per_hour": 50.0,
+        "alpha_e_aud_per_kwh": 0.5,
+        "publish_rate_hz": 1.0
+      },
+      "turbines": [
+        { "name": "wind_turbine_1",  "x":  307.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_2",  "x":  207.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_3",  "x":  107.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_4",  "x":    7.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_5",  "x": -107.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_6",  "x": -207.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_7",  "x": -307.5000, "y": 85.02798, "z":  -29.5000 },
+        { "name": "wind_turbine_8",  "x":  250.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_9",  "x":  150.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_10", "x":   50.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_11", "x":  -50.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_12", "x": -150.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_13", "x": -250.0000, "y": 85.02798, "z":  206.0000 },
+        { "name": "wind_turbine_14", "x": -350.0000, "y": 85.02798, "z":  206.0000 }
+      ]
+    }
+  },
+  "aerial_domain": false,
+  "renderer_unity": true
+}

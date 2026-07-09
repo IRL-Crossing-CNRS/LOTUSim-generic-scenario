@@ -37,3 +37,9 @@ UserSettings/
 
 # Scenario logs
 scenario_logs/
+
+*.egg
+*.egg-info
+
+.claude/
+/CLAUDE.md

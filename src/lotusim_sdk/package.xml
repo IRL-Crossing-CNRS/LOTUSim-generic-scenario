@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>lotusim_sdk</name>
+  <version>0.1.0</version>
+  <description>LOTUSim SDK — agent abstractions and base classes for external agent development</description>
+  <maintainer email="lotusim@naval-group.com">Naval Group</maintainer>
+  <license>EPL-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>lotusim_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>geographic_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>rosidl_runtime_py</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

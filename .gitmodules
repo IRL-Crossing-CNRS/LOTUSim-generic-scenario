@@ -1,4 +1,4 @@
 [submodule "Submodules/ROS-TCP-Endpoint"]
 	path = Submodules/ROS-TCP-Endpoint
-	url = https://github.com/naval-group/LOTUSim-Unity-ros-tcp-endpoint
+	url = https://github.com/IRL-Crossing-CNRS/LOTUSim-Unity-ros-tcp-endpoint
 	branch = main

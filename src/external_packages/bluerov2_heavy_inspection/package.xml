@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>bluerov2_heavy_inspection</name>
+  <version>0.0.1</version>
+  <description>Agent externe Bluerov2HeavyInspection avec détection YOLO corrosion/fissures</description>
+  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+  <author email="jgrosset10@gmail.com">juliette</author>
+  <license>EPL-2.0</license>
+
+  <depend>bluerov2_heavy</depend>
+  <depend>simulation_run</depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

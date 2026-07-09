@@ -31,6 +31,8 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
@@ -41,14 +43,9 @@ from simulation_run import ros_manager, utils
 # Global State
 # -------------------------------------------------------------------------
 process: Optional[subprocess.Popen] = None
+executor: Optional[MultiThreadedExecutor] = None
 cleanup_done: bool = False
-lotusim_pids: List[int] = []  # Track Lotusim processes
-
-
-# -------------------------------------------------------------------------
-# Logging Setup
-# -------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+lotusim_pids: List[int] = []
 
 
 # -------------------------------------------------------------------------
@@ -78,7 +75,7 @@ def build_launch_command(world_file: str, aerial_domain: bool, debug: bool = Fal
     else:
         commands.append(f"{base_command} {debug_flag} {gui_flag} run {world_file}".strip())
 
-    print(f"[DEBUG] Launch commands: {commands}")  # Add debug print to check the actual commands
+    logger.debug("Launch commands: %s", commands)
     return commands
 
 
@@ -113,7 +110,7 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
         for pid in pids:
             if pid.isdigit():
                 lotusim_pids.append(int(pid))
-                logging.info(f"Tracked Lotusim PID: {pid}")
+                logger.info("Tracked Lotusim PID: %s", pid)
 
     return processes
 
@@ -123,6 +120,7 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
 # -------------------------------------------------------------------------
 
 
+
 def run_simulation(
     world_file: str,
     agents: Dict[str, Any],
@@ -130,6 +128,7 @@ def run_simulation(
     aerial_domain: bool = False,
     debug_mode: bool = False,
     gui=False,
+    config_dir: Optional[str] = None,
 ) -> Any:
     """
     Orchestrates the full simulation lifecycle.
@@ -149,6 +148,8 @@ def run_simulation(
         aerial_domain: Whether to launch an aerial domain.
         debug_mode: Enable verbose logging.
         gui: Enable Gazebo GUI.
+        config_dir: Directory containing the scenario JSON (forwarded to
+            ``ros_manager.initialize_ros_components``).
     """
 
     global process
@@ -163,27 +164,43 @@ def run_simulation(
     # Enable verbose logs if debug mode is on
     if debug_mode:
         logging.getLogger().setLevel(logging.DEBUG)
-        logging.debug("[DEBUG] Debug mode enabled — launching simulation with detailed logging.")
+        logger.debug("Debug mode enabled — verbose logging active.")
 
     # Reset Gazebo and prepare launch command
     reset_gazebo_state()
+
+    if ros_manager.shutdown_flag:
+        stop_simulation(executor)
+        return
 
     launch_commands = build_launch_command(world_file, aerial_domain, debug=debug_mode, gui=gui)
 
     # Start simulation process
     process = start_simulation_process(launch_commands)
     time.sleep(1)
-    logging.info("Launching simulation...")
+
+    if ros_manager.shutdown_flag:
+        stop_simulation(executor)
+        return
+
+    logger.info("Starting simulation...")
 
     # Initialize ROS agents and bridges using the full agents dictionary
     world_name = utils.get_world_name(world_file)
-    agents_manager = ros_manager.initialize_ros_components(executor, agents, world_name, aerial_domain)
+
+    agents_manager = ros_manager.initialize_ros_components(
+        executor, agents, world_name, world_file, aerial_domain, config_dir
+    )
+
+    if ros_manager.shutdown_flag:
+        agents_manager.delete_agents()
+        stop_simulation(executor)
+        return
 
     try:
         # Run main execution loop
         return ros_manager.run_executor(executor, max_simulation_time)
     finally:
-        # Always clean up agents and stop simulation
         agents_manager.delete_agents()
         stop_simulation(executor)
 
@@ -200,46 +217,41 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
     global process, cleanup_done
 
     if cleanup_done:
-        logging.info("Cleanup already performed. Skipping.")
+        logger.info("Cleanup already performed. Skipping.")
         return
     cleanup_done = True
 
-    logging.info("Stopping simulation and performing cleanup...")
+    logger.info("Stopping simulation and performing cleanup...")
 
     # Kill tracked Lotusim processes
     for pid in lotusim_pids:
         try:
             os.kill(pid, signal.SIGTERM)
-            logging.info(f"Sent SIGTERM to Lotusim PID {pid}")
+            logger.info("Sent SIGTERM to Lotusim PID %s", pid)
         except ProcessLookupError:
-            logging.warning(f"Lotusim PID {pid} already terminated.")
-        except Exception as e:
-            logging.warning(f"Error killing Lotusim PID {pid}: {e}")
+            logger.warning("Lotusim PID %s already terminated.", pid)
+        except Exception:
+            logger.warning("Error killing Lotusim PID %s", pid, exc_info=True)
     lotusim_pids.clear()
 
     # Kill any gnome-terminal windows (fallback cleanup)
     try:
         subprocess.run(["pkill", "-f", "gnome-terminal"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        logging.info("Terminated GNOME terminal processes.")
-    except Exception as e:
-        logging.warning(f"Error killing GNOME terminals: {e}")
+        logger.info("Terminated GNOME terminal processes.")
+    except Exception:
+        logger.warning("Error killing GNOME terminals", exc_info=True)
 
-    # Gracefully stop main simulation process
-    try:
-        if process and process.poll() is None:
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                logging.info("Sent SIGTERM to main simulation process.")
-                process.wait(timeout=3)
-                logging.info("Simulation process terminated.")
-            except ProcessLookupError:
-                logging.warning("Process group not found or already terminated.")
-            except Exception as e:
-                logging.warning(f"Error sending SIGTERM: {e}")
-        else:
-            logging.info("No active simulation process found.")
-    except Exception as e:
-        logging.warning(f"Unexpected error checking simulation process: {e}")
+    # Gracefully stop tracked simulation processes
+    for proc in (process or []):
+        try:
+            if proc.poll() is None:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                proc.wait(timeout=3)
+                logger.info("Simulation process %s terminated.", proc.pid)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            logger.warning("Error terminating process %s", proc.pid, exc_info=True)
 
     process = None
     time.sleep(1)
@@ -248,9 +260,9 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
     for target in ["ros_gz_bridge/parameter_bridge", "gz sim"]:
         try:
             subprocess.run(["pkill", "-f", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            logging.info(f"Terminated '{target}' processes.")
-        except Exception as e:
-            logging.warning(f"Error terminating '{target}': {e}")
+            logger.info("Terminated '%s' processes.", target)
+        except Exception:
+            logger.warning("Error terminating '%s'", target, exc_info=True)
 
     # ROS 2 node cleanup
     if executor is not None:
@@ -258,23 +270,23 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
             for node in list(executor.get_nodes()):
                 try:
                     executor.remove_node(node)
-                    logging.info(f"Removed ROS node: {node}")
-                except Exception as e:
-                    logging.warning(f"Error removing node: {e}")
+                    logger.info("Removed ROS node: %s", node)
+                except Exception:
+                    logger.warning("Error removing node %s", node, exc_info=True)
             executor.shutdown()
-            logging.info("ROS 2 executor shutdown complete.")
-        except Exception as e:
-            logging.warning(f"Error during ROS node cleanup: {e}")
+            logger.info("ROS 2 executor shutdown complete.")
+        except Exception:
+            logger.warning("Error during ROS node cleanup", exc_info=True)
 
     # Shutdown rclpy
     try:
         if rclpy.ok():
             rclpy.shutdown()
-            logging.info("ROS 2 client library shutdown successful.")
-    except Exception as e:
-        logging.warning(f"Error shutting down rclpy: {e}")
+            logger.info("ROS 2 client library shutdown successful.")
+    except Exception:
+        logger.warning("Error shutting down rclpy", exc_info=True)
 
-    logging.info("Simulation cleanup completed.")
+    logger.info("Simulation cleanup completed.")
 
 
 def reset_gazebo_state() -> None:
@@ -287,25 +299,25 @@ def reset_gazebo_state() -> None:
         - Deletes temporary Gazebo state directory (/tmp/gz/sim).
         - Ensures environment is ready for a fresh simulation run.
     """
-    logging.info("Resetting Gazebo simulation state...")
+    logger.info("Resetting Gazebo simulation state...")
 
     # Terminate simulation and bridge processes
     for process_name in ["gz sim", "ros_gz_bridge"]:
         try:
             subprocess.run(["pkill", "-f", process_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            logging.info(f"Terminated '{process_name}' processes.")
-        except Exception as e:
-            logging.warning(f"Failed to terminate '{process_name}': {e}")
+            logger.info("Terminated '%s' processes.", process_name)
+        except Exception:
+            logger.warning("Failed to terminate '%s'", process_name, exc_info=True)
 
     # Delete temporary Gazebo state directory
     gazebo_state_path = "/tmp/gz/sim"
     if os.path.exists(gazebo_state_path):
         try:
             shutil.rmtree(gazebo_state_path)
-            logging.info(f"Deleted Gazebo state directory: {gazebo_state_path}")
-        except Exception as e:
-            logging.warning(f"Failed to delete Gazebo state directory: {e}")
+            logger.info("Deleted Gazebo state directory: %s", gazebo_state_path)
+        except Exception:
+            logger.warning("Failed to delete Gazebo state directory: %s", gazebo_state_path, exc_info=True)
     else:
-        logging.info(f"No Gazebo state directory found at: {gazebo_state_path}")
+        logger.info("No Gazebo state directory found at: %s", gazebo_state_path)
 
     time.sleep(2)

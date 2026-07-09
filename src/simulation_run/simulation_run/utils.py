@@ -36,24 +36,24 @@ SPDX-License-Identifier: EPL-2.0
 Copyright (c) 2025 Naval Group
 """
 
+import argparse
 import json
 import logging
 import os
-import re
 import random
+import re
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Tuple
-import argparse
+
 from importlib.metadata import entry_points
-from simulation_run.configs import WaypointFollowerConfig
+from typing import Any, Dict, List, Tuple
+
+
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
 # CLI & Configuration Helpers
 # ----------------------------------------------------------------------
-import argparse
-from typing import Tuple
-
-from importlib.metadata import entry_points
 
 
 def get_cli_args() -> argparse.Namespace:
@@ -70,7 +70,7 @@ def get_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any], bool]:
+def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any, bool]:
     """
     Parse the simulation configuration and extract only the essential data.
 
@@ -80,7 +80,8 @@ def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]
     Returns:
         tuple: (
             world_file (str),
-            agents (dict): full agent data as in JSON,
+            agents: full agent data as in JSON — a dict (legacy) or a list
+                (mission system); both are accepted downstream,
             aerial_enabled (bool)
         )
     """
@@ -106,7 +107,7 @@ def load_config_from_json(config_path: str) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: Parsed configuration as a dictionary.
     """
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -166,135 +167,79 @@ def generate_random_pose(agent_first_domain: str) -> List[float]:
     return [x, y, z, 0.0, 0.0, 0.0]
 
 
-def generate_lotus_param(
-    renderer_type_name,
-    domains: list[str],
-    thrusters: list[str],
-    xdyn_ip: str | None,
-    xdyn_port: str | None,
-    trajectory_follower: str | None = None,
-    trajectory_follower_config: WaypointFollowerConfig | None = None,
-) -> str:
+def inject_first_ais_pose(agents, base_dir: str = None) -> None:
     """
-    Generate the <lotus_param> XML block for LOTUSim simulation configuration.
+    Inject spawn position into agent configurations.
 
-    This function produces an XML block specifying renderer, physics, thrusters,
-    and optional trajectory follower settings for a vessel.
-
-    Behavior:
-        - Generates <physics_engine_interface> if at least one domain is provided.
-        - Domain-specific backends:
-            * Aerial → ROS2 (no XDyn connection required)
-            * Surface/Underwater → XDynWebSocket (requires xdyn_ip & xdyn_port)
-        - If trajectory_follower is provided, adds configuration from
-        `trajectory_follower_config`.
-        - Defaults to PID guidance mode if no guidance_mode is specified in the config.
-
-    Args:
-        renderer_type_name (str): Type of renderer (e.g., "Ignition", "OGRE").
-        domains (list[str]): Physics domains for the vessel (Surface, Underwater, Aerial, etc.).
-        thrusters (list[str]): Names of thrusters to include.
-        xdyn_ip (str | None): IP address for XDynWebSocket backend (required for non-aerial domains).
-        xdyn_port (str | None): Port for XDynWebSocket backend (required for non-aerial domains).
-        trajectory_follower (str | None, optional): Name of trajectory follower plugin (default: None).
-        trajectory_follower_config (WaypointFollowerConfig | None, optional): Configuration for trajectory follower (default: None).
-
-    Returns:
-        str: XML string representing the lotus_param block for the vessel.
+    - Mission (list) form: extracts spawn from the ``waypoints_file`` param of
+      the first ``waypoint_follower`` task found in the BT tree, if no explicit
+      ``spawn``/``pose``/``lat`` is already set.
+    - Legacy (dict) form: reads the ``ais`` config block as before.
     """
+    from lotusim_sdk.spawn_utils import extract_spawn_from_missions
+    if isinstance(agents, list):
+        for agent_cfg in agents:
+            extract_spawn_from_missions(agent_cfg, config_dir=base_dir)
+        return
+    if not isinstance(agents, dict):
+        return
+    from lotusim_sdk.trajectory_providers import PatrolFileProvider, get_trajectory_provider
+    for agent_name, agent_cfg in agents.items():
+        ais_config = agent_cfg.get("ais")
+        if not ais_config:
+            continue
 
-    # ------------------------------------------------------------------
-    # RENDER BLOCK — always present
-    # ------------------------------------------------------------------
-    render_block = f"""
-    <render_interface>
-        <publish_render>true</publish_render>
-        <renderer_type_name>{renderer_type_name}</renderer_type_name>
-    </render_interface>"""
+        patrol_file = ais_config.get("patrol_file")
+        nb_agents = agent_cfg.get("nb_agents", 1)
 
-    # ------------------------------------------------------------------
-    # PHYSICS BLOCK — ONLY IF XDyn is used
-    # ------------------------------------------------------------------
+        if isinstance(patrol_file, list):
+            if len(patrol_file) > nb_agents:
+                logger.warning(
+                    "Agent '%s': %d patrol files provided but only %d agent(s) will be spawned; "
+                    "extra patrol files will be ignored.",
+                    agent_name, len(patrol_file), nb_agents,
+                )
+            elif len(patrol_file) < nb_agents:
+                logger.warning(
+                    "Agent '%s': %d patrol files provided but %d agent(s) requested; "
+                    "agents beyond index %d will reuse the first trajectory.",
+                    agent_name, len(patrol_file), nb_agents, len(patrol_file) - 1,
+                )
 
-    physics_block = ""
-
-    if domains:
-        physics_block = "\n  <physics_engine_interface>"
-
-        for domain in domains:
-            domain_lower = domain.lower()
-            physics_block += f"\n    <{domain_lower}>"
-
-            if domain == "Aerial":
-                physics_block += """
-                    <connection_type>ROS2</connection_type>
-                    <namespace>aerialWorld</namespace>
-                """
-            else:
-                if xdyn_ip and xdyn_port:
-                    thruster_xml = "".join(
-                        f"\n        <thruster{i}>{t}</thruster{i}>" for i, t in enumerate(thrusters, 1)
-                    )
-
-                    physics_block += f"""
-                        <connection_type>XDynWebSocket</connection_type>
-                        <uri>ws://{xdyn_ip}:{xdyn_port}</uri>
-                        <thrusters>{thruster_xml}
-                        </thrusters>
-                    """
-
-            physics_block += f"\n    </{domain_lower}>"
-
-        init_state = domains[0]
-        physics_block += f"\n    <init_state>{init_state}</init_state>"
-        physics_block += "\n  </physics_engine_interface>"
-
-    # ------------------------------------------------------------------
-    # TRAJECTORY FOLLOWER BLOCK — ONLY IF trajectory_follower is specified
-    # ------------------------------------------------------------------
-    trajectory_follower_block = ""
-    if trajectory_follower:
-        cfg = trajectory_follower_config or WaypointFollowerConfig()
-        trajectory_follower_block = f"""
-    <waypoint_follower>
-        <follower>{
-                _opt_tag("guidance_mode", cfg.guidance_mode)}{
-                _opt_tag("loop", cfg.loop)}{
-                _opt_tag("range_tolerance", cfg.range_tolerance)}{
-                _opt_tag("linear_accel_limit", cfg.linear_accel_limit)}{
-                _opt_tag("angular_accel_limit", cfg.angular_accel_limit)}{
-                _vec2_tag("linear_velocities_limits", cfg.linear_velocities_limits)}{
-                _opt_tag("angular_velocities_limits", cfg.angular_velocities_limits)}{
-                _pid_tag("linear_pid", cfg.linear_pid)}{
-                _pid_tag("angular_pid", cfg.angular_pid)}
-        </follower>
-    </waypoint_follower>"""
-
-    # ------------------------------------------------------------------
-    # FINAL XML
-    # ------------------------------------------------------------------
-    return f"<lotus_param>{render_block}{physics_block}{trajectory_follower_block}\n</lotus_param>"
-
-
-# ----------------------------------------------------------------------
-# LOTUSim XML Tag Helpers (private)
-# ----------------------------------------------------------------------
-
-
-def _opt_tag(tag, value) -> str:
-    return f"\n        <{tag}>{value}</{tag}>" if value is not None else ""
-
-
-def _vec2_tag(tag, value: tuple) -> str:
-    if value is None:
-        return ""
-    return f"\n        <{tag}>{value[0]} {value[1]}</{tag}>"
-
-
-def _pid_tag(tag, gains: tuple) -> str:
-    if gains is None:
-        return ""
-    return f"\n        <{tag}>{gains[0]} {gains[1]} {gains[2]}</{tag}>"
+            trajectories = []
+            loops = []
+            default_loop = agent_cfg.get("loop", True)
+            for entry in patrol_file:
+                if isinstance(entry, dict):
+                    pf = entry["file"]
+                    loops.append(entry.get("loop", default_loop))
+                else:
+                    pf = entry
+                    loops.append(default_loop)
+                traj = PatrolFileProvider(pf, base_dir=base_dir).load()
+                if not traj:
+                    raise ValueError(f"Trajectory '{pf}' for agent '{agent_name}' is empty.")
+                trajectories.append(traj)
+            agent_cfg["trajectories"] = trajectories
+            agent_cfg["loops"] = loops
+            agent_cfg["trajectory"] = trajectories[0]
+            agent_cfg["lat"] = trajectories[0][0]["lat"]
+            agent_cfg["lon"] = trajectories[0][0]["lon"]
+            logger.info("Loaded %d trajectories for '%s'", len(trajectories), agent_name)
+        else:
+            if nb_agents > 1:
+                logger.info(
+                    "Agent '%s': single patrol file '%s' will be shared across all %d agents.",
+                    agent_name, patrol_file, nb_agents,
+                )
+            provider = get_trajectory_provider(ais_config, base_dir=base_dir)
+            trajectory = provider.load()
+            if not trajectory:
+                raise ValueError(f"Trajectory for agent '{agent_name}' is empty.")
+            logger.info("Loaded trajectory for '%s': %d waypoints", agent_name, len(trajectory))
+            agent_cfg["lat"] = trajectory[0]["lat"]
+            agent_cfg["lon"] = trajectory[0]["lon"]
+            agent_cfg["trajectory"] = trajectory
 
 
 # ----------------------------------------------------------------------
@@ -324,8 +269,8 @@ def xml_equivalent(xml1: str, xml2: str) -> bool:
         e1 = normalize(ET.fromstring(xml1))
         e2 = normalize(ET.fromstring(xml2))
         return ET.tostring(e1) == ET.tostring(e2)
-    except ET.ParseError as e:
-        logging.error(f"XML parse error: {e}")
+    except ET.ParseError:
+        logger.exception("XML parse error while comparing XML strings")
         return False
 
 
@@ -363,3 +308,15 @@ def find_agent_class_globally(agent_name: str):
     for ep in eps:
         if normalize_agent_name(ep.name) == normalized:
             return ep.load()
+
+
+def _extract_world_spherical_coords(world_file_name: str) -> Tuple[float, float]:
+    """Read (latitude_deg, longitude_deg) from a world SDF's <spherical_coordinates> block."""
+    world_path = os.path.join(os.environ.get("LOTUSIM_PATH", ""), "assets", "worlds", world_file_name)
+    tree = ET.parse(world_path)
+    sc = tree.getroot().find(".//spherical_coordinates")
+    if sc is None:
+        raise RuntimeError(f"No <spherical_coordinates> block found in {world_file_name}")
+    return float(sc.find("latitude_deg").text), float(sc.find("longitude_deg").text)
+
+
