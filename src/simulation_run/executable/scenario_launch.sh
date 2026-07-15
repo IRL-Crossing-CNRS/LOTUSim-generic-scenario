@@ -46,8 +46,10 @@ ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
 echo -e "${GREEN}[INFO] Detected Ubuntu ${UBUNTU_VERSION} → ROS 2 ${ROS_DISTRO^}${NC}"
 
 # -------------------- Parameters --------------------
-# Set ROS 2 Domain ID used across all processes
-ROS_DOMAIN_ID=67
+# Set ROS 2 Domain ID used across all processes. 0 is the project default and
+# matches deployment/setup_ros_network.sh; override from the environment if a
+# specific run must be isolated on another domain.
+ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 
 # Set ROS_IP to the first local IP address if it is not already defined. 
 # To use a specific IP, set ROS_IP manually before using this file, 
@@ -66,16 +68,22 @@ mkdir -p "$LOG_DIR"
 exec > >(tee -i "$LOG_DIR/main_simulation.log") 2>&1
 
 echo -e "${GREEN}[INFO] Scenario execution logs will be saved to: $LOG_DIR${NC}"
-UNITY_MODE="exe"
+# "exe" (default) launches the pre-built Unity player; "editor" skips that
+# and just prints a reminder — open the Unity project in the Editor yourself
+# (via Unity Hub) and press Play, e.g.:
+#   UNITY_MODE=editor ./scenario_launch.sh --config raj_scenario.json
+UNITY_MODE="${UNITY_MODE:-exe}"
 
 # Extra command-line args passed to the Unity player (only in "exe" mode).
-# Empty = the build's default (Vulkan). The inspection-camera SIGSEGV was an
+# Default = windowed 1280x720 (Unity would otherwise go fullscreen). Graphics
+# API is the build's default (Vulkan). The inspection-camera SIGSEGV was an
 # AsyncGPUReadback/NVIDIA-Vulkan crash fixed in the Unity source (InspectionDetector
 # now reads back synchronously), so no graphics-API override is needed here.
-# Kept as an env-overridable hook for future driver workarounds, e.g.
-#   UNITY_EXTRA_ARGS="-force-glcore" ./scenario_launch.sh ...   (needs OpenGL in the build)
+# Env-overridable, e.g. for fullscreen or driver workarounds:
+#   UNITY_EXTRA_ARGS="-screen-fullscreen 1" ./scenario_launch.sh ...
+#   UNITY_EXTRA_ARGS="-force-glcore" ...   (needs OpenGL in the build)
 #   UNITY_EXTRA_ARGS="-force-gfx-direct" ...                    (single-threaded renderer)
-UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:-}"
+UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -screen-height 720}"
 
 # -------------------- Paths --------------------
 # LOTUSIM_* variables come from ~/.bashrc (set by the install script); the
@@ -204,6 +212,55 @@ echo -e "${YELLOW}Unity Rendering: $USE_UNITY${NC}"
 echo -e "${YELLOW}Aerial World: $AERIAL_DOMAIN${NC}"
 echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
 
+# ============================================================
+# Snapshot the scenario config into $LOG_DIR/config/
+# ============================================================
+# So $LOG_DIR alone (config/ + main_simulation.log + csv/) is enough to
+# understand or relaunch this exact run later, even if the live config in
+# this repo, the world file, or the agent models in Draft_LOTUSim have since
+# changed — point a future --config at the copy saved here instead of the
+# original.
+CONFIG_SNAPSHOT_DIR="$LOG_DIR/config"
+AGENTS_SNAPSHOT_DIR="$CONFIG_SNAPSHOT_DIR/agents"
+mkdir -p "$AGENTS_SNAPSHOT_DIR"
+
+cp "$CONFIG_FILE" "$CONFIG_SNAPSHOT_DIR/$(basename "$CONFIG_FILE")"
+
+if [[ -n "$WORLD_FILE" ]]; then
+    WORLD_FILE_PATH="$LOTUSIM_PATH/assets/worlds/$WORLD_FILE"
+    if [[ -f "$WORLD_FILE_PATH" ]]; then
+        cp "$WORLD_FILE_PATH" "$CONFIG_SNAPSHOT_DIR/$WORLD_FILE"
+    else
+        echo -e "${YELLOW}[WARN] World file not found at $WORLD_FILE_PATH — not saved to $LOG_DIR.${NC}"
+    fi
+fi
+
+# One SDF per distinct (class, sdf_file) pair actually used, mirroring the
+# assets/models/<model_dir>/ layout so agent instances sharing a class don't
+# duplicate the copy. <model_dir> is the class name lowercased — the same
+# convention every folder under assets/models/ already follows (bluerov2_heavy,
+# mine, wamv, ...). Python's own class->folder mapping (each PhysicalEntity
+# subclass's MODEL_NAME) isn't reachable from bash, so this mirrors the
+# convention rather than importing it.
+if [[ "$(jq -r '.agents | type' "$CONFIG_FILE")" == "array" ]]; then
+    AGENT_SDF_PAIRS=$(jq -r '.agents[] | (.class // .type // .id // "") as $c | (.sdf_file // "model.sdf") as $s | select($c | length > 0) | "\($c)|\($s)"' "$CONFIG_FILE")
+else
+    AGENT_SDF_PAIRS=$(jq -r '.agents | to_entries[] | .key as $c | (.value.sdf_file // "model.sdf") as $s | "\($c)|\($s)"' "$CONFIG_FILE")
+fi
+while IFS='|' read -r agent_class sdf_name; do
+    [[ -n "$agent_class" ]] || continue
+    model_dir=$(echo "$agent_class" | tr '[:upper:]' '[:lower:]')
+    sdf_src="$LOTUSIM_MODELS_PATH/$model_dir/$sdf_name"
+    if [[ -f "$sdf_src" ]]; then
+        mkdir -p "$AGENTS_SNAPSHOT_DIR/$model_dir"
+        cp "$sdf_src" "$AGENTS_SNAPSHOT_DIR/$model_dir/$sdf_name"
+    else
+        echo -e "${YELLOW}[WARN] SDF not found at $sdf_src for class '$agent_class' — not saved to $LOG_DIR.${NC}"
+    fi
+done <<< "$(echo "$AGENT_SDF_PAIRS" | sort -u)"
+
+echo -e "${GREEN}[INFO] Saved scenario config + world file + agent SDFs to $CONFIG_SNAPSHOT_DIR${NC}"
+
 # Resolve the Unity executable directory for this world (only needed if Unity is enabled)
 UNITY_EXE_DIR=""
 if [[ "$USE_UNITY" == "true" ]]; then
@@ -228,7 +285,20 @@ XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.ya
 # ============================================================
 # Agent Types
 # ============================================================
-AGENT_TYPES=$(jq -r '.agents | keys[]' "$CONFIG_FILE") || die "Failed to parse agents"
+# ".agents" is either a dict keyed by class name (legacy form) or a list of
+# per-instance objects (mission system, e.g. [{"id","class","missions",...}]).
+# `jq '.agents | keys[]'` only makes sense for the dict form — on an array it
+# returns numeric indices ("0","1",...), and the later `.agents["$agent_type"]`
+# lookup then fails with "Cannot index array with string". Detect the shape
+# once and, for the list form, derive each entry's type the same way
+# AgentsManager._iter_agents (Python) does: class, else type, else id.
+AGENTS_IS_ARRAY="false"
+if [[ "$(jq -r '.agents | type' "$CONFIG_FILE")" == "array" ]]; then
+    AGENTS_IS_ARRAY="true"
+    AGENT_TYPES=$(jq -r '.agents[] | (.class // .type // .id // "") | select(length > 0)' "$CONFIG_FILE") || die "Failed to parse agents"
+else
+    AGENT_TYPES=$(jq -r '.agents | keys[]' "$CONFIG_FILE") || die "Failed to parse agents"
+fi
 if [[ -z "$AGENT_TYPES" ]]; then
     echo -e "${YELLOW}[INFO] No agents to spawn in config.${NC}"
 fi
@@ -237,8 +307,23 @@ fi
 # Cleanup on Exit
 # ============================================================
 declare -a CHILD_PIDS=()
+CLEANUP_DONE=""
 
 cleanup() {
+  # Re-entrancy guard: a second SIGINT/SIGTERM arriving while this function
+  # is already running (e.g. an impatient extra Ctrl+C, or a signal bouncing
+  # back from one of the pkills below) would otherwise re-enter cleanup()
+  # from the top — observed producing several repeated "Cleaning up..."
+  # cycles and, worse, a redundant kill sent to PYTHON_PID while it was
+  # already mid-shutdown (a native rclpy/torch call in flight getting killed
+  # out-of-band is exactly the segfault case the comment below warns about).
+  # Disarm immediately so everything after this line runs at most once.
+  if [[ -n "$CLEANUP_DONE" ]]; then
+    return
+  fi
+  CLEANUP_DONE=1
+  trap '' SIGINT SIGTERM
+
   echo -e "${YELLOW}[INFO] Cleaning up all child processes...${NC}"
 
   # simulation_run/main.py (PYTHON_PID) is in the same foreground process
@@ -322,11 +407,26 @@ fi
 declare -A XDYN_LAUNCHED
 
 for agent_type in $AGENT_TYPES; do
-    # Read xdyn field from JSON
-    xdyn_enabled=$(jq -r ".agents[\"$agent_type\"].xdyn // false" "$CONFIG_FILE")
-    
+    # Read xdyn field from JSON — same dict-vs-list distinction as above. In
+    # the list form, several instances can share one "class" (e.g. 3
+    # bluerovs); take the first matching entry's xdyn value.
+    if [[ "$AGENTS_IS_ARRAY" == "true" ]]; then
+        xdyn_enabled=$(jq -r --arg t "$agent_type" \
+            '[.agents[] | select((.class // .type // .id // "") == $t) | .xdyn][0] // false' \
+            "$CONFIG_FILE")
+    else
+        xdyn_enabled=$(jq -r ".agents[\"$agent_type\"].xdyn // false" "$CONFIG_FILE")
+    fi
+
     if [[ "$xdyn_enabled" != "true" ]]; then
         echo -e "${YELLOW}[SKIP] XDyn disabled for $agent_type${NC}"
+        continue
+    fi
+
+    # List form only: several instances share one class/type, but XDyn is
+    # launched once per type (one process, one port) — skip if already done.
+    if [[ "$AGENTS_IS_ARRAY" == "true" && -n "${XDYN_LAUNCHED[$agent_type]}" ]]; then
+        echo -e "${YELLOW}[SKIP] XDyn for $agent_type already launched${NC}"
         continue
     fi
 
@@ -355,6 +455,7 @@ for agent_type in $AGENT_TYPES; do
             " &
             CHILD_PIDS+=($!)
             echo -e "${GREEN}xdyn-for-cs for $agent_type started with PID ${CHILD_PIDS[-1]}${NC}"
+            XDYN_LAUNCHED[$agent_type]=1
             sleep 0.5
         else
             echo -e "${YELLOW}[SKIP] YML file not found for $agent_type (${yml_file}).${NC}"

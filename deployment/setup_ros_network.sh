@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 # ROS 2 domain — must match the simulation machine (default: 0)
 # ---------------------------------------------------------------------------
-export ROS_DOMAIN_ID=67
+export ROS_DOMAIN_ID=0
 
 # ---------------------------------------------------------------------------
 # Optional: force a specific RMW implementation (uncomment if needed)
