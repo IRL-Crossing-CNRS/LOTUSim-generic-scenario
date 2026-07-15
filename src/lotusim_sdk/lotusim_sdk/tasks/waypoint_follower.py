@@ -125,6 +125,8 @@ class WaypointFollowerTask(TaskAgent):
         # --- controller state (re-armed in on_enter) ---
         self._cmd_pub = None
         self._control_timer = None
+        self._stop_timer = None
+        self._stop_repeats_left = 0
         self._reset_state()
 
     # ------------------------------------------------------------------
@@ -192,15 +194,19 @@ class WaypointFollowerTask(TaskAgent):
     # ------------------------------------------------------------------
     def on_enter(self) -> None:
         self._reset_state()
+        # A previous activation may still be draining its stop burst: cancel it
+        # and reuse its publisher instead of creating a second one.
+        self._cancel_stop_burst()
         if not self.trajectory:
             self.host.get_logger().warning(
                 "WaypointFollowerTask: no waypoints provided, guidance inactive."
             )
             return
         world = self.host.world_name
-        self._cmd_pub = self.host.create_publisher(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", 10
-        )
+        if self._cmd_pub is None:
+            self._cmd_pub = self.host.create_publisher(
+                VesselCmdArray, f"/{world}/vessel_cmd_array", 10
+            )
         # Dedicated callback group so the guidance loop is scheduled on its own
         # and cannot be starved behind this node's other callbacks (1 Hz topic
         # discovery, sensor buffering). Critical when several agents share the
@@ -228,11 +234,34 @@ class WaypointFollowerTask(TaskAgent):
             self._control_timer.cancel()
             self.host.destroy_timer(self._control_timer)
             self._control_timer = None
-        # Send a final full-stop so the host stops integrating motion.
+        # Send a final full-stop so the host stops integrating motion — and
+        # REPEAT it before tearing the publisher down. A single stop message
+        # can be lost when several agents flood the shared vessel_cmd_array
+        # topic (observed: 2 of 3 agents kept drifting at cruise speed after
+        # finishing, because the host KinematicInterface integrates the LAST
+        # received command forever). A short 1 Hz burst makes the stop robust.
         self._publish_cmd(0.0, 0.0)
-        if self._cmd_pub is not None:
-            self.host.destroy_publisher(self._cmd_pub)
-            self._cmd_pub = None
+        if self._cmd_pub is not None and self._stop_timer is None:
+            self._stop_repeats_left = 5
+            self._stop_timer = self.host.create_timer(
+                1.0, self._stop_burst_step, callback_group=self._control_cb_group
+            )
+
+    def _stop_burst_step(self) -> None:
+        self._publish_cmd(0.0, 0.0)
+        self._stop_repeats_left -= 1
+        if self._stop_repeats_left <= 0:
+            self._cancel_stop_burst()
+            if self._cmd_pub is not None:
+                self.host.destroy_publisher(self._cmd_pub)
+                self._cmd_pub = None
+
+    def _cancel_stop_burst(self) -> None:
+        if self._stop_timer is not None:
+            self._stop_timer.cancel()
+            self.host.destroy_timer(self._stop_timer)
+            self._stop_timer = None
+        self._stop_repeats_left = 0
 
     # ------------------------------------------------------------------
     # Helpers
