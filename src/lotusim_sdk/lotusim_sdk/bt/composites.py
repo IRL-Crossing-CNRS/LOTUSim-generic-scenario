@@ -19,6 +19,7 @@ class Composite(BehaviorNode):
             child.halt()
 
     def reset(self) -> None:
+        self.status = Status.RUNNING
         for child in self.children:
             child.reset()
 

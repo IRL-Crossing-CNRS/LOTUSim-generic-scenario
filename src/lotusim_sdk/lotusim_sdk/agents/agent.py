@@ -5,6 +5,7 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 
 from lotusim_sdk.bt.blackboard import Blackboard
 from lotusim_sdk.bt.builder import build_tree, load_task_registry
+from lotusim_sdk.bt.status import Status
 
 DEFAULT_TICK_RATE_HZ = 1.0
 
@@ -89,7 +90,18 @@ class Agent(Node, ABC):
                 return
             self._missions_started = True
         for root in self._missions:
-            root.tick()
+            # A root that reached SUCCESS/FAILURE is done: ticking it again
+            # would re-enter its tasks (on_enter -> full state reset), which for
+            # a non-loop waypoint_follower means driving back to waypoint 0
+            # forever. Completed roots stay latched until reset() re-arms them.
+            if root.status != Status.RUNNING:
+                continue
+            status = root.tick()
+            if status != Status.RUNNING:
+                self.get_logger().info(
+                    f"Mission '{root.id or type(root).__name__}' finished with "
+                    f"{status.name}; it will not be ticked again."
+                )
 
     def destroy_node(self) -> None:
         if self._mission_timer is not None:
