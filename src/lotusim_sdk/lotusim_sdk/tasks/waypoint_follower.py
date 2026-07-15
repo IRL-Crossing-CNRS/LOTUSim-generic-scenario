@@ -304,6 +304,19 @@ class WaypointFollowerTask(TaskAgent):
         ]
         return True
 
+    def _effective_goal_vector(
+        self, x: float, y: float, goal_x: float, goal_y: float,
+        dx_true: float, dy_true: float,
+    ) -> tuple:
+        """Hook: the (dx, dy) vector used to compute the STEERING bearing for
+        this control step. Base implementation is a no-op (returns the true
+        goal vector unchanged, so base behaviour is identical to before this
+        hook existed). Subclasses (e.g. obstacle avoidance) may blend in a
+        repulsion term here without touching arrival/speed-ramp logic, which
+        always uses ``dx_true``/``dy_true`` directly regardless of this hook.
+        """
+        return dx_true, dy_true
+
     @staticmethod
     def _yaw_from_pose(pose) -> float:
         q = pose.orientation
@@ -353,13 +366,20 @@ class WaypointFollowerTask(TaskAgent):
             self._wp_index = 0
         goal_x, goal_y = self._enu_waypoints[self._wp_index]
 
-        dx = goal_x - x
-        dy = goal_y - y
+        dx_true = goal_x - x
+        dy_true = goal_y - y
+        distance_to_goal = math.hypot(dx_true, dy_true)
+
+        # Steering bearing only: subclasses (e.g. obstacle avoidance) may
+        # bend this away from the true goal direction. distance_to_goal above
+        # stays computed from the TRUE goal vector always, so arrival
+        # detection/speed-ramp and the CSV recorder's cross-track/arrival
+        # columns are unaffected by any avoidance behaviour.
+        dx, dy = self._effective_goal_vector(x, y, goal_x, goal_y, dx_true, dy_true)
         cos_y, sin_y = math.cos(yaw), math.sin(yaw)
         local_x = cos_y * dx + sin_y * dy
         local_y = -sin_y * dx + cos_y * dy
         angle_to_goal = _normalize_angle(math.atan2(local_y, local_x))
-        distance_to_goal = math.hypot(local_x, local_y)
 
         is_last_waypoint = (
             self._wp_index == len(self._enu_waypoints) - 1
@@ -368,7 +388,7 @@ class WaypointFollowerTask(TaskAgent):
         self._update_linear_velocity(
             distance_to_goal, angle_to_goal, is_last_waypoint, dt
         )
-        self._update_angular_velocity(angle_to_goal, goal_x, goal_y, x, y, yaw, dt)
+        self._update_angular_velocity(angle_to_goal, x, y, yaw, dt)
 
         self._publish_cmd(self._u, self._w)
 
@@ -458,14 +478,19 @@ class WaypointFollowerTask(TaskAgent):
             self._u = max(self._v_min, min(self._u, self._v_max))
 
     def _update_angular_velocity(
-        self, angle_to_goal, goal_x, goal_y, x, y, yaw, dt
+        self, angle_to_goal, x, y, yaw, dt
     ) -> None:
         kp, ki, kd = self._angular_pid
         max_w = self._max_w
 
         if self._guidance_mode == "bang_bang":
-            desired_yaw = math.atan2(goal_y - y, goal_x - x)
-            heading_error = _normalize_angle(desired_yaw - yaw)
+            # angle_to_goal is already (desired_yaw - yaw) normalized, computed
+            # from the steering bearing in _control_step (identical to
+            # atan2(goal_y-y, goal_x-x) - yaw when no avoidance hook is active,
+            # but also honours _effective_goal_vector's blended bearing when
+            # one is — recomputing from the raw goal_x/goal_y here would
+            # silently discard any avoidance steering).
+            heading_error = _normalize_angle(angle_to_goal)
             d_error = (heading_error - self._prev_heading_error) / dt
             self._prev_heading_error = heading_error
 

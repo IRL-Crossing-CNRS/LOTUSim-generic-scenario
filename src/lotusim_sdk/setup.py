@@ -37,6 +37,7 @@ setup(
             "fault_inspection = lotusim_sdk.tasks.fault_inspection:FaultInspectionTask",
             "check_battery_state = lotusim_sdk.tasks.check_battery_state:CheckBatteryStateTask",
             "waypoint_follower = lotusim_sdk.tasks.waypoint_follower:WaypointFollowerTask",
+            "waypoint_follower_avoidance = lotusim_sdk.tasks.waypoint_follower_avoidance:WaypointFollowerAvoidanceTask",
         ],
         "lotusim.agents": [
             "bluerov2_heavy = lotusim_sdk.agents.entity.physical.bluerov2_heavy:Bluerov2Heavy",
