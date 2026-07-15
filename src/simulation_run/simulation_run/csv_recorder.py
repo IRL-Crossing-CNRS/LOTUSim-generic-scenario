@@ -780,7 +780,16 @@ class CsvRecorder(Node):
         if contact:
             stats["contact_samples"] += 1
             stats["distinct_obstacles"].add(nearest_name)
-        return [f"{sonar_range:.1f}", contact, f"{nearest_dist:.3f}"]
+        # sonar_distance_m only reports a value while there's an actual
+        # contact — a real sonar has no reading at all for something outside
+        # its range, so leaking the ground-truth distance whenever an
+        # obstacle merely exists (regardless of range) would contradict
+        # sonar_contact and the "no more than a real sensor would know" rule
+        # applied everywhere else here. min_sonar_distance_m (summary.csv)
+        # still tracks the true closest approach unconditionally above —
+        # that's a post-hoc difficulty indicator, not a live sensor reading.
+        dist_str = f"{nearest_dist:.3f}" if contact else ""
+        return [f"{sonar_range:.1f}", contact, dist_str]
 
     def _sample(self) -> None:
         if not self._poses:
