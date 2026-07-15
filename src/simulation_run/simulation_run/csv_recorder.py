@@ -89,10 +89,13 @@ config (not from what happens to arrive first at runtime):
 
 - Base columns (every agent): ``agent_name, sim_time_s, pos_x, pos_y,
   pos_z, lat, lon, orient_x, orient_y, orient_z, orient_w,
-  current_vx_mps, current_vy_mps`` — the last two are the configured
-  ``ocean_current`` (see ``simulation_run.ocean_current``), repeated on every
-  row so a single agent's file is self-contained for "what current was this
-  agent under."
+  current_vx_mps, current_vy_mps, current_vz_mps`` — the last three are the
+  configured ``ocean_current`` (see ``simulation_run.ocean_current``),
+  repeated on every row so a single agent's file is self-contained for
+  "what current was this agent under." ``current_vz_mps`` is always ``0.0``
+  today — the current model is 2D (horizontal) only, see §5.4 of
+  ``WRITE_SCENARIO.md`` — exposed now so a vertical-current extension
+  wouldn't need a new column later.
 - Battery columns (only agents spawned with a battery sensor, e.g.
   ``sdf_file: "model-battery.sdf"``): ``battery_voltage, battery_charge_ah,
   battery_capacity_ah, battery_percentage, battery_status``.
@@ -162,7 +165,7 @@ _BASE_HEADER = [
     "pos_x", "pos_y", "pos_z",
     "lat", "lon",
     "orient_x", "orient_y", "orient_z", "orient_w",
-    "current_vx_mps", "current_vy_mps",
+    "current_vx_mps", "current_vy_mps", "current_vz_mps",
 ]
 # Only for agents spawned with a battery sensor (sdf_file containing
 # "battery", e.g. "model-battery.sdf") — a mine on the plain model.sdf has no
@@ -460,6 +463,11 @@ class CsvRecorder(Node):
         self._ref_lon = ref_lon
         self._ref_alt = ref_alt
         self._current_vx, self._current_vy = ocean_current
+        # The current model is 2D (horizontal) only — see KinematicInterface
+        # — so there is no real vz to read yet. Reported as a constant 0.0
+        # rather than omitted, so the column exists now and a future
+        # vertical-current extension doesn't need a new CSV column.
+        self._current_vz = 0.0
         # agent -> [ {id, task, path, tolerance, sonar_range_m}, ... ] ordered mission list
         self._mission_specs = mission_specs or {}
         # agent names whose scenario "class" is "mine" — the fake sonar's targets.
@@ -820,6 +828,7 @@ class CsvRecorder(Node):
                 f"{pose.orientation.w:.6f}",
                 self._current_vx,
                 self._current_vy,
+                self._current_vz,
             ]
 
             stats = self._stats_for(agent)
@@ -880,7 +889,7 @@ class CsvRecorder(Node):
             "battery_start_pct", "battery_end_pct",
             "run_start_sim_time_s", "run_end_sim_time_s", "run_duration_s",
             "world_ref_lat", "world_ref_lon", "world_ref_alt",
-            "ocean_current_vx_mps", "ocean_current_vy_mps",
+            "ocean_current_vx_mps", "ocean_current_vy_mps", "ocean_current_vz_mps",
         ]
         try:
             with open(path, "w", newline="") as f:
@@ -928,7 +937,7 @@ class CsvRecorder(Node):
                         f"{end_t:.3f}" if end_t is not None else "",
                         f"{duration:.3f}" if duration != "" else "",
                         f"{self._ref_lat:.8f}", f"{self._ref_lon:.8f}", f"{self._ref_alt:.3f}",
-                        self._current_vx, self._current_vy,
+                        self._current_vx, self._current_vy, self._current_vz,
                     ])
             self.get_logger().info(f"Wrote run summary -> {path}")
         except Exception:

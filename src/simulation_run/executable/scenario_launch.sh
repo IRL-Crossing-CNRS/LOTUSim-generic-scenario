@@ -216,10 +216,9 @@ echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
 # Snapshot the scenario config into $LOG_DIR/config/
 # ============================================================
 # So $LOG_DIR alone (config/ + main_simulation.log + csv/) is enough to
-# understand or relaunch this exact run later, even if the live config in
-# this repo, the world file, or the agent models in Draft_LOTUSim have since
-# changed — point a future --config at the copy saved here instead of the
-# original.
+# understand or relaunch this exact run later, even if the live config, the
+# world file, or the agent models have since changed — point a future
+# --config at the copy saved here instead of the original.
 CONFIG_SNAPSHOT_DIR="$LOG_DIR/config"
 AGENTS_SNAPSHOT_DIR="$CONFIG_SNAPSHOT_DIR/agents"
 mkdir -p "$AGENTS_SNAPSHOT_DIR"
