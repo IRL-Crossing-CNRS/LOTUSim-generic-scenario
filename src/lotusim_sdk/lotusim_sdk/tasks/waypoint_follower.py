@@ -62,9 +62,14 @@ class WaypointFollowerTask(TaskAgent):
           Gazebo uses for the poses on ``/<world>/poses``.
 
     Params (mission JSON ``"params"``):
-        waypoints          list of ``{"lat", "lon"}`` dicts (inline). If absent,
-                           falls back to ``params["waypoints_file"]`` (patrol
-                           file) and finally to ``host.trajectory``.
+        waypoints          list of waypoint dicts (inline), each either
+                           ``{"lat", "lon"}`` (geographic, projected to ENU
+                           via the world origin) or ``{"x", "y"}`` (already
+                           in the same local ENU frame as ``spawn``, used
+                           as-is). The two forms can be mixed within one
+                           list. If absent, falls back to
+                           ``params["waypoints_file"]`` (patrol file) and
+                           finally to ``host.trajectory``.
         waypoints_file     patrol file name resolved via ``ais_pkg``'s
                            ``PatrolFileProvider`` (same as ``print_waypoints``).
         loop               whether to loop over the trajectory (default: the
@@ -267,20 +272,31 @@ class WaypointFollowerTask(TaskAgent):
     # Helpers
     # ------------------------------------------------------------------
     def _project_waypoints(self) -> bool:
-        """Convert lat/lon waypoints to world ENU coordinates.
+        """Resolve waypoints to world ENU coordinates.
 
-        Uses the world geographic origin stored on the host as ``_world_origin``
-        (set by run_agent from --origin/config). This is the same projection
-        Gazebo uses for its ENU frame, so it is consistent with the poses
-        published on /<world>/poses.
+        Each waypoint is either ``{"x", "y"}`` (already local ENU, used
+        as-is) or ``{"lat", "lon"}`` (geographic, projected using the world
+        geographic origin stored on the host as ``_world_origin``, set by
+        run_agent from --origin/config). This is the same projection Gazebo
+        uses for its ENU frame, so it is consistent with the poses published
+        on /<world>/poses. The origin is only required if at least one
+        waypoint uses the lat/lon form.
         """
-        world_origin = getattr(self.host, "_world_origin", None)
-        if world_origin is None:
-            return False
-        lat0, lon0 = world_origin
-        cos_lat0 = math.cos(math.radians(lat0))
+        needs_origin = any(
+            "x" not in wp or "y" not in wp for wp in self.trajectory
+        )
+        lat0 = lon0 = cos_lat0 = None
+        if needs_origin:
+            world_origin = getattr(self.host, "_world_origin", None)
+            if world_origin is None:
+                return False
+            lat0, lon0 = world_origin
+            cos_lat0 = math.cos(math.radians(lat0))
+
         self._enu_waypoints = [
-            (
+            (float(wp["x"]), float(wp["y"]))
+            if "x" in wp and "y" in wp
+            else (
                 math.radians(float(wp["lon"]) - lon0) * cos_lat0 * _EARTH_RADIUS_M,
                 math.radians(float(wp["lat"]) - lat0) * _EARTH_RADIUS_M,
             )
