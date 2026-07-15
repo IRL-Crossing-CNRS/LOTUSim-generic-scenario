@@ -225,9 +225,36 @@ class Entity(Agent):
         # shared table instead of each agent scanning the full vessel list itself.
         _ensure_shared_pose_subscription(self, world_name)
 
+    # ------------------------------------------------------------------
+    # agent_name is a property: renaming an entity (launcher "id"-based names,
+    # host deconfliction in confirm_spawn) must also move its entry in the
+    # per-process entity registry, otherwise the shared discovery timer keeps
+    # looking up topics under the OLD name and this agent's sensor topics are
+    # never subscribed. The setter makes every call site
+    # (``agent.agent_name = ...``) go through the registry rename transparently.
+    # ------------------------------------------------------------------
+    @property
+    def agent_name(self) -> str:
+        return self._agent_name
+
+    @agent_name.setter
+    def agent_name(self, new_name: str) -> None:
+        old_name = getattr(self, "_agent_name", None)
+        self._agent_name = new_name
+        if old_name and old_name != new_name and getattr(self, "world_name", None):
+            _rename_entity(self.world_name, old_name, new_name, self)
+
     @property
     def current_pose(self):
         return _shared_pose_tables.get(self.world_name, {}).get(self.agent_name)
+
+    def poses_of_others(self) -> dict:
+        """Live pose of every other vessel in this entity's world, keyed by
+        name (same ground-truth table current_pose reads, e.g. for a task
+        that needs to check proximity to another entity — a fake sonar/
+        obstacle check, for instance)."""
+        table = _shared_pose_tables.get(self.world_name, {})
+        return {name: pose for name, pose in table.items() if name != self.agent_name}
 
     @property
     def last_pose_update(self) -> float:
@@ -272,7 +299,7 @@ class Entity(Agent):
                 f"(name already taken); adopting it for all topics."
             )
         if assigned_name and assigned_name != self.agent_name:
-            _rename_entity(self.world_name, self.agent_name, assigned_name, self)
+            # The agent_name setter moves this entity's registry entry.
             self.agent_name = assigned_name
         self._spawn_confirmed = True
 
