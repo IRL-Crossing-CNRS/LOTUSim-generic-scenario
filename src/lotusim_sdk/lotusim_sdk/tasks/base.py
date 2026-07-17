@@ -23,6 +23,12 @@ class TaskAgent(BehaviorNode, ABC):
     the leaf becomes RUNNING / leaves RUNNING — not once per spawn.
     """
 
+    #: Set True on a task that is designed to stay RUNNING forever. Excludes
+    #: it from scenario-wide "all missions complete" tracking
+    #: (:class:`~simulation_run.mission_watcher.MissionWatcher`), which would
+    #: otherwise never fire once such a task is part of the scenario.
+    PERPETUAL: bool = False
+
     def __init__(
         self,
         host: "Agent",
