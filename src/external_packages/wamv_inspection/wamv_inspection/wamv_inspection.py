@@ -9,7 +9,7 @@ http://www.eclipse.org/legal/epl-2.0
 SPDX-License-Identifier: EPL-2.0
 """
 
-from wamv import Wamv
+from lotusim_sdk.agents.entity.physical.wamv import Wamv
 
 
 class WamvInspection(Wamv):

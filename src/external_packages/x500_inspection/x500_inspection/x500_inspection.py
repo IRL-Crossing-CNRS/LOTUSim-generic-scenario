@@ -9,7 +9,7 @@ http://www.eclipse.org/legal/epl-2.0
 SPDX-License-Identifier: EPL-2.0
 """
 
-from x500 import X500
+from lotusim_sdk.agents.entity.physical.x500 import X500
 
 
 class X500Inspection(X500):
