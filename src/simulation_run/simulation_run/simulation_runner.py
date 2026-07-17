@@ -129,6 +129,8 @@ def run_simulation(
     debug_mode: bool = False,
     gui=False,
     config_dir: Optional[str] = None,
+    record_csv: Any = False,
+    scenario: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """
     Orchestrates the full simulation lifecycle.
@@ -150,6 +152,11 @@ def run_simulation(
         gui: Enable Gazebo GUI.
         config_dir: Directory containing the scenario JSON (forwarded to
             ``ros_manager.initialize_ros_components``).
+        record_csv: ``record_csv`` value from the scenario JSON (bool or dict);
+            see ``simulation_run.csv_recorder``.
+        scenario: The whole parsed scenario JSON dict (top-level ``"agents"``
+            list included), forwarded to the CSV recorder so it can rebuild
+            each agent's intended path and track mission/waypoint progress.
     """
 
     global process
@@ -188,6 +195,35 @@ def run_simulation(
     # Initialize ROS agents and bridges using the full agents dictionary
     world_name = utils.get_world_name(world_file)
 
+    # Optional CSV recording ("record_csv" in the scenario JSON): a pure
+    # observer node — not an agent — recording every agent's pose + battery
+    # to one CSV per agent.
+    csv_recorder = None
+    if record_csv:
+        from simulation_run.csv_recorder import recorder_from_config
+
+        try:
+            csv_recorder = recorder_from_config(record_csv, world_name, scenario)
+            if csv_recorder is not None:
+                executor.add_node(csv_recorder)
+        except Exception:
+            logger.exception("Could not start the CSV recorder")
+
+    # Optional fake ocean current ("ocean_current" in the scenario JSON): a
+    # single latched publish consumed by the host's KinematicInterface, see
+    # simulation_run.ocean_current for the full explanation.
+    ocean_current_pub = None
+    ocean_current_cfg = (scenario or {}).get("ocean_current")
+    if ocean_current_cfg:
+        from simulation_run.ocean_current import current_from_config
+
+        try:
+            ocean_current_pub = current_from_config(ocean_current_cfg, world_name)
+            if ocean_current_pub is not None:
+                executor.add_node(ocean_current_pub)
+        except Exception:
+            logger.exception("Could not start the ocean current publisher")
+
     agents_manager = ros_manager.initialize_ros_components(
         executor, agents, world_name, world_file, aerial_domain, config_dir
     )
@@ -197,11 +233,38 @@ def run_simulation(
         stop_simulation(executor)
         return
 
+    # Scenario-wide "all missions complete" log: each agent only logs its own
+    # mission completion (see lotusim_sdk.agents.agent.Agent._tick_missions),
+    # this watches across all of them via the shared AgentsManager registry.
+    mission_watcher = None
+    try:
+        from simulation_run.mission_watcher import MissionWatcher
+
+        mission_watcher = MissionWatcher(agents_manager, world_name)
+        executor.add_node(mission_watcher)
+    except Exception:
+        logger.exception("Could not start the mission watcher")
+
     try:
         # Run main execution loop
         return ros_manager.run_executor(executor, max_simulation_time)
     finally:
         agents_manager.delete_agents()
+        if csv_recorder is not None:
+            try:
+                csv_recorder.destroy_node()  # closes the CSV files
+            except Exception:
+                pass
+        if ocean_current_pub is not None:
+            try:
+                ocean_current_pub.destroy_node()
+            except Exception:
+                pass
+        if mission_watcher is not None:
+            try:
+                mission_watcher.destroy_node()
+            except Exception:
+                pass
         stop_simulation(executor)
 
 

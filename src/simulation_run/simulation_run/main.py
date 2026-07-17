@@ -106,6 +106,8 @@ def main():
         world_file, agents, aerial_domain=aerial_enabled,
         debug_mode=args.debug, gui=args.gui,
         config_dir=os.path.dirname(config_path),
+        record_csv=config.get("record_csv", False),
+        scenario=config,
     )
 
 
