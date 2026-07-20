@@ -76,13 +76,16 @@ UNITY_MODE="${UNITY_MODE:-exe}"
 
 # Extra command-line args passed to the Unity player (only in "exe" mode).
 # Default = windowed 1280x720 (Unity would otherwise go fullscreen). Graphics
-# API is the build's default (Vulkan). The inspection-camera SIGSEGV was an
-# AsyncGPUReadback/NVIDIA-Vulkan crash fixed in the Unity source (InspectionDetector
-# now reads back synchronously), so no graphics-API override is needed here.
+# API is the build's default (Vulkan). The inspection-camera SIGSEGV was a render-
+# thread ("UnityGfxDeviceW") crash caused by InspectionDetector capturing/reading the
+# camera mid-frame; it is fixed in the Unity source (capture now runs at end-of-frame
+# via WaitForEndOfFrame), so no graphics-API override is needed with an up-to-date build.
 # Env-overridable, e.g. for fullscreen or driver workarounds:
 #   UNITY_EXTRA_ARGS="-screen-fullscreen 1" ./scenario_launch.sh ...
 #   UNITY_EXTRA_ARGS="-force-glcore" ...   (needs OpenGL in the build)
-#   UNITY_EXTRA_ARGS="-force-gfx-direct" ...                    (single-threaded renderer)
+#   UNITY_EXTRA_ARGS="-force-gfx-direct" ...   (single-threaded renderer; use as a
+#       stop-gap on an OLD build that predates the end-of-frame fix — it removes the
+#       separate render thread the crash happened on)
 UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -screen-height 720}"
 
 # -------------------- Paths --------------------

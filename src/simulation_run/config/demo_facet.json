@@ -121,23 +121,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt1",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine1.json"
-          }
+          "id": "patrol_and_inspect_bluerov_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -156,23 +171,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt7",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine7.json"
-          }
+          "id": "patrol_and_inspect_bluerov_wt7",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt7",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine7.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt7",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -191,23 +221,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt8",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine8.json"
-          }
+          "id": "patrol_and_inspect_bluerov_wt8",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt8",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine8.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt8",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -226,23 +271,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt10",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": false,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine10.json"
-          }
+          "id": "patrol_and_inspect_bluerov_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -261,23 +321,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt14",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine14.json"
-          }
+          "id": "patrol_and_inspect_bluerov_wt14",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt14",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine14.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt14",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -296,23 +371,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt1",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine1.json"
-          }
+          "id": "patrol_and_inspect_wamv_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_wamv_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -331,23 +421,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt7",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine7.json"
-          }
+          "id": "patrol_and_inspect_wamv_wt7",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt7",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine7.json"
+              }
+            },
+            {
+              "id": "inspect_wamv_wt7",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -366,23 +471,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt8",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine8.json"
-          }
+          "id": "patrol_and_inspect_wamv_wt8",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt8",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine8.json"
+              }
+            },
+            {
+              "id": "inspect_wamv_wt8",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -401,23 +521,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt10",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": false,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine10.json"
-          }
+          "id": "patrol_and_inspect_wamv_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_wamv_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -436,23 +571,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt14",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine14.json"
-          }
+          "id": "patrol_and_inspect_wamv_wt14",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt14",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine14.json"
+              }
+            },
+            {
+              "id": "inspect_wamv_wt14",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -471,23 +621,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt1",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine1.json"
-          }
+          "id": "patrol_and_inspect_x500_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -506,23 +671,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt7",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine7.json"
-          }
+          "id": "patrol_and_inspect_x500_wt7",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt7",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine7.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt7",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -541,23 +721,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt8",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine8.json"
-          }
+          "id": "patrol_and_inspect_x500_wt8",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt8",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine8.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt8",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -576,23 +771,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt10",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": false,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine10.json"
-          }
+          "id": "patrol_and_inspect_x500_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     },
@@ -611,23 +821,38 @@
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_wt14",
-          "type": "action",
-          "task": "waypoint_follower",
-          "params": {
-            "loop": true,
-            "guidance_mode": "bang_bang",
-            "control_rate_hz": 20.0,
-            "linear_velocities_limits": [
-              0.0,
-              1.0
-            ],
-            "linear_accel_limit": 0.2,
-            "angular_velocities_limits": 0.5,
-            "angular_accel_limit": 0.1,
-            "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine14.json"
-          }
+          "id": "patrol_and_inspect_x500_wt14",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt14",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 20.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "waypoint_windturbine14.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt14",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
         }
       ]
     }
