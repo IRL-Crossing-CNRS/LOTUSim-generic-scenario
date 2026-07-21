@@ -132,7 +132,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -182,7 +182,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -232,7 +232,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -282,7 +282,7 @@
               "params": {
                 "loop": false,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -332,7 +332,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -382,7 +382,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -432,7 +432,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -482,7 +482,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -532,7 +532,7 @@
               "params": {
                 "loop": false,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -582,7 +582,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -632,7 +632,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -682,7 +682,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -732,7 +732,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -782,7 +782,7 @@
               "params": {
                 "loop": false,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -832,7 +832,7 @@
               "params": {
                 "loop": true,
                 "guidance_mode": "bang_bang",
-                "control_rate_hz": 20.0,
+                "control_rate_hz": 10.0,
                 "linear_velocities_limits": [
                   0.0,
                   1.0
@@ -858,5 +858,8 @@
     }
   ],
   "aerial_domain": false,
-  "renderer_unity": true
+  "renderer_unity": true,
+  "record_csv": {
+    "rate": 10.0
+  }
 }
