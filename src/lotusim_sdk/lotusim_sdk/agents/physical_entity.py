@@ -44,7 +44,16 @@ class PhysicalEntity(Entity):
             for domain in self.domains:
                 d = domain.lower()
                 block += f"\n    <{d}>"
-                if domain == "Aerial":
+                if kinematic:
+                    # Remote-driven kinematic motion: the host KinematicInterface
+                    # integrates the velocity set-point published by the agent's
+                    # WaypointFollowerTask using Gazebo's own time step. Takes
+                    # priority over the Aerial/XDyn paths below so an aerial agent
+                    # driven by WaypointFollowerTask uses the kinematic path too.
+                    block += """
+                    <connection_type>Kinematic</connection_type>
+                """
+                elif domain == "Aerial":
                     block += """
                     <connection_type>ROS2</connection_type>
                     <namespace>aerialWorld</namespace>
@@ -59,13 +68,6 @@ class PhysicalEntity(Entity):
                     <uri>ws://{self.xdyn_ip}:{self.xdyn_port}</uri>
                     <thrusters>{thruster_xml}
                     </thrusters>
-                """
-                elif kinematic:
-                    # Remote-driven kinematic motion: the host KinematicInterface
-                    # integrates the velocity set-point published by the agent's
-                    # WaypointFollowerTask using Gazebo's own time step.
-                    block += """
-                    <connection_type>Kinematic</connection_type>
                 """
                 block += f"\n    </{d}>"
             block += f"\n    <init_state>{self.domains[0]}</init_state>"

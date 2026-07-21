@@ -19,12 +19,8 @@ class X500Inspection(X500):
     ``set_missions()`` after instantiation and the BT tick timer drives the tree.
     Corrosion/crack detection is the SDK ``fault_inspection`` task, referenced
     from the mission JSON (see doc/MISSIONS.md).
-
-    Always bypasses aerialWorld physics (``domains=[]``) — waypoint following,
-    once migrated to a BT task, drives the Gazebo model directly.
     """
 
     def __init__(self, sdf_string: str, world_name: str, xdyn_enabled: bool, **kwargs):
         super().__init__(sdf_string, world_name, xdyn_enabled)
         self.renderer_type_name = "x500_inspection"
-        self.domains = []  # bypass aerialWorld physics

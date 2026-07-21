@@ -86,7 +86,18 @@ class Agent(Node, ABC):
         if not self._missions:
             return
         if not self._missions_started:
-            if not self.missions_ready():
+            try:
+                ready = self.missions_ready()
+            except Exception:
+                # A timer callback under MultiThreadedExecutor silently swallows
+                # unhandled exceptions, which would look exactly like the gate
+                # never opening. Surface it instead of hanging with no trace.
+                self.get_logger().error(
+                    "missions_ready() raised — mission will never start:",
+                    exc_info=True,
+                )
+                return
+            if not ready:
                 return
             self._missions_started = True
         for root in self._missions:
@@ -96,7 +107,15 @@ class Agent(Node, ABC):
             # forever. Completed roots stay latched until reset() re-arms them.
             if root.status != Status.RUNNING:
                 continue
-            status = root.tick()
+            try:
+                status = root.tick()
+            except Exception:
+                # See note above — surface tick() exceptions too, same reason.
+                self.get_logger().error(
+                    f"Mission '{root.id or type(root).__name__}' tick() raised:",
+                    exc_info=True,
+                )
+                continue
             if status != Status.RUNNING:
                 self.get_logger().info(
                     f"Mission '{root.id or type(root).__name__}' finished with "
