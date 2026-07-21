@@ -63,6 +63,111 @@ def _get_shared_mas_client(node, world_name: str) -> ActionClient:
         return client
 
 
+# Process-wide MASCmdArray ("/{world}/mas_cmd_array") client, one per world —
+# mirrors the single-cmd client above. The host entity_manager accepts one goal
+# carrying N CREATE_CMDs and returns all assigned names in one Result, so batching
+# a whole spawn wave into a single goal yields one acceptance and one result for the
+# wave instead of N. Callers fall back to per-agent single sends when this server is
+# absent.
+_shared_mas_array_clients: dict[str, ActionClient] = {}
+
+
+def _get_shared_mas_array_client(node, world_name: str) -> ActionClient:
+    """Return the process-wide MASCmdArray ActionClient for ``world_name``, creating
+    it (bound to ``node``) on first use."""
+    with _shared_mas_clients_lock:
+        client = _shared_mas_array_clients.get(world_name)
+        if client is None:
+            client = ActionClient(
+                node, lotusim_msgs.action.MASCmdArray, f"/{world_name}/mas_cmd_array",
+                callback_group=_shared_callback_group,
+            )
+            _shared_mas_array_clients[world_name] = client
+        return client
+
+
+def send_batch_mas_cmd(entries, server_timeout_sec: float = 5.0) -> bool:
+    """Spawn a whole wave of agents with ONE MASCmdArray goal per world.
+
+    ``entries`` is a list of ``(entity, value)`` pairs, where ``value`` is an ENU
+    pose ``[x, y, z, roll, pitch, yaw]`` or a geographic ``[lat, lon]`` /
+    ``[lat, lon, alt]``. All the CREATE_CMDs for a world are packed into a single
+    goal; the host returns every assigned name in one Result (order preserved), so
+    each entity adopts its host-assigned name and flips ``_spawn_confirmed`` exactly
+    as the single-cmd path does — but with ONE acceptance and ONE result instead of
+    N. This removes the per-send acceptance-drain entirely.
+
+    Returns ``True`` if the batch goal(s) were dispatched. Returns ``False`` without
+    sending anything if any world's ``mas_cmd_array`` server is unavailable, so the
+    caller can fall back to per-agent single sends.
+    """
+    entries = [(e, v) for e, v in entries if e is not None]
+    if not entries:
+        return True
+
+    # Group by world; each world has its own array server and client.
+    by_world: dict[str, list] = {}
+    for entity, value in entries:
+        by_world.setdefault(entity.world_name, []).append((entity, value))
+
+    # Verify EVERY world's server is up before sending any goal, so a missing
+    # server never leaves half the wave batched and the other half to the caller's
+    # fallback (which would re-CREATE the already-sent half → duplicates).
+    clients: dict[str, ActionClient] = {}
+    for world, group in by_world.items():
+        owner = group[0][0]
+        client = _get_shared_mas_array_client(owner, world)
+        if not client.wait_for_server(timeout_sec=server_timeout_sec):
+            owner.get_logger().warning(
+                f"MASCmdArray server for world '{world}' unavailable; "
+                "falling back to per-agent spawn."
+            )
+            return False
+        clients[world] = client
+
+    for world, group in by_world.items():
+        group_entities = [e for e, _ in group]
+        goal_msg = lotusim_msgs.action.MASCmdArray.Goal()
+        goal_msg.cmd = [e._build_create_cmd(v) for e, v in group]
+
+        def _on_goal(gf, entities=group_entities):
+            try:
+                goal_handle = gf.result()
+            except Exception:
+                entities[0].get_logger().error(
+                    "batch spawn: goal future.result() raised:", exc_info=True
+                )
+                return
+            if goal_handle is None or not goal_handle.accepted:
+                for e in entities:
+                    e.get_logger().error(f"{e.agent_name}: batch spawn REJECTED by host.")
+                return
+            for e in entities:
+                e._spawn_goal_accepted = True
+
+            def _on_result(rf, entities=entities):
+                try:
+                    res = rf.result().result
+                except Exception:
+                    entities[0].get_logger().error(
+                        "batch spawn: result future.result() raised:", exc_info=True
+                    )
+                    return
+                names = list(res.name)
+                for i, e in enumerate(entities):
+                    assigned = names[i] if i < len(names) else ""
+                    if not assigned or assigned == "error_cmd":
+                        e.get_logger().error(f"{e.agent_name}: host failed to spawn entity.")
+                        continue
+                    e.confirm_spawn(assigned)
+
+            goal_handle.get_result_async().add_done_callback(_on_result)
+
+        clients[world].send_goal_async(goal_msg).add_done_callback(_on_goal)
+
+    return True
+
+
 # Module-level registry of the "/{world}/poses" subscription, one per world,
 # shared by every agent in the process — mirroring the MASCmd client above.
 #
@@ -361,6 +466,51 @@ class Entity(Agent):
             "or [x, y, z, roll, pitch, yaw]"
         )
 
+    @staticmethod
+    def _pose6_to_pose_msg(pose) -> Pose:
+        """Convert a 6-element ``[x, y, z, roll, pitch, yaw]`` into a geometry Pose
+        (position + quaternion). Single source of truth for both the single-cmd and
+        batch spawn paths."""
+        pose = [float(v) for v in pose[:6]]
+        roll, pitch, yaw = pose[3], pose[4], pose[5]
+        cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+        cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+        cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+        pose_msg = Pose()
+        pose_msg.position.x, pose_msg.position.y, pose_msg.position.z = pose[:3]
+        pose_msg.orientation.w = cr * cp * cy + sr * sp * sy
+        pose_msg.orientation.x = sr * cp * cy - cr * sp * sy
+        pose_msg.orientation.y = cr * sp * cy + sr * cp * sy
+        pose_msg.orientation.z = cr * cp * sy - sr * sp * cy
+        return pose_msg
+
+    def _build_create_cmd(self, value) -> MASCmd:
+        """Build a CREATE_CMD ``MASCmd`` for THIS agent from a pose or lat/lon value.
+
+        ``value`` is ``[x, y, z, roll, pitch, yaw]`` (ENU pose), ``[lat, lon]`` or
+        ``[lat, lon, alt]`` (geographic). Shared by ``send_single_mas_cmd_*`` and the
+        batch spawn helper so the payload is identical whichever path sends it."""
+        cmd = MASCmd()
+        cmd.cmd_type = MASCmd.CREATE_CMD
+        cmd.model_name = self.model_name
+        cmd.sdf_file = self.sdf_file
+        cmd.vessel_name = self.agent_name
+        cmd.sdf_string = self.lotus_param()
+        if isinstance(value, (list, tuple)) and len(value) == 6:
+            cmd.vessel_position = self._pose6_to_pose_msg(value)
+        elif isinstance(value, (list, tuple)) and len(value) in (2, 3):
+            geo = GeoPoint()
+            geo.latitude = float(value[0])
+            geo.longitude = float(value[1])
+            geo.altitude = float(value[2]) if len(value) == 3 else 0.0
+            cmd.geo_point = geo
+        else:
+            raise ValueError(
+                "_build_create_cmd() requires [lat, lon], [lat, lon, alt], "
+                "or [x, y, z, roll, pitch, yaw]"
+            )
+        return cmd
+
     def _arm_spawn_retry_watchdog(
         self, resend_fn, retries_left: int, timeout_sec: float = 30.0, patience_left: int = 10
     ) -> None:
@@ -403,19 +553,7 @@ class Entity(Agent):
         self, lat, lon, alt=0.0, server_timeout_sec: float = 5.0, _retries_left: int = 2
     ):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
-        cmd = MASCmd()
-        cmd.cmd_type = MASCmd.CREATE_CMD
-        cmd.model_name = self.model_name
-        cmd.sdf_file = self.sdf_file
-        cmd.vessel_name = self.agent_name
-        cmd.sdf_string = self.lotus_param()
-
-        geo = GeoPoint()
-        geo.latitude = float(lat)
-        geo.longitude = float(lon)
-        geo.altitude = float(alt)
-        cmd.geo_point = geo
-        goal_msg.cmd = cmd
+        goal_msg.cmd = self._build_create_cmd([lat, lon, alt])
 
         self.get_logger().info(f"Sending MAS command with GeoPoint: lat={lat}, lon={lon}, alt={alt}")
 
@@ -432,28 +570,9 @@ class Entity(Agent):
 
     def send_single_mas_cmd_pose(self, pose, server_timeout_sec: float = 5.0, _retries_left: int = 2):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
-        cmd = MASCmd()
-        cmd.cmd_type = MASCmd.CREATE_CMD
-        cmd.model_name = self.model_name
-        cmd.sdf_file = self.sdf_file
-        cmd.vessel_name = self.agent_name
-        cmd.sdf_string = self.lotus_param()
+        goal_msg.cmd = self._build_create_cmd(list(pose[:6]))
 
-        pose = [float(v) for v in pose[:6]]
-        roll, pitch, yaw = pose[3], pose[4], pose[5]
-        cr, sr = math.cos(roll / 2), math.sin(roll / 2)
-        cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
-        cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-        pose_msg = Pose()
-        pose_msg.position.x, pose_msg.position.y, pose_msg.position.z = pose[:3]
-        pose_msg.orientation.w = cr * cp * cy + sr * sp * sy
-        pose_msg.orientation.x = sr * cp * cy - cr * sp * sy
-        pose_msg.orientation.y = cr * sp * cy + sr * cp * sy
-        pose_msg.orientation.z = cr * cp * sy - sr * sp * cy
-        cmd.vessel_position = pose_msg
-        goal_msg.cmd = cmd
-
-        self.get_logger().info(f"Sending MAS command with XYZ pose: {pose}")
+        self.get_logger().info(f"Sending MAS command with XYZ pose: {list(pose[:6])}")
 
         if not self.mas_action_client.wait_for_server(timeout_sec=server_timeout_sec):
             self.get_logger().error(f"{self.agent_name}: MASCmd server unavailable.")
@@ -535,6 +654,8 @@ from lotusim_sdk.agents.entity.physical import (  # noqa: E402
 __all__ = [
     "Entity",
     "_get_shared_mas_client",
+    "_get_shared_mas_array_client",
+    "send_batch_mas_cmd",
     "Bluerov2Heavy",
     "Commando",
     "DtmbHull",

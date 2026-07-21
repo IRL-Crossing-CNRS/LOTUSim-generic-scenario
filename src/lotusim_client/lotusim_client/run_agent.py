@@ -41,6 +41,8 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
+from lotusim_sdk.agents.entity import send_batch_mas_cmd
+
 
 # ---------------------------------------------------------------------------
 # Geo -> ENU projection
@@ -291,7 +293,8 @@ def main():
     # server-side). All agents share one MASCmd ActionClient per process (see
     # entity.py's _get_shared_mas_client), which tracks every outstanding goal by
     # UUID, so firing goals back-to-back is safe — no cross-routing risk.
-    pending_agents = []
+    # First resolve reuse-vs-spawn for every agent, then dispatch all CREATE_CMDs.
+    to_spawn = []  # (agent, requested_name, pose)
     for agent, agent_info, agent_idx in agents:
         # Origin precedence: CLI flag > per-agent "origin" > top-level "origin".
         origin = args.origin or agent_info.get("origin") or global_origin
@@ -319,28 +322,49 @@ def main():
             continue
 
         print(f"Spawning {agent.agent_name} in world '{args.world}'...")
-        # send_single_mas_cmd attaches the spawn-result handler in the SDK: it
-        # adopts the host-assigned (possibly deconflicted) name into agent_name and
-        # flips _spawn_confirmed, so the gated missions only start once THIS agent's
-        # own entity exists under its final name. We just report accept/reject.
-        requested = agent.agent_name
-        future = agent.send_single_mas_cmd(pose)
-        if future is None:
-            continue
+        to_spawn.append((agent, agent.agent_name, pose))
 
-        def goal_response_callback(fut, requested=requested):
-            goal_handle = fut.result()
-            if goal_handle.accepted:
-                print(f"[ACCEPTED] The simulation host ACCEPTED the spawn request for {requested}.")
-            else:
-                print(f"[REJECTED] The simulation host REJECTED the spawn request for {requested}!", file=sys.stderr)
+    # send_batch_mas_cmd / send_single_mas_cmd both attach the spawn-result handler
+    # in the SDK: each agent adopts its host-assigned (possibly deconflicted) name
+    # into agent_name and flips _spawn_confirmed, so the gated missions only start
+    # once THIS agent's own entity exists under its final name.
+    pending_agents = [(agent, requested) for agent, requested, _ in to_spawn]
 
-        future.add_done_callback(goal_response_callback)
-        pending_agents.append((agent, requested))
+    # Preferred path: pack the whole wave into one MASCmdArray goal — one acceptance
+    # and one result for all agents, so there is no per-send acceptance to drain.
+    batched = send_batch_mas_cmd([(agent, pose) for agent, _, pose in to_spawn])
+    if batched:
+        if to_spawn:
+            print(f"[BATCH]    Dispatched {len(to_spawn)} spawn(s) in one MASCmdArray goal.")
+    else:
+        # Fallback (host exposes no mas_cmd_array server): per-agent single sends,
+        # draining each goal's acceptance before the next so a burst never overflows
+        # the shallow goal-accept queue and drops early acceptances.
+        pending_agents = []
+        for agent, requested, pose in to_spawn:
+            future = agent.send_single_mas_cmd(pose)
+            if future is None:
+                continue
 
-        # A short, non-blocking spin so ACCEPTED/REJECTED prints and any already-
-        # available results surface as we go, without waiting for confirmation.
-        executor.spin_once(timeout_sec=0.1)
+            def goal_response_callback(fut, requested=requested):
+                goal_handle = fut.result()
+                if goal_handle.accepted:
+                    print(f"[ACCEPTED] The simulation host ACCEPTED the spawn request for {requested}.")
+                else:
+                    print(f"[REJECTED] The simulation host REJECTED the spawn request for {requested}!", file=sys.stderr)
+
+            future.add_done_callback(goal_response_callback)
+            pending_agents.append((agent, requested))
+
+            # Drain THIS goal's acceptance before the next send. Bounded so a lost
+            # or rejected goal cannot stall the loop.
+            accept_deadline = time.time() + 5.0
+            while time.time() < accept_deadline:
+                if getattr(agent, "_spawn_goal_accepted", True) or getattr(
+                    agent, "_spawn_confirmed", True
+                ):
+                    break
+                executor.spin_once(timeout_sec=0.05)
 
     # Wait for every dispatched spawn to confirm (or definitively fail). There is
     # no fixed per-agent timeout: as long as confirmations keep arriving anywhere
