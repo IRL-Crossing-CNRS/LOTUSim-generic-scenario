@@ -127,6 +127,11 @@ class WaypointFollowerTask(TaskAgent):
         )
         self._angular_pid = cfg.angular_pid or (0.8, 0.05, 0.4)
 
+        # Pure-pursuit lookahead distance (m). Steering aims at a carrot this far
+        # ahead along the path instead of the current waypoint; speed and arrival
+        # still key off the true current waypoint. 0 disables it.
+        self._lookahead_m = float(self.params.get("lookahead_m", 0.0))
+
         # --- controller state (re-armed in on_enter) ---
         self._cmd_pub = None
         self._control_timer = None
@@ -304,6 +309,59 @@ class WaypointFollowerTask(TaskAgent):
         ]
         return True
 
+    def _lookahead_target(self, x: float, y: float) -> tuple:
+        """Pure-pursuit carrot: a point ``_lookahead_m`` metres ahead along the
+        path, measured from the vessel's nearest point on its current leg. Riding
+        on the path itself gives cross-track correction. Used only for the
+        steering bearing; falls back to the current waypoint when disabled.
+        """
+        wps = self._enu_waypoints
+        n = len(wps)
+        i = self._wp_index
+        if self._lookahead_m <= 0.0 or n == 0:
+            return wps[i]
+        if n == 1:
+            return wps[0]
+
+        # Current leg: previous waypoint -> target waypoint (wraps if looping).
+        prev = i - 1
+        if prev < 0:
+            prev = n - 1 if self.loop else 0
+
+        # Project the vessel onto the current leg to find its on-path point.
+        ax, ay = wps[prev]
+        bx, by = wps[i]
+        dx, dy = bx - ax, by - ay
+        seg2 = dx * dx + dy * dy
+        if seg2 < 1e-12:
+            cx, cy = bx, by
+        else:
+            t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / seg2))
+            cx, cy = ax + t * dx, ay + t * dy
+
+        # Walk forward along the path from that on-path point by lookahead_m.
+        remaining = self._lookahead_m
+        px, py = cx, cy
+        idx = i
+        # Bound to one full path (+1) so a lookahead longer than a short looping
+        # path can't spin here forever.
+        for _ in range(n + 1):
+            wx, wy = wps[idx]
+            leg = math.hypot(wx - px, wy - py)
+            if leg >= remaining:
+                f = remaining / leg if leg > 1e-9 else 1.0
+                return (px + f * (wx - px), py + f * (wy - py))
+            remaining -= leg
+            px, py = wx, wy
+            nxt = idx + 1
+            if nxt >= n:
+                if self.loop:
+                    nxt = 0
+                else:
+                    return (wx, wy)  # end of a non-looping path: aim at the last
+            idx = nxt
+        return wps[i]
+
     def _effective_goal_vector(
         self, x: float, y: float, goal_x: float, goal_y: float,
         dx_true: float, dy_true: float,
@@ -368,14 +426,15 @@ class WaypointFollowerTask(TaskAgent):
 
         dx_true = goal_x - x
         dy_true = goal_y - y
+        # Measured to the TRUE current waypoint: the speed ramp, arrival
+        # detection and the CSV recorder all key off it.
         distance_to_goal = math.hypot(dx_true, dy_true)
 
-        # Steering bearing only: subclasses (e.g. obstacle avoidance) may
-        # bend this away from the true goal direction. distance_to_goal above
-        # stays computed from the TRUE goal vector always, so arrival
-        # detection/speed-ramp and the CSV recorder's cross-track/arrival
-        # columns are unaffected by any avoidance behaviour.
-        dx, dy = self._effective_goal_vector(x, y, goal_x, goal_y, dx_true, dy_true)
+        # Steering aims at the pure-pursuit carrot, not the current waypoint. The
+        # avoidance hook still bends this steering vector; distance_to_goal above
+        # is untouched.
+        tx, ty = self._lookahead_target(x, y)
+        dx, dy = self._effective_goal_vector(x, y, tx, ty, tx - x, ty - y)
         cos_y, sin_y = math.cos(yaw), math.sin(yaw)
         local_x = cos_y * dx + sin_y * dy
         local_y = -sin_y * dx + cos_y * dy
@@ -393,10 +452,31 @@ class WaypointFollowerTask(TaskAgent):
         self._publish_cmd(self._u, self._w)
 
         # --- goal tracking ---
-        if distance_to_goal <= self._range_tolerance:
+        n = len(self._enu_waypoints)
+        is_final = (self._wp_index == n - 1) and not self.loop
+        reached = distance_to_goal <= self._range_tolerance
+        if not reached and not is_final:
+            # A vessel can round a corner wide and pass a waypoint without
+            # entering range_tolerance, so also advance once it has travelled
+            # past the waypoint along the incoming leg (previous waypoint -> this
+            # one). Keying on the incoming leg, not the outgoing one, avoids
+            # skipping sections of a doubling-back looping patrol. The final
+            # waypoint of a non-looping path is exempt (is_final).
+            prev = self._wp_index - 1
+            if prev < 0:
+                prev = n - 1 if self.loop else self._wp_index
+            if prev != self._wp_index:
+                px, py = self._enu_waypoints[prev]
+                legx, legy = goal_x - px, goal_y - py  # incoming leg direction
+                if (
+                    legx * legx + legy * legy > 1e-9
+                    and (x - goal_x) * legx + (y - goal_y) * legy >= 0.0
+                ):
+                    reached = True
+        if reached:
             self._heading_integral = 0.0
             self._distance_error_integral = 0.0
-            if self._wp_index == len(self._enu_waypoints) - 1:
+            if self._wp_index == n - 1:
                 if self.loop:
                     self._wp_index = 0
                 else:
@@ -491,33 +571,14 @@ class WaypointFollowerTask(TaskAgent):
             # one is — recomputing from the raw goal_x/goal_y here would
             # silently discard any avoidance steering).
             heading_error = _normalize_angle(angle_to_goal)
-            d_error = (heading_error - self._prev_heading_error) / dt
-            self._prev_heading_error = heading_error
 
-            # Integrate the heading error, then clamp the accumulator so the
-            # integral term can never exceed its share of max_w. Without this
-            # anti-windup the integral grows unbounded while the agent turns in
-            # place toward a waypoint behind it; w then stays saturated long
-            # after the heading is reached, overshooting into a full rotation
-            # (the spirals/loops). Mirrors the PID branch below.
-            self._heading_integral += heading_error * dt
-            if ki > 1e-6:
-                max_integral_contribution = 0.5 * max_w
-                integral_max = max_integral_contribution / ki
-                self._heading_integral = max(
-                    -integral_max, min(self._heading_integral, integral_max)
-                )
-            desired_w = (
-                kp * heading_error
-                + ki * self._heading_integral
-                + kd * d_error
-            )
-            desired_w = max(-max_w, min(desired_w, max_w))
-
-            # Bleed the integral down once we are pointing roughly at the goal
-            # so residual wind-up cannot push the heading past the target.
-            if abs(heading_error) < 0.05:
-                self._heading_integral *= 0.9
+            # dt-robust proportional heading law. Pose is integrated host-side in
+            # sim-time, so the agent only needs a stable yaw-rate set-point that
+            # does not depend on its own jittery wall-clock dt. A clamped
+            # proportional law on heading error is first-order stable for the
+            # kinematic yaw (yaw_dot = w) and needs no integral (the plant already
+            # integrates w, and there is no disturbance to reject here).
+            desired_w = max(-max_w, min(kp * heading_error, max_w))
         else:
             heading_error = angle_to_goal
             max_integral_contribution = 0.2 * max_w
@@ -545,8 +606,14 @@ class WaypointFollowerTask(TaskAgent):
             if abs(heading_error) < 0.05:
                 self._heading_integral *= 0.95
 
-        # acceleration limit on the yaw rate
-        vel_change = self._angular_accel_limit * dt
+        # Slew the commanded yaw-rate toward the target. In bang_bang mode ramp
+        # against the nominal control period, not the measured wall-clock dt, so
+        # a scheduler-starved step cannot authorise an outsized yaw-rate jump.
+        # The PID branch keeps real dt.
+        ramp_dt = (
+            self._control_period if self._guidance_mode == "bang_bang" else dt
+        )
+        vel_change = self._angular_accel_limit * ramp_dt
         if self._w < desired_w:
             self._w = min(self._w + vel_change, desired_w)
         else:

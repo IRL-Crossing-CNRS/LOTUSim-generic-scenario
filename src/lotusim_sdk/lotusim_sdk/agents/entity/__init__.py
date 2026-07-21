@@ -204,6 +204,9 @@ class Entity(Agent):
         # its topics to a same-named entity that belonged to another spawn. Reuse
         # paths that skip the CREATE_CMD set it directly.
         self._spawn_confirmed = False
+        # True once the host has accepted this agent's CREATE_CMD goal.
+        # Distinguishes a slow spawn from a lost one in the retry watchdog.
+        self._spawn_goal_accepted = False
 
         self.sensor_buffers = {}
         self.sensors_subscribers = []
@@ -313,22 +316,29 @@ class Entity(Agent):
         if goal_future is None:
             return
 
+        name = self.agent_name
+
         def _on_goal(gf):
             try:
                 goal_handle = gf.result()
             except Exception:
+                self.get_logger().error(f"{name}: goal future.result() raised:", exc_info=True)
                 return
             if goal_handle is None or not goal_handle.accepted:
-                self.get_logger().error(f"{self.agent_name}: spawn REJECTED by host.")
+                self.get_logger().error(f"{name}: spawn REJECTED by host.")
                 return
+
+            # Host accepted the goal; the result may still be pending.
+            self._spawn_goal_accepted = True
 
             def _on_result(rf):
                 try:
                     assigned = rf.result().result.name
                 except Exception:
+                    self.get_logger().error(f"{name}: result future.result() raised:", exc_info=True)
                     return
                 if not assigned or assigned == "error_cmd":
-                    self.get_logger().error(f"{self.agent_name}: host failed to spawn entity.")
+                    self.get_logger().error(f"{name}: host failed to spawn entity.")
                     return
                 self.confirm_spawn(assigned)
 
@@ -351,7 +361,47 @@ class Entity(Agent):
             "or [x, y, z, roll, pitch, yaw]"
         )
 
-    def send_single_mas_cmd_geo(self, lat, lon, alt=0.0, server_timeout_sec: float = 5.0):
+    def _arm_spawn_retry_watchdog(
+        self, resend_fn, retries_left: int, timeout_sec: float = 30.0, patience_left: int = 10
+    ) -> None:
+        """Resend a CREATE_CMD only if its goal was never accepted.
+
+        ``_spawn_goal_accepted`` distinguishes a lost request from a slow one:
+        - accepted, not yet confirmed: wait for the result callback (bounded by
+          ``patience_left``); resending would duplicate an in-flight spawn.
+        - never accepted after ``timeout_sec``: treat as lost; delete by name and
+          resend (bounded by ``retries_left``).
+        """
+        if retries_left <= 0:
+            return
+
+        def _check():
+            timer.cancel()
+            if self._spawn_confirmed:
+                return
+            if self._spawn_goal_accepted:
+                # Accepted, not yet confirmed: wait for the result callback
+                # rather than resend. Bounded by patience_left so a host that
+                # dies after accepting cannot spin the timer forever.
+                if patience_left > 0:
+                    self._arm_spawn_retry_watchdog(
+                        resend_fn, retries_left, timeout_sec, patience_left - 1
+                    )
+                return
+            self.get_logger().warning(
+                f"{self.agent_name}: spawn goal not accepted after {timeout_sec}s, "
+                f"resending CREATE_CMD ({retries_left} retries left)."
+            )
+            # Never accepted: treat as lost. Delete by name so the resend leaves
+            # no ghost entity at the spawn point.
+            self.send_single_delete_cmd()
+            resend_fn()
+
+        timer = self.create_timer(timeout_sec, _check)
+
+    def send_single_mas_cmd_geo(
+        self, lat, lon, alt=0.0, server_timeout_sec: float = 5.0, _retries_left: int = 2
+    ):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         cmd = MASCmd()
         cmd.cmd_type = MASCmd.CREATE_CMD
@@ -374,9 +424,13 @@ class Entity(Agent):
             return None
         goal_future = self.mas_action_client.send_goal_async(goal_msg)
         self._attach_spawn_result_handler(goal_future)
+        self._arm_spawn_retry_watchdog(
+            lambda: self.send_single_mas_cmd_geo(lat, lon, alt, server_timeout_sec, _retries_left - 1),
+            _retries_left,
+        )
         return goal_future
 
-    def send_single_mas_cmd_pose(self, pose, server_timeout_sec: float = 5.0):
+    def send_single_mas_cmd_pose(self, pose, server_timeout_sec: float = 5.0, _retries_left: int = 2):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         cmd = MASCmd()
         cmd.cmd_type = MASCmd.CREATE_CMD
@@ -406,6 +460,10 @@ class Entity(Agent):
             return None
         goal_future = self.mas_action_client.send_goal_async(goal_msg)
         self._attach_spawn_result_handler(goal_future)
+        self._arm_spawn_retry_watchdog(
+            lambda: self.send_single_mas_cmd_pose(pose, server_timeout_sec, _retries_left - 1),
+            _retries_left,
+        )
         return goal_future
 
     def send_single_delete_cmd(self, server_timeout_sec: float = 5.0):

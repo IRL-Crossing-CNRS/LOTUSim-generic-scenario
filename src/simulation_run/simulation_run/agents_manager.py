@@ -33,6 +33,7 @@ Copyright (c) 2025 Naval Group
 """
 
 import logging
+import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -107,7 +108,7 @@ class AgentsManager:
             )
 
         # Spawn all agents after registration
-        self._spawn_all_agents(spawn_queue)
+        self._spawn_all_agents(spawn_queue, executor)
 
     @staticmethod
     def _world_origin_from_file(world_file: str) -> Optional[Tuple[float, float]]:
@@ -306,13 +307,37 @@ class AgentsManager:
         executor.add_node(agent_node)
         spawn_queue.append((agent_node, pose))
 
-    def _spawn_all_agents(self, spawn_queue: List[Tuple[Any, Any]]) -> None:
-        """Sends mission/spawn commands to all queued agents."""
+    def _spawn_all_agents(self, spawn_queue: List[Tuple[Any, Any]], executor: Any = None) -> None:
+        """Sends mission/spawn commands to all queued agents.
+
+        Spins the executor here (nothing else does until ``run_executor``) so
+        each goal's acceptance is drained before the next send: sending all
+        CREATE_CMDs back-to-back overflows the shallow goal-accept queue, which
+        drops early acceptances and triggers duplicate watchdog resends. Results
+        (which set ``_spawn_confirmed``) land in the final wait loop.
+        """
         for agent_node, pose in spawn_queue:
             try:
                 agent_node.send_single_mas_cmd(pose)
             except Exception as e:
                 logging.error(f"Failed to send mission command for {agent_node.agent_name}: {e}")
+            if executor is not None:
+                # Drain this goal's acceptance before the next send. Bounded so a
+                # lost or rejected goal cannot stall the loop.
+                accept_deadline = time.time() + 5.0
+                while time.time() < accept_deadline:
+                    if getattr(agent_node, "_spawn_goal_accepted", True) or getattr(
+                        agent_node, "_spawn_confirmed", True
+                    ):
+                        break
+                    executor.spin_once(timeout_sec=0.05)
+        if executor is not None:
+            # Wait for results to set _spawn_confirmed; exit early once all done.
+            deadline = time.time() + 15.0
+            while time.time() < deadline:
+                if all(getattr(node, "_spawn_confirmed", True) for node, _ in spawn_queue):
+                    break
+                executor.spin_once(timeout_sec=0.1)
 
     # -------------------------------------------------------------------------
     # Dynamic Spawn / Despawn (runtime, called from DynamicSpawnService)

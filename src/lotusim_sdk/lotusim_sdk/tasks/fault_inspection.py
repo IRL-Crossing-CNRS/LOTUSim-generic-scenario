@@ -19,9 +19,40 @@ from std_msgs.msg import String
 from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
 
-# Populated on first on_enter; Python's import cache ensures YOLO loads only once
-# even when multiple FaultInspectionTask instances exist (e.g. one per agent).
+# Populated on first on_enter (once; module cache is shared across instances).
+# The detection module loads the YOLO model at import time (seconds), so it is
+# loaded on a background thread to avoid blocking the executor worker.
+# Detection callbacks no-op while _det is None.
 _det = None
+_det_load_lock = threading.Lock()
+_det_loading = False
+
+
+def _ensure_detection_module_loading(logger=None) -> None:
+    """Start loading the YOLO detection module on a background thread (once)."""
+    global _det_loading
+    with _det_load_lock:
+        if _det is not None or _det_loading:
+            return
+        _det_loading = True
+
+    def _load() -> None:
+        global _det, _det_loading
+        try:
+            from lotusim_sdk.tasks.fault_inspection_assets import (
+                yolo_server_corrosion_crack as _loaded,
+            )
+            _det = _loaded
+        except Exception as e:  # noqa: BLE001 - surface any load failure, keep serving
+            if logger is not None:
+                logger.error(
+                    f"FaultInspectionTask: failed to load detection module: {e}"
+                )
+        finally:
+            with _det_load_lock:
+                _det_loading = False
+
+    threading.Thread(target=_load, name="yolo-model-load", daemon=True).start()
 
 # run_agent uses MultiThreadedExecutor, so multiple agents' _image_callbacks can
 # fire concurrently.  YOLO inference is not thread-safe — serialize with this lock.
@@ -135,18 +166,10 @@ class FaultInspectionTask(TaskAgent):
     # -- lifecycle ------------------------------------------------------------
 
     def on_enter(self) -> None:
-        global _det
+        # Load the YOLO/torch model on a background thread so it does not block
+        # this executor worker. Detection stays inactive until _det is set.
         if _det is None:
-            try:
-                from lotusim_sdk.tasks.fault_inspection_assets import (
-                    yolo_server_corrosion_crack as _loaded,
-                )
-                _det = _loaded
-            except Exception as e:
-                self.host.get_logger().error(
-                    f"FaultInspectionTask: failed to load detection module: {e}"
-                )
-                return
+            _ensure_detection_module_loading(self.host.get_logger())
 
         world = self.host.world_name
         # Use agent_name (the entity/topic name), NOT get_name() (the rclpy node

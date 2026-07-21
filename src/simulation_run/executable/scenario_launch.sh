@@ -175,11 +175,26 @@ for proc in xdyn-for-cs gzserver gzclient; do
 done
 kill_unity_processes
 
-# Multi-word patterns
-for proc in "ros2 launch" "ros2 run"; do
+# Multi-word patterns.
+#   - "gz sim": the modern gazebo binary; "gzserver/gzclient" above do not match
+#     it. A stale one double-publishes /<world>/poses and /stats.
+#   - "simulation_run/lib/simulation_run/main": the agent-manager python process.
+#     Its cmdline does not contain "ros2 run", so it is not matched above; if its
+#     "ros2 run" wrapper died it is orphaned and keeps publishing velocity
+#     commands on /<world>/vessel_cmd_array for the same vessel names as the new
+#     run, so the host applies competing commands.
+#   - "run_agent"/"ros_tcp_endpoint": decentralised agent launcher and Unity TCP
+#     bridge, same orphaned-python-child case.
+for proc in "ros2 launch" "ros2 run" "gz sim" "simulation_run/lib/simulation_run/main" "run_agent" "ros_tcp_endpoint"; do
     pkill -f "$proc" && echo -e "${GREEN}[INFO] Killed '$proc'${NC}" || echo -e "${YELLOW}[INFO] No '$proc' found.${NC}"
 done
-sleep 5
+sleep 2
+# Force-reap survivors (SIGTERM is unreliable for gz sim and an orphaned manager
+# mid-callback) so the new run shares its ROS domain with no ghost.
+for proc in "gz sim" "simulation_run/lib/simulation_run/main" "run_agent"; do
+    pkill -9 -f "$proc" 2>/dev/null && echo -e "${GREEN}[INFO] Force-killed lingering '$proc'${NC}"
+done
+sleep 3
 
 
 # ============================================================
@@ -356,8 +371,13 @@ cleanup() {
   kill_unity_processes
   pkill -f gzserver
   pkill -f gzclient
+  pkill -f "gz sim"
   pkill -f "ros2 launch"
   pkill -f "ros2 run"
+  # The agent-manager python child is orphaned if "ros2 run" is reaped first;
+  # match it by its own cmdline so it can't linger and double-publish into the
+  # next run (see the startup-cleanup comment for the full failure mode).
+  pkill -f "simulation_run/lib/simulation_run/main"
   pkill -f yolo_server_corrosion_crack
 
   for pid in "${CHILD_PIDS[@]}"; do
