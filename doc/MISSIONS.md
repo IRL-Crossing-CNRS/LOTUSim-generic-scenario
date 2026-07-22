@@ -393,6 +393,15 @@ the task**, on whichever machine is ticking the mission:
    whichever machine (host or remote) is ticking it — there is no
    host/remote clock divergence, since integration always happens host-side
    in Gazebo's own clock.
+5. `on_exit()` does not publish a single `{"u": 0, "w": 0}` stop and move on:
+   it repeats it once a second for 5 seconds before tearing the publisher
+   down. Several agents publishing on the same shared
+   `/<world>/vessel_cmd_array` topic can transiently outrun the host's
+   consumption of that topic, and a single stop lost in that window left the
+   vessel drifting at its last commanded velocity forever (the host
+   `KinematicInterface` always integrates the *last received* command). The
+   repeated burst makes the stop robust to that race without needing an ACK
+   protocol.
 
 ### 4.4 Custom tasks and code-built missions (`custom_task_demo`)
 
@@ -497,7 +506,22 @@ def _tick_missions(self) -> None:
             return
         self._missions_started = True
     for root in self._missions:
-        root.tick()
+        # A root that already reached SUCCESS/FAILURE is latched — it is not
+        # ticked again until something calls reset() on it. Without this, a
+        # finished root gets ticked forever like every other node in
+        # self._missions, which re-enters a leaf's on_enter() (full state
+        # reset) on the very next tick. For a goal-directed leaf such as
+        # waypoint_follower with loop: false, that means "reached the last
+        # waypoint, immediately start over from waypoint 0" — visible as the
+        # agent repeatedly leaving and returning to its final position.
+        if root.status != Status.RUNNING:
+            continue
+        status = root.tick()
+        if status != Status.RUNNING:
+            self.get_logger().info(
+                f"Mission '{root.id or type(root).__name__}' finished with "
+                f"{status.name}; it will not be ticked again."
+            )
 ```
 
 - **Multiple entries in `missions: [...]` are independent tree roots, ticked
@@ -505,6 +529,12 @@ def _tick_missions(self) -> None:
   strictly one after another instead, nest them as children of **one**
   mission whose root is a `sequence` (exactly the `sequence_and_parallel`
   example in §6.2).
+- **A finished root stays finished.** Once ticked to `SUCCESS`/`FAILURE` it is
+  skipped on every subsequent tick (see the snippet above) — the only way to
+  run it again is an explicit `reset()` call, which `Composite.reset()`
+  propagates to every child and also clears the composite's own `status` back
+  to `RUNNING`. Nothing in the stock framework calls `reset()` automatically;
+  it is there for a future decorator/supervisor node to use.
 - `missions_ready()` is the gate on the very first tick. The base `Agent`
   is always ready; `Entity` (the base of every physical vehicle) overrides
   it to require `_spawn_confirmed and current_pose is not None` — so a

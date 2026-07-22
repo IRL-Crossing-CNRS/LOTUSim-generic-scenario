@@ -87,6 +87,8 @@ simulation_run/
 ├── agents_manager.py      # AgentsManager: JSON -> agent classes -> instances -> spawn queue -> MASCmd
 ├── utils.py                # CLI args, JSON/SDF parsing, class discovery, random pose generation
 ├── configs.py              # Re-exports WaypointFollowerConfig from the SDK
+├── csv_recorder.py         # CsvRecorder: pure observer node, one CSV/vessel (pose+battery+mission
+│                           #   progress); enabled via the scenario JSON's "record_csv" key
 └── dynamic_spawn/          # Runtime spawn/despawn of agents into an already-running sim (§5)
 ```
 
@@ -232,6 +234,13 @@ every agent in the process:
 
 This eliminates an `O(N²)` scaling bottleneck that previously starved the
 process (including spawn confirmations) once agent counts got large.
+
+`agent_name` is a **property**, not a plain attribute: its setter moves this
+entity's entry in the shared registry above whenever the name changes (host
+deconfliction via `confirm_spawn`, or a launcher assigning an `id`-based
+name). Every rename therefore goes through one place — the discovery timer
+and the pose/battery topic lookups always find the entity under its current
+name, never the one it was constructed with.
 
 ### 3.2 Spawn confirmation
 
