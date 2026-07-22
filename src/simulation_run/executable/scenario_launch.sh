@@ -412,13 +412,18 @@ if [[ "$USE_UNITY" == "true" ]]; then
   echo -e "${GREEN}[INFO] Using ROS_IP=$ROS_IP${NC}"
   export ROS_IP=$ROS_IP
 
-  # Launch ROS–Unity bridge
+  # Launch ROS–Unity bridge. Log at WARN by default: at DEBUG the endpoint logs
+  # several lines per forwarded message, which at a high real_time_factor (pose
+  # traffic scales with RTF) floods its single thread with disk I/O and stalls
+  # forwarding to Unity. --debug restores DEBUG.
+  TCP_LOG_LEVEL="WARN"
+  [[ "$DEBUG_MODE" == "true" ]] && TCP_LOG_LEVEL="DEBUG"
   gnome-terminal -- bash -c "
     source /opt/ros/${ROS_DISTRO}/setup.bash
     source \"$LOTUSIM_WS/install/setup.bash\"
     export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
     export ROS_IP=$ROS_IP
-    ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level DEBUG 2>&1 | tee \"$LOG_DIR/ros_tcp_endpoint.log\"
+    ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level $TCP_LOG_LEVEL 2>&1 | tee \"$LOG_DIR/ros_tcp_endpoint.log\"
     exec bash
   " &
   CHILD_PIDS+=($!)
