@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import threading
 import time
 from dataclasses import dataclass
 from typing import List, Optional
@@ -74,7 +75,13 @@ class WaypointFollowerTask(TaskAgent):
                            ``PatrolFileProvider`` (same as ``print_waypoints``).
         loop               whether to loop over the trajectory (default: the
                            host's ``loop`` attribute, else ``True``).
-        control_rate_hz    guidance loop frequency in Hz (default 20.0).
+        control_rate_hz    guidance loop frequency in Hz (default 20.0). Used
+                           only when ``guidance_clock`` is "wall".
+        guidance_clock     "wall" (default) runs the loop off a wall-clock timer
+                           at ``control_rate_hz``; "pose" runs one step per
+                           ``/<world>/poses`` message (one per physics step),
+                           giving a control rate independent of the real-time
+                           factor. See ``doc/ACCELERATED_SIMULATION.md``.
         guidance_mode      "bang_bang" (default) or "pid".
         range_tolerance, linear_accel_limit, angular_accel_limit,
         linear_velocities_limits ([min, max]), angular_velocities_limits,
@@ -132,9 +139,24 @@ class WaypointFollowerTask(TaskAgent):
         # still key off the true current waypoint. 0 disables it.
         self._lookahead_m = float(self.params.get("lookahead_m", 0.0))
 
+        # Guidance clock — what triggers a control step:
+        #   "wall" (default): a wall-clock ROS timer at control_rate_hz. Control
+        #       updates per simulated second = control_rate_hz / RTF.
+        #   "pose": one control step per /<world>/poses message (one per Gazebo
+        #       physics step, 1/max_step_size Hz of sim time), a rate independent
+        #       of RTF. control_rate_hz is ignored.
+        self._guidance_clock = str(
+            self.params.get("guidance_clock", "wall")
+        ).lower()
+        # Non-blocking guard for the pose-driven path: poses run on a
+        # ReentrantCallbackGroup, so two can be serviced concurrently. A step
+        # skips rather than overlapping another in-progress step.
+        self._step_guard = threading.Lock()
+
         # --- controller state (re-armed in on_enter) ---
         self._cmd_pub = None
         self._control_timer = None
+        self._pose_listener = None
         self._stop_timer = None
         self._stop_repeats_left = 0
         self._reset_state()
@@ -190,12 +212,12 @@ class WaypointFollowerTask(TaskAgent):
         self._distance_error_integral = 0.0
         self._distance_error_previous = 0.0
         self._finished = False
-        # Wall-clock timestamp of the previous control step. Used to measure the
-        # REAL elapsed dt: the timer is not cadenced reliably (threads are shared
-        # between agents under the MultiThreadedExecutor), so assuming a fixed
-        # period makes the velocity ramp and the integral terms wrong whenever
-        # the loop is starved.
+        # Wall-clock timestamp of the previous control step. Fallback dt source,
+        # used only when no sim-time pose stamp is available (see _control_step).
         self._last_step_time: Optional[float] = None
+        # Gazebo sim-time stamp of the pose used on the previous control step;
+        # the primary dt source (see _control_step).
+        self._last_sim_time: Optional[float] = None
         # Waypoints projected to the world ENU frame (lazily, on first pose).
         self._enu_waypoints: Optional[List[tuple]] = None
 
@@ -217,21 +239,40 @@ class WaypointFollowerTask(TaskAgent):
             self._cmd_pub = self.host.create_publisher(
                 VesselCmdArray, f"/{world}/vessel_cmd_array", 10
             )
-        # Dedicated callback group so the guidance loop is scheduled on its own
-        # and cannot be starved behind this node's other callbacks (1 Hz topic
-        # discovery, sensor buffering). Critical when several agents share the
-        # MultiThreadedExecutor's thread pool.
+        # Dedicated callback group so the guidance loop (or the stop burst) is
+        # scheduled on its own and cannot be starved behind this node's other
+        # callbacks (1 Hz topic discovery, sensor buffering). Critical when
+        # several agents share the MultiThreadedExecutor's thread pool.
         self._control_cb_group = MutuallyExclusiveCallbackGroup()
-        self._control_timer = self.host.create_timer(
-            self._control_period,
-            self._control_step,
-            callback_group=self._control_cb_group,
-        )
+        if self._guidance_clock == "pose":
+            # One control step per published pose (see _guidance_clock).
+            from lotusim_sdk.agents.entity import register_pose_listener
+
+            self._pose_listener = self._pose_tick
+            register_pose_listener(world, self._pose_listener)
+            rate_desc = "per-pose (RTF-independent)"
+        else:
+            self._control_timer = self.host.create_timer(
+                self._control_period,
+                self._control_step,
+                callback_group=self._control_cb_group,
+            )
+            rate_desc = f"{1.0 / self._control_period:.0f} Hz wall"
         self.host.get_logger().info(
             f"WaypointFollowerTask active: {len(self.trajectory)} waypoints, "
             f"mode={self._guidance_mode}, loop={self.loop}, "
-            f"rate={1.0 / self._control_period:.0f} Hz"
+            f"clock={self._guidance_clock} ({rate_desc})"
         )
+
+    def _pose_tick(self) -> None:
+        """Pose-listener entry point (guidance_clock == 'pose'). Runs one control
+        step; skips if another step is still in progress on another thread."""
+        if not self._step_guard.acquire(blocking=False):
+            return
+        try:
+            self._control_step()
+        finally:
+            self._step_guard.release()
 
     def update(self) -> Status:
         if not self.trajectory:
@@ -244,6 +285,11 @@ class WaypointFollowerTask(TaskAgent):
             self._control_timer.cancel()
             self.host.destroy_timer(self._control_timer)
             self._control_timer = None
+        if self._pose_listener is not None:
+            from lotusim_sdk.agents.entity import unregister_pose_listener
+
+            unregister_pose_listener(self.host.world_name, self._pose_listener)
+            self._pose_listener = None
         # Send a final full-stop so the host stops integrating motion — and
         # REPEAT it before tearing the publisher down. A single stop message
         # can be lost when several agents flood the shared vessel_cmd_array
@@ -406,15 +452,32 @@ class WaypointFollowerTask(TaskAgent):
         if pose is None or not self._enu_waypoints:
             return  # waiting for the first pose feedback
 
-        # Real elapsed time since the previous step, not the nominal period.
-        # Clamp it so a scheduler hiccup (timer fired very late) cannot inject a
-        # huge dt that would spike the integral/derivative or over-ramp u.
-        now = time.monotonic()
-        if self._last_step_time is None:
-            dt = self._control_period
+        # dt in SIMULATION seconds, from the /<world>/poses header stamp (Gazebo
+        # sim time), so the velocity/heading ramps are independent of the
+        # real-time factor. Falls back to the wall clock only when no sim-time
+        # stamp is available (e.g. a standalone test with no host poses).
+        sim_t = self.host.current_pose_sim_time
+        if sim_t is not None:
+            if self._last_sim_time is None:
+                dt = self._control_period  # first step: nominal period
+            else:
+                dt = sim_t - self._last_sim_time
+            self._last_sim_time = sim_t
+            if dt <= 0.0:
+                # No new pose since the last step (control loop faster than the
+                # pose rate): hold the last command and don't ramp. The next step
+                # with a fresh pose applies the full elapsed dt.
+                self._publish_cmd(self._u, self._w)
+                return
+            # Clamp a gap from a sim pause/resume so one step can't over-ramp.
+            dt = min(dt, 1.0)
         else:
-            dt = max(1e-3, min(now - self._last_step_time, 0.5))
-        self._last_step_time = now
+            now = time.monotonic()
+            if self._last_step_time is None:
+                dt = self._control_period
+            else:
+                dt = max(1e-3, min(now - self._last_step_time, 0.5))
+            self._last_step_time = now
 
         x = pose.position.x
         y = pose.position.y
@@ -606,14 +669,9 @@ class WaypointFollowerTask(TaskAgent):
             if abs(heading_error) < 0.05:
                 self._heading_integral *= 0.95
 
-        # Slew the commanded yaw-rate toward the target. In bang_bang mode ramp
-        # against the nominal control period, not the measured wall-clock dt, so
-        # a scheduler-starved step cannot authorise an outsized yaw-rate jump.
-        # The PID branch keeps real dt.
-        ramp_dt = (
-            self._control_period if self._guidance_mode == "bang_bang" else dt
-        )
-        vel_change = self._angular_accel_limit * ramp_dt
+        # Slew the commanded yaw-rate toward the target using the sim-time dt
+        # (clamped in _control_step) so the ramp is independent of the RTF.
+        vel_change = self._angular_accel_limit * dt
         if self._w < desired_w:
             self._w = min(self._w + vel_change, desired_w)
         else:

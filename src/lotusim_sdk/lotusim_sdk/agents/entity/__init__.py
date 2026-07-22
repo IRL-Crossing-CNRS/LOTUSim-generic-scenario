@@ -1,3 +1,4 @@
+import logging
 import math
 import threading
 import time
@@ -185,8 +186,36 @@ def send_batch_mas_cmd(entries, server_timeout_sec: float = 5.0) -> bool:
 # the current_pose/last_pose_update properties below.
 _shared_pose_tables: dict[str, dict[str, Pose]] = {}
 _shared_pose_stamps: dict[str, float] = {}
+# Latest /<world>/poses header stamp, in SIMULATION seconds (Gazebo sim time,
+# set host-side in entity_manager::publishPose). Distinct from _shared_pose_stamps
+# (wall-clock time.time()): control loops pace their dt off this sim clock so
+# their ramps are independent of the real-time factor.
+_shared_pose_sim_time: dict[str, float] = {}
 _shared_pose_subscriptions: dict[str, object] = {}
 _shared_pose_registry_lock = threading.Lock()
+
+# Callbacks fired (in registration order) after every /<world>/poses message is
+# parsed into the shared tables above. A control loop registers here to run once
+# per published pose (one per Gazebo physics step) instead of off a wall-clock
+# timer, giving an update rate independent of the real-time factor. See
+# WaypointFollowerTask's "pose" guidance clock.
+_shared_pose_listeners: dict[str, list] = {}
+
+
+def register_pose_listener(world_name: str, cb) -> None:
+    """Register ``cb`` (a no-arg callable) to run after each /<world>/poses
+    message. Safe to call before the subscription exists."""
+    with _shared_pose_registry_lock:
+        _shared_pose_listeners.setdefault(world_name, []).append(cb)
+
+
+def unregister_pose_listener(world_name: str, cb) -> None:
+    """Remove a callback previously registered with :func:`register_pose_listener`
+    (a no-op if it is not registered)."""
+    with _shared_pose_registry_lock:
+        listeners = _shared_pose_listeners.get(world_name)
+        if listeners and cb in listeners:
+            listeners.remove(cb)
 
 
 def _ensure_shared_pose_subscription(node, world_name: str) -> None:
@@ -201,6 +230,20 @@ def _ensure_shared_pose_subscription(node, world_name: str) -> None:
                 vessel.vessel_name: vessel.pose for vessel in msg.vessels
             }
             _shared_pose_stamps[_world] = time.time()
+            stamp = msg.header.stamp
+            _shared_pose_sim_time[_world] = stamp.sec + stamp.nanosec * 1e-9
+            # Fan out to pose-synced control loops. Snapshot under the lock so a
+            # concurrent (de)registration can't corrupt the walk; isolate each
+            # callback so one raising can't stop the others or pose updates.
+            with _shared_pose_registry_lock:
+                listeners = tuple(_shared_pose_listeners.get(_world, ()))
+            for cb in listeners:
+                try:
+                    cb()
+                except Exception:  # noqa: BLE001
+                    logging.getLogger(__name__).exception(
+                        "pose listener raised for world %s", _world
+                    )
 
         _shared_pose_subscriptions[world_name] = node.create_subscription(
             VesselPositionArray,
@@ -367,6 +410,14 @@ class Entity(Agent):
     @property
     def last_pose_update(self) -> float:
         return _shared_pose_stamps.get(self.world_name, 0.0)
+
+    @property
+    def current_pose_sim_time(self) -> float | None:
+        """Simulation-time stamp (seconds) of the latest /<world>/poses message,
+        or None before the first pose arrives. Control loops key their dt off
+        this instead of the wall clock so their ramps stay correct when the sim
+        runs at a real-time factor != 1 (see WaypointFollowerTask)."""
+        return _shared_pose_sim_time.get(self.world_name)
 
     def missions_ready(self) -> bool:
         """Hold the first mission tick until this entity is actually present in

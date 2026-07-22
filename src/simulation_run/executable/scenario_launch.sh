@@ -128,6 +128,9 @@ echo -e "${GREEN}[INFO] Unity build platform: $UNITY_PLATFORM${NC}"
 declare -A WORLD_UNITY_BASENAMES
 WORLD_UNITY_BASENAMES["defenseScenario.world"]="silentStorm"
 WORLD_UNITY_BASENAMES["energy.world"]="lotusimenergy"
+# Accelerated variants keep world name "energy", so they reuse the same Unity build.
+WORLD_UNITY_BASENAMES["energy_accelerated5x.world"]="lotusimenergy"
+WORLD_UNITY_BASENAMES["energy_accelerated50x.world"]="lotusimenergy"
 
 # -------------------- Functions --------------------
 die() {

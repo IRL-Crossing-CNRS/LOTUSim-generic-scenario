@@ -111,6 +111,7 @@ Mode** (free-fly, `W`/`A`/`S`/`D`/`Q`/`E` + mouse) or target-follower mode
 | [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) | Repository/package organisation, agent class hierarchy, orchestration flow, global diagrams |
 | [doc/MISSIONS.md](doc/MISSIONS.md) | The Behaviour Tree framework: engine, task lifecycle, built-in tasks, diagrams, references |
 | [doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) | Full scenario JSON reference — every parameter, host vs. remote |
+| [doc/ACCELERATED_SIMULATION.md](doc/ACCELERATED_SIMULATION.md) | Running a world faster than real time (real_time_factor, `guidance_clock`) |
 | [deployment/README.md](deployment/README.md) | Running an agent from a remote machine (no Gazebo installed) |
 
 ---
