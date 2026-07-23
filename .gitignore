@@ -43,3 +43,5 @@ scenario_logs/
 
 .claude/
 /CLAUDE.md
+# Unity Burst debug artifacts (leak local build paths; Unity marks them DoNotShip)
+*_BurstDebugInformation_DoNotShip/

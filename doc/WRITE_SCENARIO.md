@@ -378,7 +378,7 @@ an ever-growing offset. A `kinematic_anchor`-only prop (no guidance loop at
 all) just drifts steadily in the current's direction.
 
 Implemented in `KinematicInterface::getNewState`
-(`physics_engine_interface/kinematic_interface.cpp`, `Draft_LOTUSim` repo) —
+(`physics_engine_interface/kinematic_interface.cpp`, `LOTUSim` repo) —
 that part can't move (it's the only place agent motion is actually
 integrated). The ROS-side wiring that feeds it — subscribing to
 `/<world>/ocean_current` and calling `KinematicInterface::setCurrent()` — is
