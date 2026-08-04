@@ -17,6 +17,7 @@ from lotusim_sdk.agents.entity.physical import (
 )
 from lotusim_sdk.agents.environment.wind import Wind
 from lotusim_sdk.agents.environment.wake import Wake
+from lotusim_sdk.agents.environment.ocean_current import OceanCurrent
 
 __all__ = [
     "Agent",
@@ -35,4 +36,5 @@ __all__ = [
     "X500",
     "Wind",
     "Wake",
+    "OceanCurrent",
 ]

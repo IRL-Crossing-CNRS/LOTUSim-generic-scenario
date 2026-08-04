@@ -234,21 +234,6 @@ def run_simulation(
         except Exception:
             logger.exception("Could not start the CSV recorder")
 
-    # Optional fake ocean current ("ocean_current" in the scenario JSON): a
-    # single latched publish consumed by the host's KinematicInterface, see
-    # simulation_run.ocean_current for the full explanation.
-    ocean_current_pub = None
-    ocean_current_cfg = (scenario or {}).get("ocean_current")
-    if ocean_current_cfg:
-        from simulation_run.ocean_current import current_from_config
-
-        try:
-            ocean_current_pub = current_from_config(ocean_current_cfg, world_name)
-            if ocean_current_pub is not None:
-                executor.add_node(ocean_current_pub)
-        except Exception:
-            logger.exception("Could not start the ocean current publisher")
-
     agents_manager = ros_manager.initialize_ros_components(
         executor, agents, world_name, world_file, config_dir
     )
@@ -278,11 +263,6 @@ def run_simulation(
         if csv_recorder is not None:
             try:
                 csv_recorder.destroy_node()  # closes the CSV files
-            except Exception:
-                pass
-        if ocean_current_pub is not None:
-            try:
-                ocean_current_pub.destroy_node()
             except Exception:
                 pass
         if mission_watcher is not None:

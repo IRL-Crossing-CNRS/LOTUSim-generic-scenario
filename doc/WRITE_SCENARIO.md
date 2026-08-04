@@ -313,7 +313,6 @@ top-level keys that tell `simulation_run` what to launch:
 | `world_file` | string | `""` | Gazebo world SDF file name (from `$LOTUSIM_PATH/assets/worlds/`), e.g. `"energy.world"`. Its `<spherical_coordinates>` block is read automatically for `waypoint_follower`'s ENU projection (§5.2) — no `origin` key needed host-side. |
 | `agents` | list (current) or dict (legacy, see below) | `[]` | See §2. |
 | `renderer_unity` | bool | `false` | Whether `scenario_launch.sh` starts the ROS↔Unity TCP bridge and the Unity executable. |
-| `ocean_current` | object | — | Enables the fake ocean current for Kinematic-connected entities — see §5.4. |
 | `record_csv` | bool or object | `false` | Enables the CSV recorder observer node — see §5.5. |
 
 ### 5.1 Running it
@@ -617,24 +616,26 @@ Two things must hold, both of them in the core repo:
   A model-level `<enable_wind>` is *not* propagated to links by sdformat14 — it
   parses without a warning and silently does nothing.
 
-### 5.4 `ocean_current` — a fake current for Kinematic vehicles
+### 5.4 `OceanCurrent` — a fake current for Kinematic vehicles
 
-A single top-level key, latched once to the host's `PhysicsInterfacePlugin`
-and applied by `KinematicInterface` to every **Kinematic**-connected entity
-(vehicles running `waypoint_follower`/`waypoint_follower_avoidance`, and any
-prop using `kinematic_anchor` — §4.3):
+An `Environment` agent (`lotusim_sdk.agents.environment.ocean_current.OceanCurrent`),
+declared like any other agent in the `"agents"` list, applied by
+`KinematicInterface` to every **Kinematic**-connected entity (vehicles
+running `waypoint_follower`/`waypoint_follower_avoidance`, and any prop using
+`kinematic_anchor` — §4.3):
 
 ```json
-"ocean_current": { "vx": 0.05, "vy": 0.12 }
+{ "class": "OceanCurrent", "id": "ocean_current0", "x": 0.05, "y": 0.12, "z": 0.0 }
 ```
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `vx`, `vy` | float (m/s) | `0.0` | World-frame ENU current velocity (x=East, y=North), added on top of each agent's own commanded velocity every physics step. |
+| `x`, `y`, `z` | float (m/s) | `0.0` | World-frame ENU current velocity (x=East, y=North, z=Up), added on top of each agent's own commanded velocity every physics step. |
+| `publish_rate_hz` | float | `1.0` | How often the held vector is republished (latched, so late subscribers get it regardless of rate). |
 
 This is deliberately **not xdyn**: xdyn-connected agents get a
 physically-simulated current from their own hydrodynamic config instead (a
-separate, unrelated mechanism). `ocean_current` only feeds the Kinematic
+separate, unrelated mechanism). `OceanCurrent` only feeds the Kinematic
 path, which is what `waypoint_follower`-driven scenarios actually use, since
 that task always forces a Kinematic spawn regardless of the `xdyn` scenario
 flag. An agent is on exactly one interface at a time, so there's no
@@ -647,20 +648,28 @@ for — visible in the CSV's `cross_track_error_m` column (§5.5) — rather tha
 an ever-growing offset. A `kinematic_anchor`-only prop (no guidance loop at
 all) just drifts steadily in the current's direction.
 
-Implemented in `KinematicInterface::getNewState`
-(`physics_engine_interface/kinematic_interface.cpp`, `LOTUSim` repo) —
-that part can't move (it's the only place agent motion is actually
-integrated). The ROS-side wiring that feeds it — subscribing to
+`z` is carried through the message and reported in the CSV, but
+`KinematicInterface::getNewState` (`physics_engine_interface/kinematic_interface.cpp`,
+`LOTUSim` repo) only integrates position in x/y + yaw, so it currently
+has no physical effect — reserved for a future vertical-current extension.
+The ROS-side wiring that feeds the plugin — subscribing to
 `/<world>/ocean_current` and calling `KinematicInterface::setCurrent()` — is
-deliberately kept in its own class/translation unit,
-`OceanCurrentFeed` (`ocean_current_feed.hpp`/`.cpp`), rather than inlined
-into `PhysicsInterfacePlugin::Configure()`: an optional demo mechanism, not
+deliberately kept in its own class/translation unit, `OceanCurrentFeed`
+(`ocean_current_feed.hpp`/`.cpp`), rather than inlined into
+`PhysicsInterfacePlugin::Configure()`: an optional demo mechanism, not
 something every scenario wants, so it's one line to construct
 (`physics_interface_plugin.cpp`) and easy to drop entirely without touching
-any of the shared plugin code. Published once by
-`simulation_run.ocean_current.OceanCurrentPublisher` on
-`/<world>/ocean_current` (`geometry_msgs/Vector3`, TRANSIENT_LOCAL) so the
-host plugin picks it up regardless of process startup order.
+any of the shared plugin code.
+
+The agent continuously republishes its held vector, latched
+(`lotusim_msgs/OceanCurrent`, TRANSIENT_LOCAL) on `/<world>/ocean_current`, so
+the host plugin (and Unity, for current-vector display) picks it up
+regardless of process startup order. Being a normal `Environment` agent, it
+also goes through `AgentsManager.delete_agents()` on scenario shutdown, which
+calls its `destroy_node()` override — publishing a disabled
+(`enable_current=False`) message before going away, so nothing is left
+showing/applying a stale current from a scenario that has already ended (the
+same problem `Wind` solves for its region boxes, §5.3).
 
 ### 5.5 `record_csv` — recording every agent to CSV
 
@@ -745,12 +754,11 @@ sonar_range_m, sonar_contact, sonar_distance_m
 ```
 
 `current_vx_mps`/`current_vy_mps`/`current_vz_mps` are the configured
-`ocean_current` (§5.4), repeated on every row so one agent's file is
-self-contained for "what current was it under" — not something computed
-per-agent, the same global value on every row of every agent's file.
-`current_vz_mps` is always `0.0`: the current model is horizontal-only
-(§5.4) — the column exists now so a future vertical-current extension
-wouldn't need a new one.
+`OceanCurrent` agent's vector (§5.4), repeated on every row so one agent's
+file is self-contained for "what current was it under" — not something
+computed per-agent, the same global value on every row of every agent's
+file. `current_vz_mps` reports the agent's configured `z`, but has no
+physical effect yet — the current model is horizontal-only (§5.4).
 
 `sonar_range_m`/`sonar_contact`/`sonar_distance_m` are the fake sonar (§4.3,
 `waypoint_follower_avoidance`): a ground-truth distance to the nearest agent

@@ -90,12 +90,12 @@ config (not from what happens to arrive first at runtime):
 - Base columns (every agent): ``agent_name, sim_time_s, pos_x, pos_y,
   pos_z, lat, lon, orient_x, orient_y, orient_z, orient_w,
   current_vx_mps, current_vy_mps, current_vz_mps`` — the last three are the
-  configured ``ocean_current`` (see ``simulation_run.ocean_current``),
-  repeated on every row so a single agent's file is self-contained for
-  "what current was this agent under." ``current_vz_mps`` is always ``0.0``
-  today — the current model is 2D (horizontal) only, see §5.4 of
-  ``WRITE_SCENARIO.md`` — exposed now so a vertical-current extension
-  wouldn't need a new column later.
+  configured ``OceanCurrent`` agent (see
+  ``lotusim_sdk.agents.environment.ocean_current``), repeated on every row so
+  a single agent's file is self-contained for "what current was this agent
+  under." ``current_vz_mps`` reflects the agent's configured ``z``, but
+  KinematicInterface's own pose integration is 2D (x/y + yaw) only, see
+  §5.4 of ``WRITE_SCENARIO.md`` — it has no physical effect yet.
 - Battery columns (only agents spawned with a battery sensor, e.g.
   ``sdf_file: "model-battery.sdf"``): ``battery_voltage, battery_charge_ah,
   battery_capacity_ah, battery_percentage, battery_status``.
@@ -375,6 +375,24 @@ def _obstacle_agents_from_scenario(scenario: dict) -> set:
 _NON_NAVIGATION_TASKS = {"kinematic_anchor"}
 
 
+def _ocean_current_from_scenario(scenario: dict) -> tuple:
+    """Initial ``(x, y, z)`` m/s (ENU) of the scenario's ``OceanCurrent``
+    agent, if any — read straight from its JSON block in ``"agents"`` (the
+    same static-config value the agent is constructed with), since a CSV
+    reader has no live handle to the running agent to pick up later
+    ``set_current`` mission changes."""
+    for agent in scenario.get("agents", []):
+        agent_class = agent.get("class") or agent.get("type") or agent.get("id") or ""
+        if str(agent_class).lower() != "oceancurrent":
+            continue
+        return (
+            float(agent.get("x", 0.0)),
+            float(agent.get("y", 0.0)),
+            float(agent.get("z", 0.0)),
+        )
+    return (0.0, 0.0, 0.0)
+
+
 def _agent_capabilities_from_scenario(scenario: dict) -> dict:
     """Per spawned-instance-name capability flags used to decide which
     column groups (§ ``_BATTERY_HEADER``/``_MISSION_HEADER``/
@@ -453,7 +471,7 @@ class CsvRecorder(Node):
         mission_specs: dict = None,
         obstacle_agents: set = None,
         agent_capabilities: dict = None,
-        ocean_current: tuple = (0.0, 0.0),
+        ocean_current: tuple = (0.0, 0.0, 0.0),
     ) -> None:
         super().__init__("csv_recorder")
         self._world = world
@@ -462,12 +480,7 @@ class CsvRecorder(Node):
         self._ref_lat = ref_lat
         self._ref_lon = ref_lon
         self._ref_alt = ref_alt
-        self._current_vx, self._current_vy = ocean_current
-        # The current model is 2D (horizontal) only — see KinematicInterface
-        # — so there is no real vz to read yet. Reported as a constant 0.0
-        # rather than omitted, so the column exists now and a future
-        # vertical-current extension doesn't need a new CSV column.
-        self._current_vz = 0.0
+        self._current_vx, self._current_vy, self._current_vz = ocean_current
         # agent -> [ {id, task, path, tolerance, sonar_range_m}, ... ] ordered mission list
         self._mission_specs = mission_specs or {}
         # agent names whose scenario "class" is "mine" — the fake sonar's targets.
@@ -1048,8 +1061,7 @@ def recorder_from_config(record_cfg, world_name: str, scenario: dict = None):
     agent_capabilities = (
         _agent_capabilities_from_scenario(scenario) if scenario else {}
     )
-    current_cfg = (scenario or {}).get("ocean_current") or {}
-    ocean_current = (float(current_cfg.get("vx", 0.0)), float(current_cfg.get("vy", 0.0)))
+    ocean_current = _ocean_current_from_scenario(scenario or {})
 
     return CsvRecorder(
         world=world_name,

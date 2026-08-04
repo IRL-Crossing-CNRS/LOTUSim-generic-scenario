@@ -54,6 +54,7 @@ setup(
             "x500           = lotusim_sdk.agents.entity.physical.x500:X500",
             "Wind           = lotusim_sdk.agents.environment.wind:Wind",
             "Wake           = lotusim_sdk.agents.environment.wake:Wake",
+            "OceanCurrent   = lotusim_sdk.agents.environment.ocean_current:OceanCurrent",
         ],
     },
 )
