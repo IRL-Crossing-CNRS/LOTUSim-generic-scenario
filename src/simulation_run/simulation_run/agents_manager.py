@@ -32,6 +32,7 @@ SPDX-License-Identifier: EPL-2.0
 Copyright (c) 2025 Naval Group
 """
 
+import inspect
 import logging
 import time
 import traceback
@@ -66,7 +67,6 @@ class AgentsManager:
         agents: Any,
         world_name: str,
         executor: Any,
-        aerial_domain: bool = False,
         world_file: str = "",
         config_dir: Optional[str] = None,
     ) -> None:
@@ -84,7 +84,6 @@ class AgentsManager:
             agents: Agent config as a dict (legacy) or a list (mission system).
             world_name: Name of the simulation world.
             executor: ROS2 executor where nodes will be added.
-            aerial_domain: Whether aerial domain is enabled.
             config_dir: Directory containing the scenario JSON, exposed to each
                 agent as ``_config_dir`` so a ``waypoint_follower`` task can
                 resolve a relative ``waypoints_file`` — the host-side
@@ -105,7 +104,7 @@ class AgentsManager:
             # Process each agent type individually
             self._process_single_agent_type(
                 agent_type, agent_info, world_name, executor, spawn_queue,
-                aerial_domain, world_origin, config_dir,
+                world_origin, config_dir,
             )
 
         # Spawn all agents after registration
@@ -171,7 +170,6 @@ class AgentsManager:
         world_name: str,
         executor: Any,
         spawn_queue: List[Tuple[Any, Any]],
-        aerial_domain: bool = False,
         world_origin: Optional[Tuple[float, float]] = None,
         config_dir: Optional[str] = None,
     ) -> None:
@@ -184,7 +182,6 @@ class AgentsManager:
             world_name: Simulation world name.
             executor: ROS2 executor managing active nodes.
             spawn_queue: List that accumulates agents and their target poses.
-            aerial_domain: Whether aerial domain is enabled.
             config_dir: Directory containing the scenario JSON (see ``add_agents``).
         """
         try:
@@ -271,10 +268,29 @@ class AgentsManager:
             ]
         return utils.generate_random_pose(agent_node.get_first_domain())
 
+    @staticmethod
+    def _px4_kwargs(agent_class, agent_info) -> Dict[str, Any]:
+        """PX4 constructor kwargs, but only for classes that accept them.
+
+        Aerial X500 declares ``px4_enabled`` / ``px4_control``; every other agent
+        type does not, so introspecting the signature keeps this a no-op for them
+        (their ``**kwargs``, if any, never see an unexpected ``px4_enabled``).
+        """
+        if not agent_info:
+            return {}
+        params = inspect.signature(agent_class).parameters
+        kwargs: Dict[str, Any] = {}
+        if "px4_enabled" in params:
+            kwargs["px4_enabled"] = bool(agent_info.get("px4", False))
+        if "px4_control" in params:
+            kwargs["px4_control"] = agent_info.get("px4_control", "manual")
+        return kwargs
+
     def _create_agent_instance(self, agent_class, agent_sdf, world_name, xdyn_enabled, agent_info=None, agent_index=0):
         """Instantiates a single agent node."""
         if agent_info is None:
             return agent_class(agent_sdf, world_name, xdyn_enabled)
+        px4_kwargs = self._px4_kwargs(agent_class, agent_info)
         trajectories = agent_info.get("trajectories")
         loops = agent_info.get("loops")
         if trajectories:
@@ -293,8 +309,8 @@ class AgentsManager:
             trajectory = agent_info.get("trajectory")
             loop = agent_info.get("loop", True)
         if trajectory is not None:
-            return agent_class(agent_sdf, world_name, xdyn_enabled, trajectory=trajectory, loop=loop)
-        return agent_class(agent_sdf, world_name, xdyn_enabled)
+            return agent_class(agent_sdf, world_name, xdyn_enabled, trajectory=trajectory, loop=loop, **px4_kwargs)
+        return agent_class(agent_sdf, world_name, xdyn_enabled, **px4_kwargs)
 
     def _register_agent(
         self,

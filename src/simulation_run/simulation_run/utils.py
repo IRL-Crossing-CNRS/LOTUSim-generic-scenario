@@ -82,8 +82,15 @@ def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any, bool]:
             world_file (str),
             agents: full agent data as in JSON — a dict (legacy) or a list
                 (mission system); both are accepted downstream,
-            aerial_enabled (bool)
+            aerial_enabled (bool): whether to launch the aerialWorld physics
+                world alongside world_file (needed for X500/aerial agents)
         )
+
+    Note:
+        Only the boolean ``aerial_domain`` toggle lives in the scenario. The
+        aerial world file itself is never configurable — it is always the
+        hardcoded ``AERIAL_WORLD_FILE`` (``aerialWorld.world``), matching the
+        custom world's AerialEntityManager ``<aerial_namespace>``.
     """
     world_file = config.get("world_file", "")
     agents = config.get("agents", {})
@@ -137,6 +144,14 @@ def get_world_name(world_file_name: str) -> str:
         return world_elem.attrib.get("name", "")
     except Exception as e:
         raise RuntimeError(f"Error extracting world name from {world_file_name}: {e}")
+
+
+# The aerial world is always this exact file, with <world name="aerialWorld">.
+# That name is hardcoded on both ends: the AerialEntityManager plugin embedded in
+# a custom world (e.g. energy.world) talks to /aerialWorld/mas_cmd, and aerial
+# agents' physics_engine_interface mirrors from the aerialWorld pose topic. It is
+# never configurable — a mismatch just makes the aerial MAS "not available".
+AERIAL_WORLD_FILE = "aerialWorld.world"
 
 
 # ----------------------------------------------------------------------

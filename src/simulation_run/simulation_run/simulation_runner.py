@@ -51,13 +51,20 @@ lotusim_pids: List[int] = []
 # -------------------------------------------------------------------------
 # Simulation Launch Utilities
 # -------------------------------------------------------------------------
-def build_launch_command(world_file: str, aerial_domain: bool, debug: bool = False, gui: bool = False) -> List[str]:
+def build_launch_command(
+    world_file: str,
+    aerial_domain: bool,
+    debug: bool = False,
+    gui: bool = False,
+) -> List[str]:
     """
     Builds the shell commands required to launch the Lotusim simulation.
 
     Args:
         world_file: Path to the world file to launch.
-        aerial_domain: Whether to launch in aerial mode.
+        aerial_domain: Whether to also launch the aerialWorld physics world
+            (needed for X500/aerial agents). The aerial world file is never
+            configurable — always the hardcoded ``utils.AERIAL_WORLD_FILE``.
         debug: Enable debug mode (adds '--debug' flag to commands).
         gui: Enable Gazebo GUI (adds '--gui' flag to commands).
 
@@ -69,11 +76,27 @@ def build_launch_command(world_file: str, aerial_domain: bool, debug: bool = Fal
     gui_flag = "--gui" if gui else ""
     commands: List[str] = []
 
+    def _with_log(wf: str) -> str:
+        """Append a tee into LOG_DIR/gz_<world>.log, matching the ros_tcp_endpoint
+        / xdyn logging convention in scenario_launch.sh. Each gz sim world runs in
+        its own gnome-terminal, outside that script's own stdout capture, so
+        without this its -v4 output (world-load, plugin, and per-entity spawn
+        messages — exactly what PX4/sensor issues need) never reaches
+        scenario_logs and is lost once the terminal window closes. No-op if
+        LOG_DIR isn't set (e.g. launched outside scenario_launch.sh).
+        """
+        cmd = f"{base_command} {debug_flag} {gui_flag} run {wf}".strip()
+        log_dir = os.environ.get("LOG_DIR")
+        if not log_dir:
+            return cmd
+        log_name = os.path.splitext(os.path.basename(wf))[0]
+        return f'{cmd} 2>&1 | tee -a "{log_dir}/gz_{log_name}.log"'
+
+    # The aerialWorld must come up first: the custom world's AerialEntityManager
+    # waits on /aerialWorld/mas_cmd at load and logs "not available" if it's late.
     if aerial_domain:
-        commands.append(f"{base_command} {debug_flag} {gui_flag} run aerialWorld.world".strip())
-        commands.append(f"{base_command} {debug_flag} {gui_flag} run {world_file}".strip())
-    else:
-        commands.append(f"{base_command} {debug_flag} {gui_flag} run {world_file}".strip())
+        commands.append(_with_log(utils.AERIAL_WORLD_FILE))
+    commands.append(_with_log(world_file))
 
     logger.debug("Launch commands: %s", commands)
     return commands
@@ -103,8 +126,12 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
         processes.append(process)
         time.sleep(1)  # Allow startup
 
-        # Retrieve PIDs for tracking
-        pid_output = subprocess.run(["pgrep", "-f", cmd], capture_output=True, text=True)
+        # Retrieve PIDs for tracking. cmd may now be "lotusim ... run world.world
+        # 2>&1 | tee ...logfile" (see build_launch_command._with_log) — no single
+        # process's cmdline contains a literal pipe, so pgrep -f on the full
+        # string would never match anything. Match on the part before the pipe.
+        pgrep_pattern = cmd.split(" 2>&1 |", 1)[0]
+        pid_output = subprocess.run(["pgrep", "-f", pgrep_pattern], capture_output=True, text=True)
         pids = pid_output.stdout.strip().split("\n")
 
         for pid in pids:
@@ -147,7 +174,7 @@ def run_simulation(
         world_file: Simulation world file path.
         agents: Full agents dictionary as in JSON.
         max_simulation_time: Optional maximum simulation duration (seconds).
-        aerial_domain: Whether to launch an aerial domain.
+        aerial_domain: Whether to also launch the aerialWorld physics world.
         debug_mode: Enable verbose logging.
         gui: Enable Gazebo GUI.
         config_dir: Directory containing the scenario JSON (forwarded to
@@ -225,7 +252,7 @@ def run_simulation(
             logger.exception("Could not start the ocean current publisher")
 
     agents_manager = ros_manager.initialize_ros_components(
-        executor, agents, world_name, world_file, aerial_domain, config_dir
+        executor, agents, world_name, world_file, config_dir
     )
 
     if ros_manager.shutdown_flag:

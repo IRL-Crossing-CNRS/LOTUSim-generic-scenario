@@ -54,6 +54,11 @@ class PhysicalEntity(Entity):
                     <connection_type>Kinematic</connection_type>
                 """
                 elif domain == "Aerial":
+                    # The host's ROS2 aerial interface mirrors this entity's pose
+                    # from the aerial world's pose topic. The namespace is the aerial
+                    # world's <world> name, always "aerialWorld" — hardcoded here and
+                    # in the custom world's AerialEntityManager (<aerial_namespace>),
+                    # a mismatch just makes the aerial MAS "not available".
                     block += """
                     <connection_type>ROS2</connection_type>
                     <namespace>aerialWorld</namespace>

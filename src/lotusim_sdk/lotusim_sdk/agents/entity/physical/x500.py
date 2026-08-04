@@ -1,8 +1,156 @@
+import os
+import subprocess
+
 from lotusim_sdk.agents.physical_entity import PhysicalEntity
+
+# The aerial physics world is always named "aerialWorld" — hardcoded end to end
+# (the world file's <world name>, the custom world's AerialEntityManager
+# <aerial_namespace>, and the aerial physics_engine_interface namespace all
+# agree on it). PX4 attaches to the airframe LOTUSim spawns in this world.
+AERIAL_WORLD_NAME = "aerialWorld"
 
 
 class X500(PhysicalEntity):
     MODEL_NAME = "x500"
+    # PX4-driven variant: the same airframe with gz MulticopterMotorModel
+    # actuators that an external PX4 SITL autopilot writes to. Spawned instead of
+    # MODEL_NAME when the scenario JSON sets ``"px4": true`` on the agent.
+    PX4_MODEL_NAME = "x500_px4"
     XDYN_PORT = None  # aerial agents never use XDyn
     THRUSTERS = []
     DOMAINS = ["Aerial"]
+
+    def __init__(
+        self,
+        sdf_string: str,
+        world_name: str,
+        xdyn_enabled: bool = False,
+        px4_enabled: bool = False,
+        px4_control: str = "manual",
+        **kwargs,
+    ):
+        px4_enabled = bool(px4_enabled)
+        # Register under the scenario's world (the custom/naval world, e.g.
+        # energy), exactly like a non-PX4 X500. The Aerial physics_engine_interface
+        # (see PhysicalEntity._lotus_blocks) then makes the custom world's
+        # AerialEntityManager forward the real spawn to the aerialWorld physics
+        # world AND create a pose-following mirror in the custom world — that
+        # mirror is what Unity renders. PX4 later attaches to the airframe the
+        # forward created in aerialWorld (see _start_px4_sitl). Registering
+        # directly under aerialWorld instead skips the forward, so no mirror is
+        # created and the drone never shows up in the custom world / Unity.
+        super().__init__(sdf_string, world_name, xdyn_enabled)
+        self.px4_enabled = px4_enabled
+        self.px4_control = px4_control
+        self.px4_process = None
+        if self.px4_enabled:
+            # PX4 flies the airframe through gz physics, so spawn the PX4 model.
+            # Keep the "x500" renderer type so Unity shows the same drone.
+            self.model_name = self.PX4_MODEL_NAME
+
+    # ------------------------------------------------------------------
+    # PX4 SITL lifecycle
+    # ------------------------------------------------------------------
+    def confirm_spawn(self, assigned_name: str) -> None:
+        """Launch PX4 SITL once the host confirms the airframe exists.
+
+        ``confirm_spawn`` is the single signal fired by BOTH spawn paths — the
+        batch ``MASCmdArray`` path (the default) and the per-agent single-send
+        fallback — so PX4 is hooked here rather than in ``send_single_mas_cmd``,
+        which the batch path never calls. At this point ``self.agent_name`` is the
+        final host-assigned entity name, so PX4 attaches to the right gz model.
+        """
+        super().confirm_spawn(assigned_name)
+        if self.px4_enabled and self.px4_process is None:
+            self._start_px4_sitl()
+
+    def _start_px4_sitl(self) -> None:
+        """Start an external PX4 SITL that attaches to the spawned gz airframe.
+
+        Requires a built PX4-Autopilot checkout (``PX4_AUTOPILOT_PATH``, default
+        ``~/PX4-Autopilot``). PX4 attaches to the already-spawned entity named
+        ``PX4_GZ_MODEL_NAME`` in world ``PX4_GZ_WORLD`` (the aerial world).
+
+        Interactive console (``pxh>``) is not needed here: use QGroundControl's
+        Analyze Tools > MAVLink Console instead (connects over MAVLink, no local
+        shell required). ``make px4_sitl gz_x500`` doesn't go through PX4's
+        classic sitl_run.sh wrapper scripts (that's gazebo-classic/jsbsim only),
+        so it ignores ``NO_PXH`` entirely — confirmed empirically: with NO_PXH=1
+        set, the ``pxh>`` prompt redraw loop still free-spun and wrote ~90MB/run
+        of ``[2Kpxh>`` escape codes with nothing on the other end of the pipe to
+        read them. ``make`` was only adding a "rebuild if stale" check on top of
+        one fixed command anyway (visible via ``make``'s own "[0/1] cd .../
+        gz_bridge && cmake -E env ... bin/px4" log line once already built), so
+        we invoke that px4 binary directly with ``-d`` (its own documented
+        "daemon mode, don't start pxh shell" flag) instead of going through
+        ``make``. Requires ``PX4_AUTOPILOT_PATH`` already built once via
+        ``make px4_sitl gz_x500`` — this does NOT rebuild it.
+        """
+        px4_path = os.environ.get("PX4_AUTOPILOT_PATH", os.path.expanduser("~/PX4-Autopilot"))
+        # PX4 attaches to the airframe in the aerial world (always "aerialWorld");
+        # PX4_GZ_WORLD stays overridable only as an escape hatch for local tests.
+        gz_world = os.environ.get("PX4_GZ_WORLD", AERIAL_WORLD_NAME)
+        # Prefer LOG_DIR (scenario_launch.sh's per-run scenario_logs/<timestamp>
+        # dir, see build_launch_command._with_log for the matching gz sim world
+        # logs) so a PX4 flight's whole trace lands in one place instead of a
+        # single ever-appended file under PX4_AUTOPILOT_PATH.
+        log_dir = os.environ.get("LOG_DIR")
+        default_log = (
+            os.path.join(log_dir, f"px4_sitl_{self.agent_name}.log")
+            if log_dir
+            else os.path.join(px4_path, "px4_sitl.log")
+        )
+        px4_log_path = os.environ.get("PX4_SITL_LOG", default_log)
+
+        # A stale dataman file makes PX4 replay a previous mission on boot.
+        dataman_path = os.path.join(px4_path, "dataman")
+        if os.path.exists(dataman_path):
+            os.remove(dataman_path)
+            self.get_logger().info(f"[{self.agent_name}] Removed stale PX4 dataman file.")
+
+        px4_binary = os.path.join(px4_path, "build", "px4_sitl_default", "bin", "px4")
+        gz_bridge_dir = os.path.join(
+            px4_path, "build", "px4_sitl_default", "src", "modules", "simulation", "gz_bridge"
+        )
+        if not os.path.isfile(px4_binary):
+            self.get_logger().error(
+                f"[{self.agent_name}] PX4 binary not found at '{px4_binary}'. "
+                f"Build it once with: (cd {px4_path} && make px4_sitl gz_x500)"
+            )
+            return
+
+        env = os.environ.copy()
+        env["GZ_CONFIG_PATH"] = f"/usr/share/gz:{env.get('GZ_CONFIG_PATH', '')}"
+        env["PX4_GZ_MODEL_NAME"] = self.agent_name
+        env["PX4_GZ_WORLD"] = gz_world
+        env["PX4_SIM_MODEL"] = "gz_x500"
+        env.setdefault("GZ_IP", "127.0.0.1")
+
+        # -d: daemon mode, don't start pxh shell (see class docstring above).
+        cmd = [px4_binary, "-d"]
+        self.get_logger().info(
+            f"[{self.agent_name}] Starting PX4 SITL — model='{self.agent_name}', world='{gz_world}'"
+        )
+        log_file = open(px4_log_path, "a", encoding="utf-8") if px4_log_path else subprocess.DEVNULL
+        try:
+            self.px4_process = subprocess.Popen(
+                cmd,
+                cwd=gz_bridge_dir,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        finally:
+            if log_file is not subprocess.DEVNULL:
+                log_file.close()
+
+    def destroy_node(self):
+        if self.px4_process and self.px4_process.poll() is None:
+            self.px4_process.terminate()
+            try:
+                self.px4_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.px4_process.kill()
+        return super().destroy_node()

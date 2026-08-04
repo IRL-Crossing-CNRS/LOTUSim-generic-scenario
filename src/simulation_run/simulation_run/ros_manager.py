@@ -53,7 +53,6 @@ def initialize_ros_components(
     agents: Dict[str, Any],
     world_name: str,
     world_file: str = "",
-    aerial_domain: bool = False,
     config_dir: Optional[str] = None,
 ) -> agents_manager.AgentsManager:
     """
@@ -63,7 +62,6 @@ def initialize_ros_components(
         executor: ROS 2 executor to register agent nodes.
         agents: Dictionary containing agent types, their number, poses, model paths, and xdyn flag.
         world_name: Name of the simulation world.
-        aerial_domain: Whether to enable aerial domain.
         config_dir: Directory containing the scenario JSON (forwarded to
             ``AgentsManager.add_agents`` — see its docstring).
 
@@ -74,7 +72,7 @@ def initialize_ros_components(
 
     # Initialize and spawn all agents
     manager = agents_manager.AgentsManager()
-    manager.add_agents(agents, world_name, executor, aerial_domain, world_file, config_dir)
+    manager.add_agents(agents, world_name, executor, world_file, config_dir)
 
     # Register dynamic spawn/despawn service
     spawn_service = DynamicSpawnService(manager, executor, world_name, world_file)

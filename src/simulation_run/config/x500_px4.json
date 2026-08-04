@@ -1,0 +1,15 @@
+{
+  "world_file": "energy.world",
+  "aerial_domain": true,
+  "agents": {
+    "X500": {
+      "nb_agents": 1,
+      "poses": [[20.0, 100.0, 20.0, 0.0, 0.0, 0.0]],
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "px4": true,
+      "px4_control": "manual"
+    }
+  },
+  "renderer_unity": true
+}
