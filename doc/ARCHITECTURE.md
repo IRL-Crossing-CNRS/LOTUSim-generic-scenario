@@ -32,7 +32,8 @@ flowchart LR
 
 - **Host**: runs Gazebo, the LOTUSim systems, the Unity renderer, and launches
   scenarios from `src/simulation_run/config/*.json` via `simulation_run`.
-  Built with `lotusim clean_build`
+  Built with `lotusim clean_build`. Always launches **two** Gazebo worlds —
+  the scenario's own plus a hardcoded `aerialWorld.world` — see §5.1.
 - **Remote**: runs only `lotusim_client.run_agent` — no Gazebo. It spawns an
   agent into the host's simulation over ROS 2 and ticks that agent's BT
   mission locally. Needs only ROS 2, Python, and the `deployment/` bundle
@@ -51,7 +52,7 @@ flowchart LR
 | `lotusim_client` | **Remote launcher.** `run_agent` CLI: instantiates an agent from a JSON config and ticks it against a running host simulation. Ships as a wheel. |
 | `simulation_run` | **Host orchestrator.** Launches Gazebo/Unity, parses scenario JSON, spawns the full agent set, dynamic spawn/despawn service. ROS 2 `ament_python` package, host-only. |
 | `external_packages/*` | **Concrete agent packages** — one per vehicle/demo (`bluerov2_heavy_inspection`, `wamv_inspection`, `x500_inspection`, `lrauv_propeller`, `custom_task_demo`). Each is a standalone ROS 2 package discovered via entry points (§3, §4). |
-| `gz_ros2_bridge` | C++ package: two standalone bridge executables between `gz-transport` and ROS 2 (§7). |
+| `gz_ros2_bridge` | C++ package: one standalone bridge executable between `gz-transport` and ROS 2 (§7). |
 | `deployment/` | The remote colcon workspace bundle: build script, `lotusim_msgs` source, wheels output (§6). |
 
 ### `lotusim_sdk/lotusim_sdk/`
@@ -102,7 +103,7 @@ plus a `renderer_type_name`, with all behaviour coming from the mission JSON:
 external_packages/
 ├── bluerov2_heavy_inspection/   # Bluerov2Heavy, thin
 ├── wamv_inspection/             # Wamv, thin
-├── x500_inspection/             # X500, thin (also clears `domains` to skip aerialWorld physics)
+├── x500_inspection/             # X500, thin (optional PX4 SITL flight, §5.1)
 ├── lrauv_propeller/              # Lrauv + standalone propeller RPM cycling logic (dev example, no BT)
 └── custom_task_demo/             # Bluerov2Heavy + a custom TaskAgent wired in code via
                                    # self._missions.add_task(...) instead of scenario JSON
@@ -295,11 +296,13 @@ sequenceDiagram
     Shell->>Main: ros2 run simulation_run main --config ...
 
     Main->>Utils: load_config_from_json() / inject_first_ais_pose() / parse_simulation_config()
-    Utils-->>Main: world_file, agents, aerial_enabled
+    Utils-->>Main: world_file, agents
     Main->>SimRunner: run_simulation(world_file, agents, ...)
 
     SimRunner->>SimRunner: rclpy.init(); MultiThreadedExecutor()
     SimRunner->>SimRunner: reset_gazebo_state()
+    SimRunner->>SimRunner: build_launch_command() -> [aerialWorld.world, world_file]
+    SimRunner->>Gazebo: terminal -> lotusim run aerialWorld.world
     SimRunner->>Gazebo: terminal -> lotusim run *.world
     SimRunner->>RosMgr: initialize_ros_components(executor, agents, world_name, ...)
 
@@ -330,6 +333,51 @@ against the host's Gazebo, spins its own `MultiThreadedExecutor`, and on
 SIGINT/SIGTERM halts BT roots and sends `send_single_delete_cmd()` before
 shutting down.
 
+### 5.1 Aerial world & PX4 SITL
+
+`simulation_runner.build_launch_command()` always launches **two** Gazebo
+worlds, never a scenario choice: the scenario's own `world_file`, plus a
+hardcoded `utils.AERIAL_WORLD_FILE` (`aerialWorld.world`). The aerial world is
+launched first — the custom world's `AerialEntityManager` plugin (core repo)
+waits on `/aerialWorld/mas_cmd` at load and logs "not available" if it's late.
+`aerialWorld` is infrastructure, not a per-scenario switch: it is where the
+`wind_regions` plugin lives (§9) and where aerial physics actually runs; a
+scenario JSON never turns it on or off.
+
+The name `"aerialWorld"` is hardcoded end to end and must agree everywhere it
+appears — the world SDF's `<world name="aerialWorld">`, the custom world's
+`AerialEntityManager` `<aerial_namespace>`, and the `Aerial`
+`physics_engine_interface` namespace `PhysicalEntity._lotus_blocks()` emits
+for any entity with `"Aerial"` in `DOMAINS` (currently only `X500`). A
+mismatch doesn't error — it just makes the aerial MAS "not available".
+
+An `X500` still **registers under the scenario's own world**, exactly like
+any other entity — it must not register directly under `aerialWorld`. Because
+its `physics_engine_interface` block is tagged `Aerial`, the custom world's
+`AerialEntityManager` intercepts the spawn and (1) forwards the real physics
+spawn into `aerialWorld`, and (2) creates a pose-following mirror model in the
+scenario's own world, which is what Unity actually renders. Registering
+directly under `aerialWorld` skips the forward/mirror step, so the drone never
+shows up in the scenario world or Unity.
+
+**PX4 SITL** (`agents/entity/physical/x500.py`) is optional per-agent, driven
+by the scenario JSON's `"px4"` / `"px4_control"` keys on an `X500` block.
+`AgentsManager._px4_kwargs()` introspects the target agent class's
+constructor and only forwards `px4_enabled`/`px4_control` to classes that
+declare those parameters, so every other agent type is unaffected. When
+enabled, `X500` spawns the `x500_px4` model (PX4-actuated via gz
+`MulticopterMotorModel`) instead of plain `x500`, keeping the same
+`renderer_type_name` so Unity shows the same drone either way. On
+`confirm_spawn()` — fired once the host has assigned the entity's final name,
+for both the batch and single-send spawn paths — `X500._start_px4_sitl()`
+launches an external PX4 binary (`PX4_AUTOPILOT_PATH`, prebuilt via
+`make px4_sitl gz_x500`) as a subprocess, one per instance
+(`X500._next_px4_instance`, so `MAV_SYS_ID` and the working directory —
+EEPROM/dataman/logs — never collide across instances), which attaches over
+gz-transport to the airframe already spawned in `aerialWorld`
+(`PX4_GZ_MODEL_NAME=<agent_name>`, `PX4_GZ_WORLD=aerialWorld`). `X500.
+destroy_node()` terminates that subprocess on agent teardown.
+
 ---
 
 ## 6. Global architecture (all processes)
@@ -345,6 +393,8 @@ flowchart TB
     subgraph "Physics (external processes)"
         XDYN["XDyn (WebSocket, ports 12345-12352)<br/>one instance per agent type"]
         GAZEBO["Gazebo Sim<br/>SDF world + LOTUSim systems"]
+        GAZEBO_AERIAL["Gazebo Sim<br/>aerialWorld.world<br/>always launched (§5.1)"]
+        PX4["PX4 SITL (optional, per X500)"]
     end
 
     subgraph "ROS2 Python - simulation_run (host)"
@@ -365,7 +415,6 @@ flowchart TB
 
     subgraph "ROS2 - gz_ros2_bridge"
         STATS["stats_gz_to_ros_bridge"]
-        WIND_B["wind_ros_to_gz_bridge"]
     end
 
     subgraph "3D Rendering"
@@ -376,6 +425,7 @@ flowchart TB
     USER --> LAUNCH
     CONFIG --> LAUNCH
     LAUNCH -->|"terminal"| XDYN
+    LAUNCH -->|"terminal, launched first (§5.1)"| GAZEBO_AERIAL
     LAUNCH -->|"terminal"| GAZEBO
     LAUNCH -->|"executable"| UNITY
     LAUNCH -->|"ros2 run"| TCP_EP
@@ -390,7 +440,8 @@ flowchart TB
     AGENTS <-->|"MASCmd action, poses/sensor topics"| GAZEBO
     GAZEBO <-->|"WebSocket"| XDYN
     GAZEBO <-->|"gz::transport"| STATS
-    GAZEBO <-->|"gz::transport"| WIND_B
+    GAZEBO -->|"AerialEntityManager forwards Aerial-domain spawns + mirrors pose (§5.1)"| GAZEBO_AERIAL
+    GAZEBO_AERIAL <-->|"gz-transport, optional per X500"| PX4
 
     AGENTS <-->|"ROS2 topics"| TCP_EP
     TCP_EP <-->|"TCP socket"| UNITY
@@ -400,21 +451,21 @@ flowchart TB
 
 ## 7. `gz_ros2_bridge` (C++)
 
-Two standalone executables (no shared library), each linking
-`gz-transport`/`gz-msgs` and `rclcpp`/`lotusim_msgs`:
+One standalone executable, linking `gz-transport`/`gz-msgs` and
+`rclcpp`/`lotusim_msgs`:
 
 | Node | Direction | Purpose |
 |---|---|---|
 | `stats_gz_to_ros_bridge` | Gazebo → ROS 2 | Publishes sim time / Real-Time Factor as `lotusim_msgs/SimStats`. |
-| `wind_ros_to_gz_bridge` | ROS 2 → Gazebo | Injects wind commands from ROS 2 into `gz::transport`. |
 
-`launch/bridge_nodes.launch.py` kills any previous instances of both, then
-launches them together after a short delay. It is a convenience entry point
-only — no scenario launch path uses it. `wind_ros_to_gz_bridge` is started
-unconditionally by `simulation_runner.start_wind_bridge()` and torn down in
-`stop_simulation()`. It is the sole link between the ROS-side wind vector
-(`/aerialWorld/wind`) and `gz-sim-wind-effects-system` — a translator, idle
-until something publishes that topic (§9).
+`launch/bridge_nodes.launch.py` kills any previous instance, then launches it
+after a short delay. It is a convenience entry point only — no scenario
+launch path uses it; `stats_gz_to_ros_bridge` itself isn't started by any
+scenario launch path either. This package used to also ship
+`wind_ros_to_gz_bridge`, translating the ROS-side wind vector into
+`gz::transport` for stock `gz-sim-wind-effects-system`; it was removed once
+the `wind_regions` Gazebo plugin took over both wind consumption and region
+support by subscribing to ROS directly — see §9's "No bridge process".
 
 ---
 
