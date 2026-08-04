@@ -22,7 +22,7 @@ near-identical code on both sides
 `lotusim_client/run_agent.py::main`). A mission tree copy-pasted from a host
 config into a remote one works unchanged.
 
-What differs is the **top-level "headers"**: `world_file`, `aerial_domain`,
+What differs is the **top-level "headers"**: `world_file`,
 `renderer_unity` — these tell the *host* which world/XDyn processes/Unity to
 launch. The remote machine never launches Gazebo, so it has no use for them;
 it gets the equivalent information (which world to attach to, the world's
@@ -35,7 +35,7 @@ flowchart LR
         AGENTS["agents: [ {id, class, spawn, missions, tick_rate_hz, ...}, ... ]"]
     end
     subgraph HostOnly["Host-only headers (§5)"]
-        H["world_file, aerial_domain, renderer_unity"]
+        H["world_file, renderer_unity"]
     end
     subgraph RemoteOnly["Remote-only flags (§6)"]
         R["--world, --origin (CLI, not JSON)"]
@@ -221,6 +221,43 @@ Subscribes `/{world}/{agent}/battery/state` (`sensor_msgs/BatteryState`,
 `TRANSIENT_LOCAL`). Requires the spawned model to bundle a `battery_sensor`
 + `light_actuator` (e.g. `model-battery.sdf`).
 
+#### `set_wind` → `SetWindTask`
+
+Sets the ambient wind vector, then returns `SUCCESS`. Unlike every other task
+here, its host is not a vehicle: it only runs on a `Wind` **environment** agent
+(§5.3), which is what makes a scripted wind history expressible as a plain
+`sequence`.
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `x` / `y` / `z` | float (m/s) | current value | Wind velocity in the world ENU frame (x=East, y=North, z=Up). Omitted components are left untouched. |
+
+Publishes `/aerialWorld/wind` (`lotusim_msgs/Wind`, `TRANSIENT_LOCAL`) through
+its host agent — see §5.3 for who else reads and writes that topic.
+
+#### `wait` → `WaitTask`
+
+Stays `RUNNING` for `duration_s`, then returns `SUCCESS`. Any agent — it reads
+and changes nothing but its own progress, so it drops safely into any
+`sequence`/`parallel` next to any other task.
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `duration_s` | float (s) | `0.0` | Wall-clock — no node in this codebase sets `use_sim_time`, so this holds regardless of Gazebo's `real_time_factor` (§4.1 uses the same clock convention). |
+
+Mainly useful to space out a run of instantly-succeeding actions — a `Sequence`
+advances through every immediately-succeeding child within the same tick (see
+`lotusim_sdk/bt/composites.py`), so e.g. two `set_wind` back to back apply
+instantly and only the second is ever actually observed. Interleave a `wait`:
+
+```json
+{ "id": "wind_schedule", "type": "sequence", "children": [
+    { "id": "calm",      "type": "action", "task": "set_wind", "params": { "x": 0.0, "y": 0.0 } },
+    { "id": "hold_calm", "type": "action", "task": "wait",     "params": { "duration_s": 30.0 } },
+    { "id": "from_east", "type": "action", "task": "set_wind", "params": { "x": 8.0, "y": 0.0 } }
+]}
+```
+
 #### Tasks shipped outside `lotusim_sdk`
 
 A task doesn't have to live in the SDK — `blink_light`
@@ -275,7 +312,6 @@ top-level keys that tell `simulation_run` what to launch:
 |---|---|---|---|
 | `world_file` | string | `""` | Gazebo world SDF file name (from `$LOTUSIM_PATH/assets/worlds/`), e.g. `"energy.world"`. Its `<spherical_coordinates>` block is read automatically for `waypoint_follower`'s ENU projection (§5.2) — no `origin` key needed host-side. |
 | `agents` | list (current) or dict (legacy, see below) | `[]` | See §2. |
-| `aerial_domain` | bool | `false` | Whether an aerial-domain world is also launched (needed for `X500`/aerial agents). |
 | `renderer_unity` | bool | `false` | Whether `scenario_launch.sh` starts the ROS↔Unity TCP bridge and the Unity executable. |
 | `ocean_current` | object | — | Enables the fake ocean current for Kinematic-connected entities — see §5.4. |
 | `record_csv` | bool or object | `false` | Enables the CSV recorder observer node — see §5.5. |
@@ -288,7 +324,7 @@ top-level keys that tell `simulation_run` what to launch:
 ros2 run simulation_run main --config sequence_and_parallel.json
 ```
 
-`scenario_launch.sh` reads `renderer_unity`/`aerial_domain` via `jq`, cleans
+`scenario_launch.sh` reads `renderer_unity` via `jq`, cleans
 up stale processes, launches one `xdyn-for-cs` per agent type that has
 `"xdyn": true` (mapped by class name to a `.yml`/port in the script's
 `XDYN_CONFIGS` table), optionally the Unity executable and TCP bridge, then
@@ -323,29 +359,263 @@ every agent **before** `set_missions()` builds its tasks — so
 configuration. This is the one piece of host convenience the remote launcher
 cannot provide for itself (§6.2).
 
-### 5.3 The `Wind` environment agent
+### 5.3 Wind: the `Wind` and `Wake` environment agents
 
-`Wind` is not a `PhysicalEntity` — no SDF, no spawn, no `missions`. It is
-declared like any other entry in the **legacy dict form** of `agents` (see
-§5.6) because its configuration is flat parameters, not a BT mission:
+The ambient (global) wind hangs off **one topic**, `/aerialWorld/wind`
+(`lotusim_msgs/Wind`, an ENU velocity vector in m/s). Hardcoded, like the
+aerial world itself. Three parties touch it and none know about each other:
+
+```
+Unity wind sliders ─┐
+                    ├──> /aerialWorld/wind ──┬──> wind_regions plugin ──> forces on vehicles
+Wind agent ─────────┘                        │    (Gazebo, subscribes to
+        │                                    │     ROS directly — no bridge)
+        │                                    └──> Wake agent ──> /<world>/wind/turbines, /<world>/lcoe
+        │                                                     │  (turbine power, farm economics;
+        │                                                     │  always reads the ambient vector,
+        │                                                     │  never regions)
+        │                                                     └──> /aerialWorld/wind/regions
+        │                                                          (wind_regions block, optional —
+        │                                                          the wake footprint itself, as cones)
+        └──> /aerialWorld/wind/regions ──> wind_regions plugin
+             (lotusim_msgs/WindRegionArray; Wind's own static `regions`, optional)
+```
+
+`/aerialWorld/wind/regions` has **two possible writers** — `Wind` (static
+`regions`, below) and `Wake` (dynamic `wind_regions`, further down) — and they
+do not know about each other any more than the three parties on the ambient
+topic do. See the `Wake` section for why declaring both in one scenario is a
+mistake, not a feature.
+
+The aerial world is always started — it is infrastructure, not a scenario
+option — and the `wind_regions` Gazebo plugin that lives in it embeds its own
+ROS node, so there is no separate bridge process to start or stop. So the only
+question a scenario answers is **who writes the topic, and when**.
+
+#### `Wind` — writing the ambient wind from a mission, and only then
+
+`Wind` holds one vector and republishes it at `publish_rate_hz` — but **only
+while one of its own missions is actively running**. With no `missions`
+declared, or once every declared mission has finished (reached
+`SUCCESS`/`FAILURE`), it publishes nothing at all on `/aerialWorld/wind`: the
+sliders are the only writer on the topic and free hand-tuning behaves exactly
+as if no `Wind` agent were declared.
 
 ```json
-"agents": {
-  "Wind": {
-    "wake_model": "jensen",
-    "model_params": { "kw": 0.065 },
-    "diameter": 61.0, "ct": 0.8, "cp": 0.35,
-    "air_density": 1.225, "cut_in": 5.0, "cut_out": 25.0,
-    "maintenance_cost": 100000.0,
-    "lcoe": { "alpha_r_aud_per_hour": 50.0, "alpha_e_aud_per_kwh": 0.5, "publish_rate_hz": 1.0 },
-    "turbines": [ { "name": "wind_turbine_1", "x": 307.5, "y": 85.03, "z": -29.5 }, "..." ]
-  }
+{ "id": "wind", "class": "Wind", "x": 8.0, "y": 0.0, "z": 0.0, "publish_rate_hz": 10.0 }
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `x` / `y` / `z` | float | `0.0` | Ambient wind velocity in m/s, world ENU frame (x=East, y=North, z=Up), used as the starting held value once a mission claims the topic. |
+| `publish_rate_hz` | float | `10.0` | How often the held vector (and the `regions` list below) is republished. |
+| `regions` | list | `[]` | Optional 2D wind regions overriding the ambient vector — see below. |
+
+With no `missions` at all (as above) this agent is a **legitimate no-op** for
+the ambient vector — sliders are always in control, and `Wake` reads whatever
+they publish. That is the right shape for a scenario that only wants wake/LCOE
+modelling and free manual wind control, e.g.
+[`test_wake.json`](../src/simulation_run/config/test_wake.json).
+
+#### `regions` — 2D wind overrides on top of the ambient vector
+
+Each entry is a box `(x1,y1)`–`(x2,y2)` in world ENU X/Y, **all altitudes**
+(no `z` bound, matching the ambient wind which has none either). `WindRegion`
+also supports a cone-segment shape (used by `Wake`'s `wind_regions` below,
+not available here — this static list is always the box shape). Any
+wind-enabled link whose world X/Y falls inside a region's box feels that
+region's vector instead of the ambient one; outside every region, the ambient
+vector applies. On overlap, the **last** region in the list wins.
+
+```json
+"regions": [
+  { "id": "mirror_test_box", "x1": -20.0, "y1": -20.0, "x2": 20.0, "y2": 20.0, "mirror_global": true }
+]
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `id` | string | `"region_<i>"` | Label, carried through to `WindRegionArray` for Gazebo/telemetry. |
+| `x1`,`y1`,`x2`,`y2` | float | — | Box bounds in world ENU X/Y (required). |
+| `x`,`y`,`z` | float | `0.0` | Region wind velocity in m/s, ignored if `mirror_global` is set. |
+| `mirror_global` | bool | `false` | If set, the published vector is always `-1 *` the current ambient vector instead of `x`/`y`/`z` — tracks the ambient wind live (mission- or slider-driven), useful for exercising the region pipeline with a vector that keeps changing without needing a dedicated task to drive it. |
+
+Unlike the ambient vector, `regions` are published **regardless of mission
+state** on `/aerialWorld/wind/regions` (`lotusim_msgs/WindRegionArray`) — a
+`mirror_global` region must keep tracking the ambient vector even while
+`Wind` is passive and the sliders are driving it, so `Wind` also subscribes to
+its own `/aerialWorld/wind` topic to know the value currently in effect no
+matter who wrote it. `Wake` is unaffected by `regions` — turbines always read
+the ambient vector only.
+
+To actually script the wind, give `Wind` `missions` built from `set_wind` and
+`wait` (§4):
+
+```json
+{
+  "id": "wind", "class": "Wind", "x": 8.0, "tick_rate_hz": 1.0,
+  "missions": [{
+    "id": "shift", "type": "sequence", "children": [
+      { "id": "east",  "type": "action", "task": "set_wind", "params": { "x": 8.0, "y": 0.0 } },
+      { "id": "hold",  "type": "action", "task": "wait", "params": { "duration_s": 30.0 } },
+      { "id": "north", "type": "action", "task": "set_wind", "params": { "x": 0.0, "y": 14.0 } }
+    ]
+  }]
 }
 ```
 
-See [`ARCHITECTURE.md` §9](ARCHITECTURE.md#9-wind-agentsenvironmentwind) for
-what each field feeds into (wake model choice, LCOE computation). Full file:
-[`src/simulation_run/config/wind_only.json`](../src/simulation_run/config/wind_only.json).
+The topic is claimed **the instant `missions` is set** — a mission root
+defaults to `RUNNING` before its very first tick, so there is no gap where the
+sliders could sneak in a value right as the mission starts. The moment the
+whole tree reaches a terminal status, publishing stops and the sliders regain
+the topic on the next slider move — no scenario restart needed.
+
+Note this is a **one-way** interface: nothing pushes state back into Unity, so
+while a mission is active a `set_wind` task changes the physics and the wake
+model but does **not** move the Unity sliders or refresh their vector-field
+display. Unity keeps showing whatever was last set there by hand, even though
+its writes are (until the mission ends) not the ones taking effect.
+
+#### `Wake` — reading the wind, per-turbine power and LCOE
+
+`Wake` applies a wake model over a turbine layout and publishes
+`lotusim_msgs/WindTurbineArray` on `/<world>/wind/turbines`. With an `lcoe`
+block it also publishes `lotusim_msgs/LCOEState` on `/<world>/lcoe`.
+
+```json
+{
+  "id": "wake", "class": "Wake",
+  "wake_model": "larsen",
+  "diameter": 61.0, "ct": 0.8, "cp": 0.35,
+  "air_density": 1.225, "cut_in": 5.0, "cut_out": 25.0,
+  "ambient_ti": 0.08, "shear_exponent": 0.12,
+  "maintenance_cost": 100000.0,
+  "lcoe": { "alpha_r_aud_per_hour": 50.0, "alpha_e_aud_per_kwh": 0.5, "publish_rate_hz": 1.0 },
+  "turbines": [ { "name": "wind_turbine_1", "x": 307.5, "y": -29.5, "z": 85.03 }, "..." ]
+}
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `wake_model` | string | `"larsen"` | Wake model to apply. `"larsen"` is currently the only one. |
+| `diameter` | float | `61.0` | Rotor diameter in m. |
+| `ct` / `cp` | float | `0.8` / `0.35` | Thrust and power coefficients. |
+| `air_density` | float | `1.225` | kg/m³. |
+| `cut_in` / `cut_out` | float | `5.0` / `25.0` | Operating wind speed range in m/s; outside it a turbine produces 0 W. |
+| `ambient_ti` | float | `0.08` | Ambient turbulence intensity as a fraction. Drives how fast a wake widens and mixes out — raise it and downstream turbines recover more. |
+| `shear_exponent` | float | `0.12` | Power-law wind shear exponent (IEC 61400-1). The inflow is averaged over the rotor disk through this profile, so each turbine's own hub height (`z`) affects its power. |
+| `maintenance_cost` | float | `100000.0` | Per turbine per year, spread over the run's duration for LCOE. |
+| `model_params` | dict | `{}` | Extra keyword arguments passed straight to the model class — for parameters specific to one model. `larsen` needs none. |
+
+**The wake model is `larsen`** — a semi-analytical Larsen (2009) wake, ported
+from the IRL Crossing benchmark repository
+([`lotusim-wake-models`](https://github.com/IRL-Crossing-CNRS/lotusim-wake-models)),
+where it was validated against OpenFOAM v8 + turbinesFoam actuator-line CFD.
+It replaced the Jensen and Gaussian models this repo used to carry, which it
+beats on every power protocol (baseline RMSE 0.212 MW against 0.309 MW for
+Jensen and 0.767 MW for FLORIS-Gauss). Two things worth knowing before you
+trust a number it gives you:
+
+- Its centreline deficit is an **empirical fit calibrated on the NREL 5MW**
+  (D=126 m) at 7D–9D spacing. The default LOTUSim layout is D=61 m at 100 m
+  spacing — about 1.6D, well inside the near wake and outside the calibrated
+  range. Expect it to remain better than Jensen was, not to be validated there.
+- There is **no rated-power ceiling**: the power curve stays cubic all the way
+  to `cut_out`, matching the reference implementation. At high wind speeds a
+  turbine will report well above its nameplate rating, which flatters LCOE.
+
+LCOE lives inside `Wake` rather than in an agent of its own because it is a
+direct integral of the turbine power computed there — it needs no input the
+wake model does not already have. Robots are found on their own: any
+`*/battery/state` topic is picked up automatically, so there is no agent list
+to keep in sync. Drop the `lcoe` block and the economics are simply off.
+
+##### `wind_regions` — the wake footprint as cone segments a vehicle actually feels
+
+```json
+"wind_regions": {
+  "cell_diameters": 0.5,
+  "deficit_threshold": 0.05,
+  "max_downstream_diameters": 8.0,
+  "direction_hysteresis_deg": 5.0,
+  "speed_hysteresis_mps": 0.5
+}
+```
+
+With this block, `Wake` also publishes `lotusim_msgs/WindRegionArray` on
+`/aerialWorld/wind/regions` — the same topic the `wind_regions` Gazebo plugin
+already reads for the ambient/static-region mechanism described above, so a
+wind-enabled vehicle flying behind a turbine feels a real velocity deficit
+instead of the ambient vector everywhere.
+
+`WindRegion` supports a second shape besides the static box above: a tapered
+cone segment (`origin`, unit downstream `axis`, `length`, `r_start`, `r_end`),
+tested with a closed-form point-in-cone check on the Gazebo side — no box
+approximation. Each turbine's wake is represented as a handful of these
+segments **chained end to end** (one segment's `r_end` is the next one's
+`r_start`), so the geometry itself is one continuous tapered cone rather than
+stacked rectangles — see
+[`wake_regions.py`](../src/lotusim_sdk/lotusim_sdk/agents/environment/wake/wake_regions.py)
+for how the chain is built. This requires `wake_model: "larsen"` (the block
+wraps a `BlendedWakeModel` around the same `LarsenWakeModel` instance already
+computing turbine power, so rotor geometry can't drift between the two).
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `cell_diameters` | float | `0.5` | Downstream length of each segment, in rotor diameters — the resolution knob. Independent of `max_downstream_diameters` (the reach knob): halving this doubles the segment count over the same distance instead of shortening it. Because each segment already tapers smoothly (and chains seamlessly into the next), this is now purely a velocity-gradient granularity knob, not a visual-smoothness one — it can typically be set coarser than a box stack needed to look smooth. |
+| `deficit_threshold` | float | `0.05` | Lateral cutoff used to find each segment's radius — where the deficit falls below this fraction, sideways, is the wake's edge at that distance. In principle also stops the downstream chain once the *centreline* deficit itself falls below it, but see the note below: for the calibrated fit this almost never happens within a farm-sized distance, so `max_downstream_diameters` is what actually stops the chain. |
+| `max_downstream_diameters` | float | `8.0` | Hard cap on how far downstream segments are generated, in rotor diameters. **This is the parameter that controls wake length in practice** — tune it to your farm's own turbine spacing. |
+| `direction_hysteresis_deg` / `speed_hysteresis_mps` | float | `5.0` / `0.5` | Regions are only recomputed and republished once the wind has drifted past one of these thresholds since the last publish — not on every wind message. |
+
+**`deficit_threshold` will not stop the chain early — plan around
+`max_downstream_diameters` instead.** The calibrated centreline deficit is
+`0.58 * (x/D)^-0.35` — a power law that decays so slowly it only falls below a
+5% relative deficit around `x/D ≈ 1100` (67 km for a 61 m rotor). In practice
+every turbine's segment chain runs to the `max_downstream_diameters` cap,
+always. Set that cap by hand rather than trusting the threshold to end the
+chain for you — for a farm with turbines spaced closer than the cap (common:
+this model's own default layout is only 1.6D apart, well inside the 7-9D the
+model was validated on), every turbine's chain will run past its downstream
+neighbours, and dropping the cap to roughly the farm's own spacing keeps that
+visually and computationally sane.
+
+**Performance note.** The `wind_regions` Gazebo plugin re-scans the *entire*
+region list for *every* wind-enabled link on *every* physics tick (500 Hz by
+default). Region count now scales with velocity-gradient granularity rather
+than with how smooth the shape needs to look, so a farm at the defaults above
+should publish noticeably fewer regions than the old box-stack approach did
+for the same `cell_diameters` — worth re-tuning `cell_diameters` coarser
+against a live run rather than assuming the old defaults are still optimal.
+
+**`Wind` and `Wake` must not both write regions in the same scenario.**
+`/aerialWorld/wind/regions` is latched with no merging between publishers —
+if `Wind` also declares a static `regions` list, whichever agent publishes
+last wins and silently blanks out the other's regions.
+
+Full files: [`test_wake.json`](../src/simulation_run/config/test_wake.json)
+(slider-driven wind + wake, `wind_regions` enabled, no LCOE) and
+[`demo_facet.json`](../src/simulation_run/config/demo_facet.json) (wake +
+LCOE, no `wind_regions`, alongside the rest of the demo).
+
+`turbines[].{x,y,z}` follow the same ENU convention as every other position in
+this document (`z` = height/hub height, `x`/`y` = horizontal plane) — the wake
+models consume `x`/`y` as horizontal and `z` as vertical, same as
+`wind_speeds_full`'s `wind_vector` argument (`[vx, vy]`, horizontal ENU plane).
+This matters because the `wind_regions` Gazebo plugin applies that same
+ambient vector directly (it subscribes to `/aerialWorld/wind` itself, no
+bridge in between) — if the wake model used a different "up" axis than the
+physics engine, the two consumers of one wind vector would silently disagree
+about what it means.
+
+#### For a vehicle to actually feel the wind
+
+Two things must hold, both of them in the core repo:
+
+- the world loads the `wind_regions` plugin (`assets/worlds/aerialWorld.world`
+  does, in place of stock `gz-sim-wind-effects-system`);
+- **each link** that should be pushed carries `<enable_wind>true</enable_wind>`.
+  A model-level `<enable_wind>` is *not* propagated to links by sdformat14 — it
+  parses without a warning and silently does nothing.
 
 ### 5.4 `ocean_current` — a fake current for Kinematic vehicles
 
@@ -605,7 +875,7 @@ written against.
 ## 6. Writing a REMOTE scenario
 
 Remote configs (e.g. `deployment/my_config.json`) have **no**
-`world_file`/`aerial_domain`/`renderer_unity` — the remote machine never
+`world_file`/`renderer_unity` — the remote machine never
 launches Gazebo/XDyn/Unity, it only attaches to a world the host already has
 running. Everything those headers would have configured instead comes from
 `run_agent`'s **CLI flags**:
@@ -629,7 +899,7 @@ python3 -m lotusim_client.run_agent \
 both):
 
 **A. The same `"agents": [...]` list form the host uses** — copy a host
-scenario's agent entries verbatim (minus `world_file`/`aerial_domain`/
+scenario's agent entries verbatim (minus `world_file`/
 `renderer_unity`, which `run_agent` ignores if present):
 
 ```json

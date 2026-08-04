@@ -31,7 +31,8 @@ from lotusim_sdk.agents.entity.physical import (
     Wamv,
     X500,
 )
-from lotusim_sdk.agents.environment.wind.wind import Wind
+from lotusim_sdk.agents.environment.wind import Wind
+from lotusim_sdk.agents.environment.wake import Wake
 
 __all__ = [
     # Agents
@@ -66,4 +67,5 @@ __all__ = [
     "Wamv",
     "X500",
     "Wind",
+    "Wake",
 ]

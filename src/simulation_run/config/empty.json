@@ -1,6 +1,5 @@
 {
   "world_file": "energy.world",
   "agents": {},
-  "aerial_domain": false,
   "renderer_unity": true
 }

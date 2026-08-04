@@ -133,11 +133,23 @@ class AgentsManager:
         return list(agents.items())
 
     def delete_agents(self) -> None:
-        """Sends delete commands to all managed agents and destroys their nodes."""
+        """Sends delete commands to all managed agents and destroys their nodes.
+
+        Environment agents (Wind, Wake, ...) have no spawned entity, so they
+        skip send_single_delete_cmd/agent_name (Entity-only members) — but
+        still need destroy_node() called, e.g. Wind clears its region list on
+        shutdown so Unity's boxes don't outlive the scenario. get_name() (the
+        underlying rclpy.Node's ROS node name) is used for the warning instead
+        of agent_name since Environment agents don't have the latter.
+        """
         if not rclpy.ok():
             return
         for agent in self.agents.values():
             if isinstance(agent, Environment):
+                try:
+                    agent.destroy_node()
+                except Exception as e:
+                    logging.warning(f"Could not destroy node {agent.get_name()}: {e}")
                 continue
             try:
                 agent.send_single_delete_cmd()
@@ -192,9 +204,16 @@ class AgentsManager:
                 logging.error(f"Agent class '{class_name}' not found")
                 return
 
-            # Environment agents (Wind, etc.) have no SDF model and no spawn queue
+            # Environment agents (Wind, Wake, ...) have no SDF model and no
+            # spawn queue — but they are Agents, so they carry the same BT mission
+            # engine as everyone else. That is what lets a Wind agent be driven by
+            # a set_wind/wind_ramp/wind_gust tree from the scenario JSON.
             if issubclass(agent_class, Environment):
                 env_node = agent_class(world_name, **agent_info)
+                env_node.agent_name = agent_info.get("id") or agent_type.lower()
+                if config_dir is not None:
+                    env_node._config_dir = config_dir
+                self._maybe_set_missions(env_node, agent_info)
                 executor.add_node(env_node)
                 self.agents[agent_type.lower()] = env_node
                 logging.info(f"Environment agent '{agent_type}' added to executor.")

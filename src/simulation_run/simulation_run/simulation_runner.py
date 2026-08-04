@@ -53,18 +53,20 @@ lotusim_pids: List[int] = []
 # -------------------------------------------------------------------------
 def build_launch_command(
     world_file: str,
-    aerial_domain: bool,
     debug: bool = False,
     gui: bool = False,
 ) -> List[str]:
     """
     Builds the shell commands required to launch the Lotusim simulation.
 
+    Always two worlds: the scenario's own, plus the hardcoded
+    ``utils.AERIAL_WORLD_FILE``. The aerial world is infrastructure, not a
+    scenario choice — it is where the wind_regions plugin lives and where the
+    custom world's AerialEntityManager forwards aerial spawns, so nothing in the
+    scenario JSON turns it on or off.
+
     Args:
         world_file: Path to the world file to launch.
-        aerial_domain: Whether to also launch the aerialWorld physics world
-            (needed for X500/aerial agents). The aerial world file is never
-            configurable — always the hardcoded ``utils.AERIAL_WORLD_FILE``.
         debug: Enable debug mode (adds '--debug' flag to commands).
         gui: Enable Gazebo GUI (adds '--gui' flag to commands).
 
@@ -94,8 +96,7 @@ def build_launch_command(
 
     # The aerialWorld must come up first: the custom world's AerialEntityManager
     # waits on /aerialWorld/mas_cmd at load and logs "not available" if it's late.
-    if aerial_domain:
-        commands.append(_with_log(utils.AERIAL_WORLD_FILE))
+    commands.append(_with_log(utils.AERIAL_WORLD_FILE))
     commands.append(_with_log(world_file))
 
     logger.debug("Launch commands: %s", commands)
@@ -152,7 +153,6 @@ def run_simulation(
     world_file: str,
     agents: Dict[str, Any],
     max_simulation_time: Optional[float] = None,
-    aerial_domain: bool = False,
     debug_mode: bool = False,
     gui=False,
     config_dir: Optional[str] = None,
@@ -174,7 +174,6 @@ def run_simulation(
         world_file: Simulation world file path.
         agents: Full agents dictionary as in JSON.
         max_simulation_time: Optional maximum simulation duration (seconds).
-        aerial_domain: Whether to also launch the aerialWorld physics world.
         debug_mode: Enable verbose logging.
         gui: Enable Gazebo GUI.
         config_dir: Directory containing the scenario JSON (forwarded to
@@ -207,7 +206,9 @@ def run_simulation(
         stop_simulation(executor)
         return
 
-    launch_commands = build_launch_command(world_file, aerial_domain, debug=debug_mode, gui=gui)
+    world_name = utils.get_world_name(world_file)
+
+    launch_commands = build_launch_command(world_file, debug=debug_mode, gui=gui)
 
     # Start simulation process
     process = start_simulation_process(launch_commands)
@@ -218,9 +219,6 @@ def run_simulation(
         return
 
     logger.info("Starting simulation...")
-
-    # Initialize ROS agents and bridges using the full agents dictionary
-    world_name = utils.get_world_name(world_file)
 
     # Optional CSV recording ("record_csv" in the scenario JSON): a pure
     # observer node — not an agent — recording every agent's pose + battery

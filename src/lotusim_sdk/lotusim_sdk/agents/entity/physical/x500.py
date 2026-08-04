@@ -20,6 +20,13 @@ class X500(PhysicalEntity):
     THRUSTERS = []
     DOMAINS = ["Aerial"]
 
+    # Shared across every X500 in this process so each PX4 SITL launched gets
+    # a distinct "-i" instance number. Without it, every instance defaults to
+    # 0 -> same MAV_SYS_ID -> QGroundControl merges all heartbeats into one
+    # vehicle, and all instances share one working directory (EEPROM/dataman),
+    # each overwriting the previous one's.
+    _next_px4_instance = 0
+
     def __init__(
         self,
         sdf_string: str,
@@ -86,6 +93,9 @@ class X500(PhysicalEntity):
         ``make``. Requires ``PX4_AUTOPILOT_PATH`` already built once via
         ``make px4_sitl gz_x500`` — this does NOT rebuild it.
         """
+        instance = X500._next_px4_instance
+        X500._next_px4_instance += 1
+
         px4_path = os.environ.get("PX4_AUTOPILOT_PATH", os.path.expanduser("~/PX4-Autopilot"))
         # PX4 attaches to the airframe in the aerial world (always "aerialWorld");
         # PX4_GZ_WORLD stays overridable only as an escape hatch for local tests.
@@ -102,16 +112,20 @@ class X500(PhysicalEntity):
         )
         px4_log_path = os.environ.get("PX4_SITL_LOG", default_log)
 
+        # Each PX4 process persists its EEPROM/parameters/dataman/logs relative
+        # to its own CWD, so instances sharing a directory overwrite each
+        # other's state. Give every instance a private one instead of the
+        # single shared gz_bridge source dir used previously.
+        instance_dir = os.path.join(px4_path, "build", "px4_sitl_default", f"instance_{instance}")
+        os.makedirs(instance_dir, exist_ok=True)
+
         # A stale dataman file makes PX4 replay a previous mission on boot.
-        dataman_path = os.path.join(px4_path, "dataman")
+        dataman_path = os.path.join(instance_dir, "dataman")
         if os.path.exists(dataman_path):
             os.remove(dataman_path)
             self.get_logger().info(f"[{self.agent_name}] Removed stale PX4 dataman file.")
 
         px4_binary = os.path.join(px4_path, "build", "px4_sitl_default", "bin", "px4")
-        gz_bridge_dir = os.path.join(
-            px4_path, "build", "px4_sitl_default", "src", "modules", "simulation", "gz_bridge"
-        )
         if not os.path.isfile(px4_binary):
             self.get_logger().error(
                 f"[{self.agent_name}] PX4 binary not found at '{px4_binary}'. "
@@ -126,16 +140,20 @@ class X500(PhysicalEntity):
         env["PX4_SIM_MODEL"] = "gz_x500"
         env.setdefault("GZ_IP", "127.0.0.1")
 
+        # -i: instance number (drives MAV_SYS_ID and mavlink port offsets, so
+        # QGroundControl sees distinct vehicles instead of merging heartbeats
+        # from several instance-0 processes into one).
         # -d: daemon mode, don't start pxh shell (see class docstring above).
-        cmd = [px4_binary, "-d"]
+        cmd = [px4_binary, "-i", str(instance), "-d"]
         self.get_logger().info(
-            f"[{self.agent_name}] Starting PX4 SITL — model='{self.agent_name}', world='{gz_world}'"
+            f"[{self.agent_name}] Starting PX4 SITL — instance={instance}, "
+            f"model='{self.agent_name}', world='{gz_world}'"
         )
         log_file = open(px4_log_path, "a", encoding="utf-8") if px4_log_path else subprocess.DEVNULL
         try:
             self.px4_process = subprocess.Popen(
                 cmd,
-                cwd=gz_bridge_dir,
+                cwd=instance_dir,
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=log_file,

@@ -227,11 +227,12 @@ fi
 
 echo -e "${YELLOW}[INFO] Loading config from: $CONFIG_FILE${NC}"
 USE_UNITY=$(jq -r '.renderer_unity // false' "$CONFIG_FILE")
-AERIAL_DOMAIN=$(jq -r '.aerial_domain // false' "$CONFIG_FILE")
 WORLD_FILE=$(jq -r '.world_file // ""' "$CONFIG_FILE")
 echo -e "${YELLOW}Unity Rendering: $USE_UNITY${NC}"
-echo -e "${YELLOW}Aerial World: $AERIAL_DOMAIN${NC}"
 echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
+# Whether the aerial world is launched is no longer a config field — it is
+# derived from the scenario's agents (utils.needs_aerial_world) and logged by
+# simulation_runner at startup.
 
 # ============================================================
 # Snapshot the scenario config into $LOG_DIR/config/

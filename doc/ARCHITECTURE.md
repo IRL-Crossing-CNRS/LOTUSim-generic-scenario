@@ -67,7 +67,8 @@ lotusim_sdk/
 │   ├── physical_entity.py       # PhysicalEntity: XDyn / physics_engine_interface wiring
 │   ├── fixed_entity.py
 │   └── environment/
-│       └── wind/                 # Wind: Environment agent modelling wake effects + LCOE (§8)
+│       ├── wind.py               # Wind: Environment agent driving the ambient wind vector (§9)
+│       └── wake/                 # Wake: Environment agent, Larsen power + Blended wind regions + LCOE (§9)
 ├── bt/                            # Behaviour Tree engine: Status, BehaviorNode, Sequence, Parallel,
 │                                   # Blackboard, build_tree, load_task_registry
 ├── tasks/                         # Built-in TaskAgent leaves: fault_inspection, check_battery_state,
@@ -193,9 +194,15 @@ classDiagram
     PhysicalEntity <|-- X500
 
     class Wind {
-        wake model: Jensen | Gaussian
+        ambient wind vector (ENU)
+    }
+    class Wake {
+        wake model: Larsen
+        LCOE (optional)
+        wind_regions (optional, Blended)
     }
     Environment <|-- Wind
+    Environment <|-- Wake
 ```
 
 ### Concrete vehicle classes and their constants
@@ -402,7 +409,12 @@ Two standalone executables (no shared library), each linking
 | `wind_ros_to_gz_bridge` | ROS 2 → Gazebo | Injects wind commands from ROS 2 into `gz::transport`. |
 
 `launch/bridge_nodes.launch.py` kills any previous instances of both, then
-launches them together after a short delay.
+launches them together after a short delay. It is a convenience entry point
+only — no scenario launch path uses it. `wind_ros_to_gz_bridge` is started
+unconditionally by `simulation_runner.start_wind_bridge()` and torn down in
+`stop_simulation()`. It is the sole link between the ROS-side wind vector
+(`/aerialWorld/wind`) and `gz-sim-wind-effects-system` — a translator, idle
+until something publishes that topic (§9).
 
 ---
 
@@ -421,20 +433,134 @@ independent of the scenario that was initially launched.
 
 ---
 
-## 9. `Wind` (`agents/environment/wind/`)
+## 9. Wind and wake (`agents/environment/`)
 
-An `Environment` agent (no SDF model, no MAS spawn) that models turbine wake
-effects and publishes derived data:
+Two `Environment` agents (no SDF model, no MAS spawn), split along the one line
+that matters: **who writes the wind, and who reads it**.
 
-- `wake_model_base.py` — `WakeModelBase`, holding turbine parameters
-  (diameter, thrust/power coefficients, cut-in/cut-out speed) with abstract
-  `power()` / `wind_speeds_full()`.
-- `jensen.py` / `gaussian.py` — two concrete wake models.
-- `wind.py` — the `Wind` node: subscribes `/aerialWorld/wind`, publishes
-  per-turbine data on `/{world}/wind/turbines`, and — if the scenario JSON's
-  `wind` block has an `lcoe` section — discovers any spawned agent's
-  `*/battery/state` topic to compute and publish an LCOE (€/MWh) estimate on
-  `/{world}/lcoe`.
+`/aerialWorld/wind` (`lotusim_msgs/Wind`) is the system's ambient/global wind
+topic. Three parties touch it, and none of them know about each other:
+
+| | Role |
+|---|---|
+| Unity wind sliders | write it, by hand |
+| `Wind` agent (`wind.py`) | writes it, from the scenario; also subscribes to it (see below) |
+| `wind_regions` Gazebo plugin (core repo, `systems/wind_regions/`) | reads it → forces on wind-enabled links |
+| `Wake` agent (`wake/`) | reads it → turbine power, LCOE (ambient only, never regions) |
+
+On top of that, `/aerialWorld/wind/regions` (`lotusim_msgs/WindRegionArray`)
+carries an optional list of 2D wind regions, all altitudes, each with its own
+vector, that override the ambient wind inside their footprint. `WindRegion`
+carries one of two shapes via a `shape_type` discriminator plus an embedded
+sub-message (ROS `.msg` has no inheritance/union, so this is the usual
+tagged-union pattern): `WindRegionBox` — an axis-aligned box `(x1,y1)`–
+`(x2,y2)` — or `WindRegionConeSegment` — a tapered frustum (`origin`, unit
+downstream `axis`, `length`, `r_start`, `r_end`). **Two agents can write this
+topic**, and neither knows about the other: `wind.py`'s own static `regions`
+list (always the box shape), and `wake.py`'s dynamic `wind_regions` block
+(the wake footprint itself, as chained cone segments — see below). It is
+latched with no merging between publishers, so declaring both in one scenario
+means whichever publishes last silently blanks out the other's regions.
+`wind_regions` (the Gazebo plugin) reads the topic without caring which agent
+wrote what is on it, or which shape any given region uses.
+
+- `wind.py` — the `Wind` node holds one ENU vector and, **only while a mission
+  is actively running**, republishes it on `/aerialWorld/wind` at
+  `publish_rate_hz`. `set_wind`/`wait` BT tasks in its `missions` change it. A
+  mission root defaults to `RUNNING` before its first tick, so the topic is
+  claimed the instant `missions` is set, not after; once every root reaches
+  `SUCCESS`/`FAILURE` the agent goes silent again and the sliders regain the
+  topic immediately. With no `missions` at all it never publishes the ambient
+  vector — a `Wind` agent declared without one is a legitimate no-op, there
+  purely so wind missions can be added later without introducing a new agent.
+  It also holds an optional static `regions` list (constructor kwarg), always
+  republished on `/aerialWorld/wind/regions` regardless of mission state. A
+  region can set `mirror_global: true` instead of a static vector, in which
+  case its published vector is always `-1 *` the ambient vector currently in
+  effect — to know that value even while passive (sliders driving
+  `/aerialWorld/wind` instead of the agent), `wind.py` also subscribes to its
+  own `/aerialWorld/wind` topic. That subscription intentionally uses plain
+  (volatile) QoS rather than the publisher's TRANSIENT_LOCAL: the Unity
+  sliders' publisher durability isn't controlled by this repo, and a
+  TRANSIENT_LOCAL subscriber against a VOLATILE publisher would silently
+  receive nothing (DDS QoS incompatibility), not just miss the replay.
+- `wake/wake_model_base.py` — `WakeModelBase`, holding turbine and inflow
+  parameters (diameter, thrust/power coefficients, cut-in/cut-out speed,
+  ambient turbulence intensity, shear exponent) with abstract `power()` /
+  `wind_speeds_full()`. Positions are ENU throughout: a turbine is `(x, y, z)`
+  with `z` the hub height, a wind vector is `[vx, vy]`.
+- `wake/larsen.py` — `LarsenWakeModel`, the one concrete model. A
+  semi-analytical Larsen (2009) wake ported from the IRL Crossing benchmark
+  repository [`lotusim-wake-models`](https://github.com/IRL-Crossing-CNRS/lotusim-wake-models)
+  (`models/larsen.py` @ 8c18232), where it was validated against OpenFOAM v8 +
+  turbinesFoam actuator-line CFD on the NREL 5MW. It replaced the Jensen and
+  Gaussian models this package used to carry, beating both on every power
+  protocol. It combines wakes by sequential *local* superposition — each
+  upstream deficit applies to the already-reduced speed, in downstream order —
+  rather than by the root-sum-square of freestream deficits the old models
+  used, which is what stops deep rows saturating. Two departures from upstream
+  are marked in the file: the ENU frame (upstream's vertical axis is `y`), and
+  yaw derating by the *absolute* projection onto the turbines' facing axis, so
+  that a southerly wind produces power instead of zeroing the farm — LOTUSim's
+  wind direction is slider-driven and cannot be assumed northward. Locked
+  against the published benchmark by `test/test_larsen_wake.py`.
+- `wake/blended.py` — `BlendedWakeModel`, a Larsen/Gaussian blend used only for
+  the *spatial* wake field (`wind_regions` below), never for power. Also
+  ported from `lotusim-wake-models` (`models/blended.py` @ 8c18232), and also
+  wraps a `LarsenWakeModel` instance — the same one `Wake` already built for
+  power — rather than building its own, so rotor geometry stays one source of
+  truth. One departure from upstream: `farm_velocity_at_point` projects onto
+  the *current* wind vector before walking turbines, where upstream's spatial
+  queries assume wind blows along one fixed axis (true for the single-direction
+  CFD runs they were calibrated against, not for a slider-driven vector).
+- `wake/wake_regions.py` — `WakeRegionGenerator` and `wind_changed_enough`,
+  pure Python (no rclpy). Represents each turbine's wake footprint as a
+  handful of `WindRegionConeSegment`s **chained end to end** — one segment's
+  `r_end` is the next one's `r_start`, so the geometry is one continuous
+  tapered cone, closed-form point-in-cone tested directly on the Gazebo side,
+  rather than a stack of boxes circumscribing the real (circular) wake
+  cross-section. That shape depends only on rotor geometry (diameter, ct,
+  ambient_ti), not on wind speed — every calibrated deficit term in
+  `BlendedWakeModel` is linear in freestream speed, so the threshold crossing
+  used to find each segment's radius doesn't depend on it either — so it is
+  computed once, at construction, and only rotated/translated for the current
+  wind direction on each update. Segment *count* is now purely a
+  velocity-gradient granularity knob (each segment already tapers smoothly,
+  and chains without a seam into the next), unlike the box stack it replaced
+  where segment count also had to double as a visual-smoothness knob. The
+  downstream chain itself is capped by `max_downstream_diameters`, not by
+  that same threshold going to zero: the calibrated centreline fit decays so
+  slowly (`0.58 * (x/D)^-0.35`) that a 5% deficit is not reached until
+  roughly `x/D=1100`, so the cap is what actually determines wake length for
+  any realistic setting — see `Wake`'s `wind_regions` docs in
+  WRITE_SCENARIO.md. `wind_changed_enough` gates how often the whole thing is
+  regenerated: doing it on every wind message would mean reshuffling every
+  wake segment on a topic the Gazebo plugin re-scans per wind-enabled link,
+  per physics tick, for a wind vector that may have barely moved.
+- `wake/wake.py` — the `Wake` node: subscribes `/aerialWorld/wind` (ambient
+  only), publishes per-turbine effective speed and power on
+  `/{world}/wind/turbines`, and — if its config block has an `lcoe` section —
+  integrates that power into produced energy, discovers any spawned agent's
+  `*/battery/state` topic for the robot operating cost, and publishes an LCOE
+  (AUD/MWh) estimate on `/{world}/lcoe`. LCOE lives inside `Wake` because it is
+  a direct integral of the farm power computed there. With a `wind_regions`
+  section (requires `wake_model: "larsen"`) it also becomes the second
+  possible writer of `/aerialWorld/wind/regions` — see above — publishing the
+  `WakeRegionGenerator` output for the current wind, subject to
+  `wind_changed_enough`'s hysteresis.
+
+**No bridge process.** The `wind_regions` Gazebo System plugin (core repo)
+embeds its own `rclcpp::Node` and subscribes to both ROS topics above
+directly — it replaces stock `gz-sim-wind-effects-system` (which only supports
+one uniform global wind and can't express regions) and the
+`wind_ros_to_gz_bridge` translator that used to forward `/aerialWorld/wind`
+into it over gz-transport. For each link tagged wind-enabled
+(`<enable_wind>true</enable_wind>`, same convention stock WindEffects used),
+the plugin resolves a wind vector by testing the link's world X/Y against the
+region list — shape-agnostic, box or cone segment, via each `RegionState`'s
+own `Contains()` — last matching region wins, otherwise the ambient vector —
+and applies a force `scaling_factor * (wind - link_velocity)` via
+`Link::AddWorldForce`.
 
 ---
 

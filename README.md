@@ -77,7 +77,6 @@ entry looks like:
       ]
     }
   ],
-  "aerial_domain": false,
   "renderer_unity": true
 }
 ```

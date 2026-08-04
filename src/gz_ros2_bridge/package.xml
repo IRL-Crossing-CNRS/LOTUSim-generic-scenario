@@ -3,7 +3,7 @@
 <package format="3">
   <name>gz_ros2_bridge</name>
   <version>0.0.1</version>
-  <description>Bridge between ROS2 Wind messages and Gazebo wind messages</description>
+  <description>Bridge between Gazebo simulation stats and ROS2 topics</description>
   <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
 
   <author email="jgrosset10@gmail.com">juliette</author>
@@ -16,7 +16,6 @@
   <depend>lotusim_msgs</depend>
   <depend>gz-msgs10</depend>
   <depend>gz-transport10</depend>
-  <depend>geometry_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

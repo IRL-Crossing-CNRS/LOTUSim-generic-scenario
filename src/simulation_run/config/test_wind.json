@@ -1,0 +1,112 @@
+{
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "publish_rate_hz": 10.0,
+      "tick_rate_hz": 1.0,
+      "regions": [
+        {
+          "id": "mirror_test_box",
+          "x1": -20.0,
+          "y1": -20.0,
+          "x2": 20.0,
+          "y2": 20.0,
+          "mirror_global": true
+        }
+      ],
+      "missions": [
+        {
+          "id": "wind_schedule",
+          "type": "sequence",
+          "children": [
+            {
+              "id": "calm",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 0.0, "y": 0.0 }
+            },
+            {
+              "id": "hold_calm",
+              "type": "action",
+              "task": "wait",
+              "params": { "duration_s": 5.0 }
+            },
+            {
+              "id": "from_east",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 12.0, "y": 0.0 }
+            },
+            {
+              "id": "hold_east",
+              "type": "action",
+              "task": "wait",
+              "params": { "duration_s": 5.0 }
+            },
+            {
+              "id": "from_north",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 0.0, "y": 12.0 }
+            },
+            {
+              "id": "hold_north",
+              "type": "action",
+              "task": "wait",
+              "params": { "duration_s": 5.0 }
+            },
+            {
+              "id": "from_north_east",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 12.0, "y": 12.0 }
+            },
+            {
+              "id": "hold_north_east",
+              "type": "action",
+              "task": "wait",
+              "params": { "duration_s": 5.0 }
+            },
+            {
+              "id": "go_up",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 0.0, "y": 0.0, "z": 15.0 }
+            },
+            {
+              "id": "hold_go_up",
+              "type": "action",
+              "task": "wait",
+              "params": { "duration_s": 5.0 }
+            },
+            {
+              "id": "reset",
+              "type": "action",
+              "task": "set_wind",
+              "params": { "x": 0.0, "y": 0.0, "z": 0.0 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": 30,
+        "y": 100,
+        "z": 20,
+        "yaw": 0.0
+      },
+      "sdf_file": "model.sdf",
+      "xdyn": false
+    }
+  ]
+}

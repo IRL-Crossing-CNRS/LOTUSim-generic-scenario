@@ -39,6 +39,8 @@ setup(
             "waypoint_follower = lotusim_sdk.tasks.waypoint_follower:WaypointFollowerTask",
             "waypoint_follower_avoidance = lotusim_sdk.tasks.waypoint_follower_avoidance:WaypointFollowerAvoidanceTask",
             "kinematic_anchor = lotusim_sdk.tasks.kinematic_anchor:KinematicAnchorTask",
+            "set_wind = lotusim_sdk.tasks.set_wind:SetWindTask",
+            "wait = lotusim_sdk.tasks.wait:WaitTask",
         ],
         "lotusim.agents": [
             "bluerov2_heavy = lotusim_sdk.agents.entity.physical.bluerov2_heavy:Bluerov2Heavy",
@@ -50,7 +52,8 @@ setup(
             "pha            = lotusim_sdk.agents.entity.physical.pha:Pha",
             "wamv           = lotusim_sdk.agents.entity.physical.wamv:Wamv",
             "x500           = lotusim_sdk.agents.entity.physical.x500:X500",
-            "Wind           = lotusim_sdk.agents.environment.wind.wind:Wind",
+            "Wind           = lotusim_sdk.agents.environment.wind:Wind",
+            "Wake           = lotusim_sdk.agents.environment.wake:Wake",
         ],
     },
 )

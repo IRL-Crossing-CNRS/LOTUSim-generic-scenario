@@ -1,0 +1,79 @@
+{
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "wind_regions": {
+        "cell_diameters": 0.15,
+        "deficit_threshold": 0.05,
+        "max_downstream_diameters": 3.0,
+        "direction_hysteresis_deg": 5.0,
+        "speed_hysteresis_mps": 0.5
+      },
+      "turbines": [
+        { "name": "wind_turbine_1",  "x":  307.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_2",  "x":  207.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_3",  "x":  107.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_4",  "x":    7.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_5",  "x": -107.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_6",  "x": -207.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_7",  "x": -307.5000, "z": 85.02798, "y":  -29.5000 },
+        { "name": "wind_turbine_8",  "x":  250.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_9",  "x":  150.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_10", "x":   50.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_11", "x":  -50.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_12", "x": -150.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_13", "x": -250.0000, "z": 85.02798, "y":  206.0000 },
+        { "name": "wind_turbine_14", "x": -350.0000, "z": 85.02798, "y":  206.0000 }
+      ]
+    },
+    {
+      "id": "x500_px4_wake",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": 350,
+        "y": 50,
+        "z": 90,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "manual",
+      "sdf_file": "model.sdf",
+      "xdyn": false
+    },
+    {
+      "id": "x500_px4_normal",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": 350,
+        "y": -100,
+        "z": 90,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "manual",
+      "sdf_file": "model.sdf",
+      "xdyn": false
+    }
+  ]
+}

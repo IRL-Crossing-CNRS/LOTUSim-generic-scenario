@@ -6,7 +6,12 @@
       "class": "Bluerov2_heavy",
       "nb_agents": 1,
       "xdyn": false,
-      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "spawn": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -10.0,
+        "yaw": 0.0
+      },
       "tick_rate_hz": 1.0,
       "missions": [
         {
@@ -17,7 +22,10 @@
             "loop": true,
             "guidance_mode": "bang_bang",
             "control_rate_hz": 20.0,
-            "linear_velocities_limits": [0.0, 1.0],
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
             "linear_accel_limit": 0.2,
             "angular_velocities_limits": 0.5,
             "angular_accel_limit": 0.1,
@@ -28,6 +36,5 @@
       ]
     }
   ],
-  "aerial_domain": false,
   "renderer_unity": true
 }

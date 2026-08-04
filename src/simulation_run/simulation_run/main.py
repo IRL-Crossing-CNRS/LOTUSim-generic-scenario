@@ -99,11 +99,11 @@ def main():
     utils.inject_first_ais_pose(agents, base_dir=os.path.dirname(config_path))
 
     # Parse config
-    world_file, agents, aerial_enabled = utils.parse_simulation_config(config)
+    world_file, agents = utils.parse_simulation_config(config)
 
     # Run simulation
     simulation_runner.run_simulation(
-        world_file, agents, aerial_domain=aerial_enabled,
+        world_file, agents,
         debug_mode=args.debug, gui=args.gui,
         config_dir=os.path.dirname(config_path),
         record_csv=config.get("record_csv", False),

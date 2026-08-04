@@ -2,17 +2,17 @@
   "world_file": "energy.world",
   "agents": [
     {
-      "class": "Wind",
-      "wake_model": "jensen",
-      "model_params": {
-        "kw": 0.065
-      },
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
       "diameter": 61.0,
       "ct": 0.8,
       "cp": 0.35,
       "air_density": 1.225,
       "cut_in": 5.0,
       "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
       "maintenance_cost": 100000.0,
       "lcoe": {
         "alpha_r_aud_per_hour": 50.0,
@@ -23,86 +23,86 @@
         {
           "name": "wind_turbine_1",
           "x": 307.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_2",
           "x": 207.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_3",
           "x": 107.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_4",
           "x": 7.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_5",
           "x": -107.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_6",
           "x": -207.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_7",
           "x": -307.5,
-          "y": 85.02798,
-          "z": -29.5
+          "z": 85.02798,
+          "y": -29.5
         },
         {
           "name": "wind_turbine_8",
           "x": 250.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_9",
           "x": 150.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_10",
           "x": 50.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_11",
           "x": -50.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_12",
           "x": -150.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_13",
           "x": -250.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         },
         {
           "name": "wind_turbine_14",
           "x": -350.0,
-          "y": 85.02798,
-          "z": 206.0
+          "z": 85.02798,
+          "y": 206.0
         }
       ]
     },
@@ -857,7 +857,6 @@
       ]
     }
   ],
-  "aerial_domain": false,
   "renderer_unity": true,
   "record_csv": {
     "rate": 10.0

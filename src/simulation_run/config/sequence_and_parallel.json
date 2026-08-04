@@ -7,7 +7,12 @@
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
-      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "spawn": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -10.0,
+        "yaw": 0.0
+      },
       "tick_rate_hz": 2.0,
       "missions": [
         {
@@ -22,13 +27,19 @@
                 "loop": false,
                 "guidance_mode": "bang_bang",
                 "control_rate_hz": 20.0,
-                "linear_velocities_limits": [0.0, 1.0],
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
                 "linear_accel_limit": 0.2,
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
                 "waypoints": [
-                  { "lat": 50.32950, "lon": -4.19400 }
+                  {
+                    "lat": 50.3295,
+                    "lon": -4.194
+                  }
                 ]
               }
             },
@@ -37,10 +48,22 @@
               "type": "parallel",
               "success_policy": "all",
               "children": [
-                { "id": "corrosion_crack_inspection", "type": "action", "task": "fault_inspection",
-                  "params": { "show_window": false } },
-                { "id": "led_from_battery", "type": "action", "task": "check_battery_state",
-                  "params": { "threshold": 80.0 } }
+                {
+                  "id": "corrosion_crack_inspection",
+                  "type": "action",
+                  "task": "fault_inspection",
+                  "params": {
+                    "show_window": false
+                  }
+                },
+                {
+                  "id": "led_from_battery",
+                  "type": "action",
+                  "task": "check_battery_state",
+                  "params": {
+                    "threshold": 80.0
+                  }
+                }
               ]
             }
           ]
@@ -48,6 +71,5 @@
       ]
     }
   ],
-  "aerial_domain": false,
   "renderer_unity": true
 }

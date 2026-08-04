@@ -70,7 +70,7 @@ def get_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any, bool]:
+def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any]:
     """
     Parse the simulation configuration and extract only the essential data.
 
@@ -81,22 +81,21 @@ def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any, bool]:
         tuple: (
             world_file (str),
             agents: full agent data as in JSON — a dict (legacy) or a list
-                (mission system); both are accepted downstream,
-            aerial_enabled (bool): whether to launch the aerialWorld physics
-                world alongside world_file (needed for X500/aerial agents)
+                (mission system); both are accepted downstream
         )
 
     Note:
-        Only the boolean ``aerial_domain`` toggle lives in the scenario. The
-        aerial world file itself is never configurable — it is always the
-        hardcoded ``AERIAL_WORLD_FILE`` (``aerialWorld.world``), matching the
-        custom world's AerialEntityManager ``<aerial_namespace>``.
+        There is deliberately no scenario-level environment switch here. The
+        aerial world and the wind bridge are fixed infrastructure, always brought
+        up by ``simulation_runner``; whether a scenario has wind is decided by
+        whether anything publishes ``/aerialWorld/wind`` (a ``Wind`` agent, or
+        the Unity sliders). A scenario says *what is in it*, not which subsystems
+        to turn on.
     """
     world_file = config.get("world_file", "")
     agents = config.get("agents", {})
-    aerial_enabled = bool(config.get("aerial_domain", False))
 
-    return world_file, agents, aerial_enabled
+    return world_file, agents
 
 
 # ----------------------------------------------------------------------

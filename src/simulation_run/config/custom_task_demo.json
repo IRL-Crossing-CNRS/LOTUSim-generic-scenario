@@ -7,9 +7,13 @@
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
-      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 }
+      "spawn": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -10.0,
+        "yaw": 0.0
+      }
     }
   ],
-  "aerial_domain": false,
   "renderer_unity": true
 }
