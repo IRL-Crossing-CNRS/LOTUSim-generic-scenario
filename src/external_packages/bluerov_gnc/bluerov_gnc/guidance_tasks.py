@@ -10,9 +10,17 @@ from lotusim_sdk.tasks.guidance import LOSGuidanceTask as BlueRovLOSGuidanceTask
 from lotusim_sdk.tasks.guidance import (
     PurePursuitGuidanceTask as BlueRovPurePursuitGuidanceTask,
 )
+from lotusim_sdk.tasks.guidance import (
+    LOSPolylineGuidanceTask as BlueRovLOSPolylineGuidanceTask,
+)
+from lotusim_sdk.tasks.guidance import (
+    PurePursuitPolylineGuidanceTask as BlueRovPurePursuitPolylineGuidanceTask,
+)
 
 __all__ = [
     "BlueRovHoldGuidanceTask",
     "BlueRovLOSGuidanceTask",
     "BlueRovPurePursuitGuidanceTask",
+    "BlueRovLOSPolylineGuidanceTask",
+    "BlueRovPurePursuitPolylineGuidanceTask",
 ]

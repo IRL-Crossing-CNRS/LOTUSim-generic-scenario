@@ -11,11 +11,11 @@ See `../README.md` for the full per-vehicle capability table (this
 directory only covers BlueROV; other vehicles are in
 `../multi_vehicle_examples/`).
 
-This is not the ICRA current-modelling paper's experiment suite. That suite
+This is not the full current-modelling evaluation suite. That suite
 (multi-date Copernicus replays, fitted-parameter sweeps, seeds, transects)
-lives in the paper's own repository, `LOTUSim_current_modelling_evaluation`.
+lives in a separate repository, `LOTUSim_current_modelling_evaluation`.
 These scenarios exist so the current-model feature stays runnable from this
-repository alone, independent of the paper.
+repository alone, independent of that evaluation suite.
 
 ## Scenarios
 
@@ -41,8 +41,8 @@ Current conditions, either trajectory:
   Gauss-Markov. Uses `copernicus_demo_profile.csv` in this directory. The
   `profile` path resolves relative to the config file's own directory, so
   keep the CSV alongside any config that references it. The profile is a
-  small synthetic demo, not real Copernicus Marine Service data. See the
-  paper repository for that.
+  small synthetic demo, not real Copernicus Marine Service data; see
+  `LOTUSim_current_modelling_evaluation` for that.
 - `none` -- no-current control condition.
 
 ## Running

@@ -111,9 +111,23 @@ class EkmanCurrentModel:
         self._mid_n = self.current_velocity * math.cos(theta_mid)
         self._mid_e = self.current_velocity * math.sin(theta_mid)
 
-        f_and_sqrt_rho = (2 * self.OMEGA_RAD_S * math.sin(math.radians(latitude_deg))
-                          * math.sqrt(self.RHO_KG_M3))
-        self._sgn_f = 1.0 if f_and_sqrt_rho >= 0 else -1.0
+        # Coriolis parameter times water density. EkmanUWCurrentModel.cpp names
+        # the equivalent quantity `f_and_sqrt_rho` and uses sqrt(rho); classical
+        # Ekman theory gives the surface velocity as
+        #
+        #     V0 = tau / (rho * sqrt(Az*f))   with   D = pi*sqrt(2*Az/f)
+        #     =>  V0 = sqrt(2)*pi*tau / (rho * f * D)
+        #
+        # i.e. rho, not its square root -- and the sqrt(rho) form is also
+        # dimensionally inconsistent (it resolves to kg^0.5 m^0.5 / s rather
+        # than a velocity). The square-root form overestimates V0 by
+        # sqrt(1026) = 32x. This matters here and not only as a physics nicety:
+        # the fitted parameters this class consumes are produced by
+        # fit_ekman_profile.py, which uses the corrected form, so the two must
+        # agree or the feedforward would evaluate the fit at the wrong scale.
+        f_times_rho = (2 * self.OMEGA_RAD_S * math.sin(math.radians(latitude_deg))
+                       * self.RHO_KG_M3)
+        self._sgn_f = 1.0 if f_times_rho >= 0 else -1.0
         self._wind_angle_rad = math.radians(wind_orientation_deg)
 
         u10 = float(u10_ms)
@@ -122,7 +136,7 @@ class EkmanCurrentModel:
         # V0 is inversely proportional to the top-layer thickness -- keep the
         # coupling as-is rather than approximating it away.
         self._v0 = (math.sqrt(2) * math.pi * wind_stress
-                    / (self.top_layer_m * f_and_sqrt_rho))
+                    / (self.top_layer_m * f_times_rho))
         self._decay = self.top_layer_m / math.pi
 
     def current_at(self, depth_m: float) -> tuple[float, float]:
@@ -135,10 +149,18 @@ class EkmanCurrentModel:
         if wave_height < z < wave_height + 2 * self.top_layer_m:
             e = math.exp(-z / self._decay)
             phase = math.pi / 4 - z / self._decay
-            north = self._mid_n + self._sgn_f * self._v0 * e * math.cos(
-                phase - self._sgn_f * self._wind_angle_rad)
-            east = self._mid_e + self._v0 * e * math.sin(
-                phase + self._sgn_f * self._wind_angle_rad)
+            # Wind orientation enters both components with the SAME sign: the
+            # horizontal plane is isotropic (f and Az are scalars), so rotating
+            # the wind rotates the solution rigidly, preserving its magnitude.
+            # The C++ model this was ported from used opposite signs, which is
+            # not a rotation and distorted the magnitude with depth (+28% at the
+            # surface to -40% at z/D_s ~ 1.5 for a 20 deg wind) -- corrupting the
+            # vertical shear this feedforward exists to exploit. Checked against
+            # Az d2W/dz2 = i f W, which the corrected form satisfies at any wind
+            # angle and the previous one satisfied only at zero.
+            rotated = phase + self._sgn_f * self._wind_angle_rad
+            north = self._mid_n + self._sgn_f * self._v0 * e * math.cos(rotated)
+            east = self._mid_e + self._v0 * e * math.sin(rotated)
             return north, east
         if wave_height + 2 * self.top_layer_m <= z <= seabed - 2 * self.bottom_layer_m:
             return self._mid_n, self._mid_e

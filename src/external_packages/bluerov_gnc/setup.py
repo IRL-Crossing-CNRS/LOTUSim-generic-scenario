@@ -25,6 +25,8 @@ setup(
             "bluerov_guidance_hold = bluerov_gnc:BlueRovHoldGuidanceTask",
             "bluerov_guidance_los = bluerov_gnc:BlueRovLOSGuidanceTask",
             "bluerov_guidance_pure_pursuit = bluerov_gnc:BlueRovPurePursuitGuidanceTask",
+            "bluerov_guidance_los_polyline = bluerov_gnc:BlueRovLOSPolylineGuidanceTask",
+            "bluerov_guidance_pure_pursuit_polyline = bluerov_gnc:BlueRovPurePursuitPolylineGuidanceTask",
             "bluerov_control = bluerov_gnc:BlueRovControlTask",
             "bluerov_allocation = bluerov_gnc:BlueRovAllocationTask",
             "bluerov_metrics_recorder = bluerov_gnc:BlueRovMetricsRecorderTask",

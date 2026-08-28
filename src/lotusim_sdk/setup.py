@@ -50,6 +50,8 @@ setup(
             "guidance_hold = lotusim_sdk.tasks.guidance:HoldGuidanceTask",
             "guidance_los = lotusim_sdk.tasks.guidance:LOSGuidanceTask",
             "guidance_pure_pursuit = lotusim_sdk.tasks.guidance:PurePursuitGuidanceTask",
+            "guidance_los_polyline = lotusim_sdk.tasks.guidance:LOSPolylineGuidanceTask",
+            "guidance_pure_pursuit_polyline = lotusim_sdk.tasks.guidance:PurePursuitPolylineGuidanceTask",
             "control = lotusim_sdk.tasks.control:ControlTask",
             "kinematic_allocation = lotusim_sdk.tasks.kinematic_allocation:KinematicAllocationTask",
             "static_command_allocation = lotusim_sdk.tasks.static_command_allocation:StaticCommandAllocationTask",
