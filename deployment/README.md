@@ -14,7 +14,28 @@ the ROS 2 network (both machines must be on the same LAN with the same `ROS_DOMA
 - ROS 2 Jazzy installed and sourced (`source /opt/ros/jazzy/setup.bash`)
 - Python 3.12+
 - `pip` and `colcon` available (colcon ships with ROS 2)
-- ROS geographic messages: `sudo apt install ros-jazzy-geographic-msgs python3-geographiclib`
+
+> **Install this before anything else — it is the most commonly missed step:**
+>
+> ```bash
+> sudo apt install ros-jazzy-geographic-msgs python3-geographiclib
+> ```
+
+### Set up the virtualenv
+
+`colcon build` needs `catkin_pkg`, `empy`, `lark`, etc. to generate
+`lotusim_msgs` / `lotusim_sensor_msgs`. These come from the `apt`-installed ROS
+Python packages, so the venv **must** be created with `--system-site-packages`
+— a plain `python3 -m venv` will fail the build with
+`ModuleNotFoundError: No module named 'em'` (or `catkin_pkg`):
+
+```bash
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+```
+
+Do this once per machine; re-activate the venv (`source .venv/bin/activate`)
+in every new shell before running `pip` or `colcon build`.
 
 ---
 
@@ -35,15 +56,15 @@ deployment/
     lotusim_client-0.1.0-*.whl   # pure Python — run_agent CLI
   src/
     lotusim_msgs/                # SOURCE package — colcon-built on the remote
+    lotusim_sensor_msgs/         # SOURCE package — colcon-built on the remote (e.g. SonarScan)
     example_agent/               # reference agent package (copy it to write your own)
   setup_ros_network.sh
   README.md
 ```
 
-> **Why is `lotusim_msgs` shipped as source, not as a wheel?**
-> It contains compiled rosidl typesupport (`.so`) bound to the exact ROS distro
-> **and** Python version it was built against. The `lotusim_msgs` package contains compiled rosidl typesupport (`.so`) bound to
-> the exact ROS distro and Python version it was built against. Rebuilding from
+> **Why are `lotusim_msgs` / `lotusim_sensor_msgs` shipped as source, not as wheels?**
+> They contain compiled rosidl typesupport (`.so`) bound to the exact ROS distro
+> **and** Python version they were built against. Rebuilding from
 > source against the remote's own ROS 2 Jazzy installation is the only robust
 > option — and the sources are tiny.
 > The pure-Python `lotusim_sdk` / `lotusim_client` have no such constraint, so
@@ -59,7 +80,7 @@ From inside the `deployment/` folder:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-pip install dist/lotusim_sdk-*.whl dist/lotusim_client-*.whl
+pip install dist/lotusim_sdk-*.whl dist/lotusim_client-*.whl --force-reinstall --break-system-packages
 
 # Ensure the local pip binaries are in your PATH
 export PATH=$PATH:$HOME/.local/bin
@@ -70,13 +91,15 @@ export PATH=$PATH:$HOME/.local/bin
 > flask) all come from the `lotusim_sdk` wheel — the base `pip install` above
 > pulls them automatically, so there is no extra step.
 
-`lotusim_msgs` is built from source in the next step, alongside your agent package.
+`lotusim_msgs` and `lotusim_sensor_msgs` are built from source in the next step,
+alongside your agent package.
 
 ---
 
 ## Step 3 — Write your agent package and build the workspace
 
-Your agent package lives in `src/` next to `lotusim_msgs`. Start from the provided
+Your agent package lives in `src/` next to `lotusim_msgs` and
+`lotusim_sensor_msgs`. Start from the provided
 `src/example_agent`, or generate a fresh one:
 
 ```bash
@@ -120,12 +143,12 @@ Build the whole workspace (messages + your agent) in one go, from the
 `deployment/` folder:
 
 ```bash
-colcon build                     # builds lotusim_msgs and your agent package
+colcon build                     # builds lotusim_msgs, lotusim_sensor_msgs, and your agent package
 source install/setup.bash        # re-source in every new shell (or add it to ~/.bashrc)
 ```
 
 > Every new terminal must `source install/setup.bash` (from `deployment/`) so that
-> `lotusim_msgs` and your agent are on the ROS path before running.
+> `lotusim_msgs`, `lotusim_sensor_msgs` and your agent are on the ROS path before running.
 
 ---
 
