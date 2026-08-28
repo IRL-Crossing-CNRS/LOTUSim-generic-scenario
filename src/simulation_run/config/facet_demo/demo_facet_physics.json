@@ -1,0 +1,842 @@
+{
+  "world_file": "energy.world",
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "publish_rate_hz": 10.0,
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "steady_wind",
+          "type": "action",
+          "task": "set_wind",
+          "params": {
+            "x": 8.0,
+            "y": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "maintenance_cost": 100000.0,
+      "lcoe": {
+        "alpha_r_aud_per_hour": 50.0,
+        "alpha_e_aud_per_kwh": 0.5,
+        "publish_rate_hz": 1.0
+      },
+      "turbines": [
+        {
+          "name": "wind_turbine_1",
+          "x": -496.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_2",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_3",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_4",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_5",
+          "x": -512.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_6",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_7",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_8",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_9",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_10",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_11",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_12",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_13",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_14",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_15",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_16",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 854.0
+        }
+      ],
+      "wind_regions": {
+        "direction_hysteresis_deg": 5.0
+      }
+    },
+    {
+      "id": "bluerov_wt1",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt1",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 0.5,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect_wt1",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt5",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt5",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 0.5,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect_wt5",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt9",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt9",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 0.5,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect_wt9",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt10",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt10",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 0.5,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect_wt10",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt13",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt13",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 0.5,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect_wt13",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt1",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt5",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt9",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt10",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt13",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "x500_wt1",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt5",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt5",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt5",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt5",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt9",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt9",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt9",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt9",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt10",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt13",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt13",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt13",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt13",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_in_wake",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": -620.0,
+        "y": -721.0,
+        "z": 0.0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "offboard",
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "wake_transit",
+          "type": "action",
+          "task": "px4_offboard_patrol",
+          "params": {
+            "spawn": {
+              "x": -620.0,
+              "y": -721.0,
+              "z": 0.0
+            },
+            "waypoints": [
+              { "name": "wake_entry", "x": -450.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_mid_1", "x": 0.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_mid_2", "x": 400.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_exit", "x": 900.0, "y": -721.0, "z": 52.0 }
+            ],
+            "loop": true,
+            "hold_radius_m": 15.0,
+            "takeoff_alt_m": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_clear_air",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": -620.0,
+        "y": 300.0,
+        "z": 0.0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "offboard",
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "clear_transit",
+          "type": "action",
+          "task": "px4_offboard_patrol",
+          "params": {
+            "spawn": {
+              "x": -620.0,
+              "y": 300.0,
+              "z": 0.0
+            },
+            "waypoints": [
+              { "name": "clear_entry", "x": -450.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_mid_1", "x": 0.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_mid_2", "x": 400.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_exit", "x": 900.0, "y": 300.0, "z": 52.0 }
+            ],
+            "loop": true,
+            "hold_radius_m": 15.0,
+            "takeoff_alt_m": 30.0
+          }
+        }
+      ]
+    }
+  ],
+  "renderer_unity": true,
+  "record_csv": {
+    "rate": 10.0
+  }
+}

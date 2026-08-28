@@ -1,0 +1,162 @@
+{
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "wind_regions": {
+        "cell_diameters": 0.15,
+        "deficit_threshold": 0.05,
+        "max_downstream_diameters": 3.0,
+        "direction_hysteresis_deg": 5.0,
+        "speed_hysteresis_mps": 0.5
+      },
+      "turbines": [
+        {
+          "name": "wind_turbine_1",
+          "x": -496.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_2",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_3",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_4",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_5",
+          "x": -512.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_6",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_7",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_8",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_9",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_10",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_11",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_12",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_13",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_14",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_15",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_16",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 854.0
+        }
+      ]
+    },
+    {
+      "id": "x500_px4_wake",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": 350,
+        "y": 50,
+        "z": 0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "manual",
+      "sdf_file": "model.sdf",
+      "xdyn": false
+    },
+    {
+      "id": "x500_px4_normal",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": 350,
+        "y": -100,
+        "z": 0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "manual",
+      "sdf_file": "model.sdf",
+      "xdyn": false
+    }
+  ]
+}

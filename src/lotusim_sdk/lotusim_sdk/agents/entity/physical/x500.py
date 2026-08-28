@@ -1,5 +1,9 @@
 import os
+import re
+import signal
 import subprocess
+import time
+from typing import Optional
 
 from lotusim_sdk.agents.physical_entity import PhysicalEntity
 
@@ -8,6 +12,25 @@ from lotusim_sdk.agents.physical_entity import PhysicalEntity
 # <aerial_namespace>, and the aerial physics_engine_interface namespace all
 # agree on it). PX4 attaches to the airframe LOTUSim spawns in this world.
 AERIAL_WORLD_NAME = "aerialWorld"
+
+
+def _px4_cpu_affinity():
+    """CPU core list (``taskset -c`` syntax) to pin this PX4 SITL process to.
+
+    Mirrors ``simulation_run.simulation_runner._px4_cpu_affinity()``, which
+    pins the aerialWorld gz sim process to the same cores. Both must agree
+    so PX4's lockstep clock and the Gazebo IMU it reads share dedicated CPU,
+    isolated from the rest of a heavy scenario's agents. See that function's
+    docstring for the CPU-contention cause this addresses. Override/disable
+    the same way, via ``PX4_CPU_AFFINITY``.
+    """
+    override = os.environ.get("PX4_CPU_AFFINITY")
+    if override is not None:
+        return override or None
+    cpu_count = os.cpu_count() or 1
+    if cpu_count < 4:
+        return None
+    return f"{cpu_count - 2},{cpu_count - 1}"
 
 
 class X500(PhysicalEntity):
@@ -50,6 +73,7 @@ class X500(PhysicalEntity):
         self.px4_enabled = px4_enabled
         self.px4_control = px4_control
         self.px4_process = None
+        self.px4_instance: Optional[int] = None  # set once _start_px4_sitl() runs
         if self.px4_enabled:
             # PX4 flies the airframe through gz physics, so spawn the PX4 model.
             # Keep the "x500" renderer type so Unity shows the same drone.
@@ -70,6 +94,51 @@ class X500(PhysicalEntity):
         super().confirm_spawn(assigned_name)
         if self.px4_enabled and self.px4_process is None:
             self._start_px4_sitl()
+
+    def _kill_stale_px4_instance(self, px4_binary: str, instance: int) -> None:
+        """Kill any leftover PX4 process already holding this instance's lock.
+
+        PX4 takes an flock on a per-``-i`` instance lock file and refuses to
+        start a second process for the same instance number: it logs "PX4
+        server already running for instance N" and exits, without touching
+        the airframe just spawned. PX4 is not a child process of the Gazebo
+        processes it flies, so an abrupt end to a previous scenario run
+        (closed terminal, plain ``kill`` instead of Ctrl-C, crash) can leave
+        a PX4 SITL process alive and orphaned. Each fresh scenario process
+        restarts its own ``_next_px4_instance`` counter at 0, so the next
+        launch requests the same instance number and is silently refused.
+        This sweeps any matching leftover before starting.
+        """
+        pattern = f"^{re.escape(px4_binary)} -i {instance} -d$"
+        try:
+            found = subprocess.run(
+                ["pgrep", "-f", pattern], capture_output=True, text=True, check=False
+            ).stdout.split()
+        except FileNotFoundError:
+            return  # pgrep unavailable; nothing more we can do here
+
+        if not found:
+            return
+
+        self.get_logger().warning(
+            f"[{self.agent_name}] Killing {len(found)} stale PX4 instance-{instance} "
+            f"process(es) left over from a previous run: {found}"
+        )
+        for pid in found:
+            try:
+                os.kill(int(pid), signal.SIGKILL)
+            except (ProcessLookupError, ValueError):
+                pass
+
+        # SIGKILL releases the instance's flock the moment the kernel reaps
+        # the process; poll briefly rather than assuming it's instant.
+        for _ in range(20):
+            still_there = subprocess.run(
+                ["pgrep", "-f", pattern], capture_output=True, text=True, check=False
+            ).stdout.split()
+            if not still_there:
+                return
+            time.sleep(0.1)
 
     def _start_px4_sitl(self) -> None:
         """Start an external PX4 SITL that attaches to the spawned gz airframe.
@@ -95,6 +164,10 @@ class X500(PhysicalEntity):
         """
         instance = X500._next_px4_instance
         X500._next_px4_instance += 1
+        # Exposed so a mission task (e.g. px4_offboard_patrol) can compute
+        # this vehicle's MAVLink offboard port (14540 + instance, see PX4's
+        # px4-rc.mavlink) without re-deriving the spawn-order counter.
+        self.px4_instance = instance
 
         px4_path = os.environ.get("PX4_AUTOPILOT_PATH", os.path.expanduser("~/PX4-Autopilot"))
         # PX4 attaches to the airframe in the aerial world (always "aerialWorld");
@@ -133,6 +206,8 @@ class X500(PhysicalEntity):
             )
             return
 
+        self._kill_stale_px4_instance(px4_binary, instance)
+
         env = os.environ.copy()
         env["GZ_CONFIG_PATH"] = f"/usr/share/gz:{env.get('GZ_CONFIG_PATH', '')}"
         env["PX4_GZ_MODEL_NAME"] = self.agent_name
@@ -145,6 +220,13 @@ class X500(PhysicalEntity):
         # from several instance-0 processes into one).
         # -d: daemon mode, don't start pxh shell (see class docstring above).
         cmd = [px4_binary, "-i", str(instance), "-d"]
+        cpu_affinity = _px4_cpu_affinity()
+        if cpu_affinity:
+            # taskset execs px4_binary directly (no intermediate fork), so
+            # the running process's argv/cmdline ends up exactly
+            # [px4_binary, "-i", instance, "-d"] either way — the exact-match
+            # pgrep pattern in _kill_stale_px4_instance() still matches it.
+            cmd = ["taskset", "-c", cpu_affinity] + cmd
         self.get_logger().info(
             f"[{self.agent_name}] Starting PX4 SITL — instance={instance}, "
             f"model='{self.agent_name}', world='{gz_world}'"

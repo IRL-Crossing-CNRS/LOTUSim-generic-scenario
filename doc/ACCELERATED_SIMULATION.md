@@ -82,14 +82,14 @@ control steps per wall-second per agent.
 
 | Scenario | World | `guidance_clock` |
 |---|---|---|
-| `waypoint_solo.json` | `energy.world` (1×) | wall |
-| `waypoint_solo_accelerated5x.json` | `energy_accelerated5x.world` (5×) | wall |
-| `waypoint_solo_accelerated50x.json` | `energy_accelerated50x.world` (50×) | pose |
+| `basic_examples/waypoint_solo.json` | `energy.world` (1×) | wall |
+| `basic_examples/waypoint_solo_accelerated5x.json` | `energy_accelerated5x.world` (5×) | wall |
+| `basic_examples/waypoint_solo_accelerated50x.json` | `energy_accelerated50x.world` (50×) | pose |
 
 Launch:
 
 ```bash
-./src/simulation_run/executable/scenario_launch.sh --config waypoint_solo_accelerated50x.json
+./src/simulation_run/executable/scenario_launch.sh --config basic_examples/waypoint_solo_accelerated50x.json
 ```
 
 ## 4. Measuring the achieved RTF

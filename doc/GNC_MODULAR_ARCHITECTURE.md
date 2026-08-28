@@ -158,9 +158,10 @@ writes a CSV time series plus a JSON summary, publishing nothing. Being a
 pure observer, adding or removing it cannot change a run — and it works for
 any implementation of any block, since it reads only the message schemas.
 
-Swapping the transect's guidance law from line-of-sight to pure-pursuit is a
-one-line change in the scenario JSON (`bluerov_current_experiment/transect_ekman_pure_pursuit.json`
-against `bluerov_current_experiment/transect_ekman.json`) — Navigation, Control and Allocation are
-unchanged. This is the concrete demonstration of the swap principle in §1: a
-different guidance node, same topics, same message schema, no other code
-touched.
+Swapping the transect's guidance law is a one-line change in the scenario
+JSON: the `task` field of the guidance mission selects the node, and
+Navigation, Control and Allocation are unchanged. `current_examples/`
+contains the line-of-sight form (`transect_*.json`, `bluerov_guidance_los`)
+and the station-keeping form (`station_keeping_*.json`,
+`bluerov_guidance_hold`). This is the swap principle in §1: a different
+guidance node, same topics, same message schema, no other code touched.

@@ -584,7 +584,7 @@ sequenceDiagram
     Root->>Leaf: halt() -> on_exit(FAILURE) if active
 ```
 
-### 6.2 Worked example — `sequence_and_parallel.json`
+### 6.2 Worked example — `basic_examples/sequence_and_parallel.json`
 
 A `Bluerov2HeavyInspection` that reaches a turbine, then inspects it while
 monitoring its battery **concurrently**:

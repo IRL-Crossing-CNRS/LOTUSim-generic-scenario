@@ -22,87 +22,99 @@
       "turbines": [
         {
           "name": "wind_turbine_1",
-          "x": 307.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": -496.0,
+          "z": 52.0,
+          "y": -766.0
         },
         {
           "name": "wind_turbine_2",
-          "x": 207.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": -92.0,
+          "z": 52.0,
+          "y": -766.0
         },
         {
           "name": "wind_turbine_3",
-          "x": 107.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": 328.0,
+          "z": 52.0,
+          "y": -766.0
         },
         {
           "name": "wind_turbine_4",
-          "x": 7.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": 748.0,
+          "z": 52.0,
+          "y": -766.0
         },
         {
           "name": "wind_turbine_5",
-          "x": -107.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": -512.0,
+          "z": 52.0,
+          "y": -226.0
         },
         {
           "name": "wind_turbine_6",
-          "x": -207.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": -92.0,
+          "z": 52.0,
+          "y": -226.0
         },
         {
           "name": "wind_turbine_7",
-          "x": -307.5,
-          "z": 85.02798,
-          "y": -29.5
+          "x": 328.0,
+          "z": 52.0,
+          "y": -226.0
         },
         {
           "name": "wind_turbine_8",
-          "x": 250.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": 748.0,
+          "z": 52.0,
+          "y": -226.0
         },
         {
           "name": "wind_turbine_9",
-          "x": 150.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": -512.0,
+          "z": 52.0,
+          "y": 314.0
         },
         {
           "name": "wind_turbine_10",
-          "x": 50.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": -92.0,
+          "z": 52.0,
+          "y": 314.0
         },
         {
           "name": "wind_turbine_11",
-          "x": -50.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": 328.0,
+          "z": 52.0,
+          "y": 314.0
         },
         {
           "name": "wind_turbine_12",
-          "x": -150.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": 748.0,
+          "z": 52.0,
+          "y": 314.0
         },
         {
           "name": "wind_turbine_13",
-          "x": -250.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": -512.0,
+          "z": 52.0,
+          "y": 854.0
         },
         {
           "name": "wind_turbine_14",
-          "x": -350.0,
-          "z": 85.02798,
-          "y": 206.0
+          "x": -92.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_15",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_16",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 854.0
         }
       ]
     },
@@ -113,8 +125,8 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.83,
-        "y": 51.97,
+        "x": -675.35,
+        "y": -41.37,
         "z": -10.0,
         "yaw": 0.0
       },
@@ -141,7 +153,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine1.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
               }
             },
             {
@@ -157,26 +169,26 @@
       ]
     },
     {
-      "id": "bluerov_wt7",
+      "id": "bluerov_wt5",
       "class": "Bluerov2_heavy_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -557.26,
-        "y": 44.52,
+        "x": -742.6,
+        "y": -66.35,
         "z": -10.0,
         "yaw": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_bluerov_wt7",
+          "id": "patrol_and_inspect_bluerov_wt5",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt7",
+              "id": "patrol_wt5",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -191,11 +203,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine7.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
               }
             },
             {
-              "id": "inspect_bluerov_wt7",
+              "id": "inspect_bluerov_wt5",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -207,26 +219,26 @@
       ]
     },
     {
-      "id": "bluerov_wt8",
+      "id": "bluerov_wt9",
       "class": "Bluerov2_heavy_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.85,
-        "y": 112.93,
+        "x": -709.45,
+        "y": 189.96,
         "z": -10.0,
         "yaw": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_bluerov_wt8",
+          "id": "patrol_and_inspect_bluerov_wt9",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt8",
+              "id": "patrol_wt9",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -241,11 +253,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine8.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
               }
             },
             {
-              "id": "inspect_bluerov_wt8",
+              "id": "inspect_bluerov_wt9",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -263,8 +275,8 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.44,
-        "y": 83.45,
+        "x": -669.56,
+        "y": 93.57,
         "z": -10.0,
         "yaw": 0.0
       },
@@ -291,7 +303,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine10.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
               }
             },
             {
@@ -307,26 +319,26 @@
       ]
     },
     {
-      "id": "bluerov_wt14",
+      "id": "bluerov_wt13",
       "class": "Bluerov2_heavy_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.07,
-        "y": 112.68,
+        "x": -704.04,
+        "y": 155.09,
         "z": -10.0,
         "yaw": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_bluerov_wt14",
+          "id": "patrol_and_inspect_bluerov_wt13",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt14",
+              "id": "patrol_wt13",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -341,11 +353,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine14.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
               }
             },
             {
-              "id": "inspect_bluerov_wt14",
+              "id": "inspect_bluerov_wt13",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -363,10 +375,9 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.83,
-        "y": 51.97,
-        "z": 0.0,
-        "yaw": 0.0
+        "x": -675.35,
+        "y": -41.37,
+        "z": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
@@ -391,7 +402,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine1.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
               }
             },
             {
@@ -407,26 +418,25 @@
       ]
     },
     {
-      "id": "wamv_wt7",
+      "id": "wamv_wt5",
       "class": "Wamv_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -557.26,
-        "y": 44.52,
-        "z": 0.0,
-        "yaw": 0.0
+        "x": -742.6,
+        "y": -66.35,
+        "z": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_wamv_wt7",
+          "id": "patrol_and_inspect_wamv_wt5",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt7",
+              "id": "patrol_wt5",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -441,11 +451,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine7.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
               }
             },
             {
-              "id": "inspect_wamv_wt7",
+              "id": "inspect_wamv_wt5",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -457,26 +467,25 @@
       ]
     },
     {
-      "id": "wamv_wt8",
+      "id": "wamv_wt9",
       "class": "Wamv_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.85,
-        "y": 112.93,
-        "z": 0.0,
-        "yaw": 0.0
+        "x": -709.45,
+        "y": 189.96,
+        "z": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_wamv_wt8",
+          "id": "patrol_and_inspect_wamv_wt9",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt8",
+              "id": "patrol_wt9",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -491,11 +500,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine8.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
               }
             },
             {
-              "id": "inspect_wamv_wt8",
+              "id": "inspect_wamv_wt9",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -513,10 +522,9 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.44,
-        "y": 83.45,
-        "z": 0.0,
-        "yaw": 0.0
+        "x": -669.56,
+        "y": 93.57,
+        "z": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
@@ -541,7 +549,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine10.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
               }
             },
             {
@@ -557,26 +565,25 @@
       ]
     },
     {
-      "id": "wamv_wt14",
+      "id": "wamv_wt13",
       "class": "Wamv_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.07,
-        "y": 112.68,
-        "z": 0.0,
-        "yaw": 0.0
+        "x": -704.04,
+        "y": 155.09,
+        "z": 0.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_wamv_wt14",
+          "id": "patrol_and_inspect_wamv_wt13",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt14",
+              "id": "patrol_wt13",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -591,11 +598,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine14.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
               }
             },
             {
-              "id": "inspect_wamv_wt14",
+              "id": "inspect_wamv_wt13",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -613,10 +620,9 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.83,
-        "y": 51.97,
-        "z": 68.8065,
-        "yaw": 0.0
+        "x": -675.35,
+        "y": -41.37,
+        "z": 52.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
@@ -641,7 +647,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine1.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
               }
             },
             {
@@ -657,26 +663,25 @@
       ]
     },
     {
-      "id": "x500_wt7",
+      "id": "x500_wt5",
       "class": "X500_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -557.26,
-        "y": 44.52,
-        "z": 68.8065,
-        "yaw": 0.0
+        "x": -742.6,
+        "y": -66.35,
+        "z": 52.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_x500_wt7",
+          "id": "patrol_and_inspect_x500_wt5",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt7",
+              "id": "patrol_wt5",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -691,11 +696,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine7.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
               }
             },
             {
-              "id": "inspect_x500_wt7",
+              "id": "inspect_x500_wt5",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -707,26 +712,25 @@
       ]
     },
     {
-      "id": "x500_wt8",
+      "id": "x500_wt9",
       "class": "X500_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.85,
-        "y": 112.93,
-        "z": 68.8065,
-        "yaw": 0.0
+        "x": -709.45,
+        "y": 189.96,
+        "z": 52.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_x500_wt8",
+          "id": "patrol_and_inspect_x500_wt9",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt8",
+              "id": "patrol_wt9",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -741,11 +745,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine8.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
               }
             },
             {
-              "id": "inspect_x500_wt8",
+              "id": "inspect_x500_wt9",
               "type": "action",
               "task": "fault_inspection",
               "params": {
@@ -763,10 +767,9 @@
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -560.44,
-        "y": 83.45,
-        "z": 68.8065,
-        "yaw": 0.0
+        "x": -669.56,
+        "y": 93.57,
+        "z": 52.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
@@ -791,7 +794,7 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine10.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
               }
             },
             {
@@ -807,26 +810,25 @@
       ]
     },
     {
-      "id": "x500_wt14",
+      "id": "x500_wt13",
       "class": "X500_inspection",
       "nb_agents": 1,
       "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": -556.07,
-        "y": 112.68,
-        "z": 68.8065,
-        "yaw": 0.0
+        "x": -704.04,
+        "y": 155.09,
+        "z": 52.0
       },
       "tick_rate_hz": 2.0,
       "missions": [
         {
-          "id": "patrol_and_inspect_x500_wt14",
+          "id": "patrol_and_inspect_x500_wt13",
           "type": "parallel",
           "success_policy": "all",
           "children": [
             {
-              "id": "patrol_wt14",
+              "id": "patrol_wt13",
               "type": "action",
               "task": "waypoint_follower",
               "params": {
@@ -841,11 +843,11 @@
                 "angular_velocities_limits": 0.5,
                 "angular_accel_limit": 0.1,
                 "range_tolerance": 3.0,
-                "waypoints_file": "waypoint_windturbine14.json"
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
               }
             },
             {
-              "id": "inspect_x500_wt14",
+              "id": "inspect_x500_wt13",
               "type": "action",
               "task": "fault_inspection",
               "params": {

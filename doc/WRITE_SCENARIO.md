@@ -141,7 +141,7 @@ waypoints could be resolved.
 | Param | Type | Default | Notes |
 |---|---|---|---|
 | `waypoints` | `[{"lat","lon"}, ...]` | — | Inline list. Takes priority over `waypoints_file`. |
-| `waypoints_file` | string | — | Patrol-file name, resolved via `PatrolFileProvider` relative to the scenario JSON's own directory (`_config_dir`) — same format as [`waypoint_windturbine7.json`](../src/simulation_run/config/waypoint_windturbine7.json) (`{"mmsi": ..., "waypoints": [{"timestamp","lat","lon"}, ...]}`). |
+| `waypoints_file` | string | — | Patrol-file name, resolved via `PatrolFileProvider` relative to the scenario JSON's own directory (`_config_dir`) — same format as [`waypoints/waypoint_windturbine1.json`](../src/simulation_run/config/waypoints/waypoint_windturbine1.json) (`{"mmsi": ..., "waypoints": [{"timestamp","lat","lon"}, ...]}`). |
 | `loop` | bool | `true` | Loop back to the first waypoint after the last, forever (`RUNNING` never ends). |
 | `control_rate_hz` | float | `20.0` | Frequency of the guidance/control loop (independent of `tick_rate_hz`, which only paces the BT `tick()`). |
 | `guidance_mode` | `"bang_bang"` \| `"pid"` | `"bang_bang"` | Controller family for both linear and angular velocity. |
@@ -299,7 +299,7 @@ and §7 below for how to add your own.
 }
 ```
 
-Full file: [`src/simulation_run/config/sequence_and_parallel.json`](../src/simulation_run/config/sequence_and_parallel.json).
+Full file: [`src/simulation_run/config/basic_examples/sequence_and_parallel.json`](../src/simulation_run/config/basic_examples/sequence_and_parallel.json).
 
 ---
 
@@ -318,9 +318,9 @@ top-level keys that tell `simulation_run` what to launch:
 ### 5.1 Running it
 
 ```bash
-./src/simulation_run/executable/scenario_launch.sh --config sequence_and_parallel.json
+./src/simulation_run/executable/scenario_launch.sh --config basic_examples/sequence_and_parallel.json
 # or directly, once workspaces are sourced:
-ros2 run simulation_run main --config sequence_and_parallel.json
+ros2 run simulation_run main --config basic_examples/sequence_and_parallel.json
 ```
 
 `scenario_launch.sh` reads `renderer_unity` via `jq`, cleans
@@ -414,7 +414,7 @@ With no `missions` at all (as above) this agent is a **legitimate no-op** for
 the ambient vector — sliders are always in control, and `Wake` reads whatever
 they publish. That is the right shape for a scenario that only wants wake/LCOE
 modelling and free manual wind control, e.g.
-[`test_wake.json`](../src/simulation_run/config/test_wake.json).
+[`px4_manual_wake_flying.json`](../src/simulation_run/config/wind_wake_examples/px4_manual_wake_flying.json).
 
 #### `regions` — 2D wind overrides on top of the ambient vector
 
@@ -591,9 +591,9 @@ against a live run rather than assuming the old defaults are still optimal.
 if `Wind` also declares a static `regions` list, whichever agent publishes
 last wins and silently blanks out the other's regions.
 
-Full files: [`test_wake.json`](../src/simulation_run/config/test_wake.json)
+Full files: [`px4_manual_wake_flying.json`](../src/simulation_run/config/wind_wake_examples/px4_manual_wake_flying.json)
 (slider-driven wind + wake, `wind_regions` enabled, no LCOE) and
-[`demo_facet.json`](../src/simulation_run/config/demo_facet.json) (wake +
+[`demo_facet.json`](../src/simulation_run/config/facet_demo/demo_facet.json) (wake +
 LCOE, no `wind_regions`, alongside the rest of the demo).
 
 `turbines[].{x,y,z}` follow the same ENU convention as every other position in
@@ -871,8 +871,8 @@ host machine.
 }
 ```
 
-Both shapes can appear in the wild (`wind_only.json`, `empty.json` still use
-the dict form because they have no `missions`); for a **new** scenario with
+Both shapes still occur (`basic_examples/empty.json` uses the dict form
+because it has no `missions`); for a **new** scenario with
 BT missions, prefer the **list** form (`"agents": [ {"id", "class", ...} ]`)
 — it is what every task/mission-carrying example in this repo uses, and
 what `find_waypoints_file_in_missions`/`extract_spawn_from_missions` are

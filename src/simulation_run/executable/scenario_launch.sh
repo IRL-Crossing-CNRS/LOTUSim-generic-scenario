@@ -77,7 +77,7 @@ UNITY_MODE="${UNITY_MODE:-exe}"
 # XDYN_VERBOSE=1 passes -v -w to every xdyn-for-cs instance launched below,
 # logging every message and every websocket event (connect/disconnect/
 # payload) to $LOG_DIR/xdyn_<agent_type>.log -- off by default (very chatty):
-#   XDYN_VERBOSE=1 ./scenario_launch.sh --config bluerov_current_experiment/station_keeping_ekman.json
+#   XDYN_VERBOSE=1 ./scenario_launch.sh --config current_examples/station_keeping_ekman.json
 
 # Extra command-line args passed to the Unity player (only in "exe" mode).
 # Default = windowed 1280x720 (Unity would otherwise go fullscreen). Graphics
@@ -363,7 +363,7 @@ XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.ya
 #           environment model, so that file declares NO current and the host
 #           plugin injects the process instead, parametrised by the agent's
 #           "gauss_markov_current" block in the scenario json.
-# See doc/bluerov_current_experiment/PROTOCOL.md.
+# See src/simulation_run/config/current_examples/README.md.
 XDYN_CONFIGS["Bluerov2_heavy_pid"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12347"
 
 # ============================================================

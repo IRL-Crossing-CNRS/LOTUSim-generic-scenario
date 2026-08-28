@@ -1,0 +1,133 @@
+{
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "record_csv": {
+    "rate": 10.0
+  },
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "publish_rate_hz": 10.0,
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "seed_wind",
+          "type": "action",
+          "task": "set_wind",
+          "params": {
+            "x": 8.0,
+            "y": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "turbines": [
+        { "name": "wind_turbine_1", "x": -496.0, "z": 52.0, "y": -766.0 },
+        { "name": "wind_turbine_2", "x": -92.0, "z": 52.0, "y": -766.0 },
+        { "name": "wind_turbine_3", "x": 328.0, "z": 52.0, "y": -766.0 },
+        { "name": "wind_turbine_4", "x": 748.0, "z": 52.0, "y": -766.0 },
+        { "name": "wind_turbine_5", "x": -512.0, "z": 52.0, "y": -226.0 },
+        { "name": "wind_turbine_6", "x": -92.0, "z": 52.0, "y": -226.0 },
+        { "name": "wind_turbine_7", "x": 328.0, "z": 52.0, "y": -226.0 },
+        { "name": "wind_turbine_8", "x": 748.0, "z": 52.0, "y": -226.0 }
+      ],
+      "wind_regions": {
+        "direction_hysteresis_deg": 5.0
+      }
+    },
+    {
+      "id": "x500_in_wake",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": -620.0,
+        "y": -721.0,
+        "z": 0.0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "offboard",
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "wake_transit",
+          "type": "action",
+          "task": "px4_offboard_patrol",
+          "params": {
+            "spawn": {
+              "x": -620.0,
+              "y": -721.0,
+              "z": 0.0
+            },
+            "waypoints": [
+              { "name": "wake_entry", "x": -450.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_mid_1", "x": 0.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_mid_2", "x": 400.0, "y": -721.0, "z": 52.0 },
+              { "name": "wake_exit", "x": 900.0, "y": -721.0, "z": 52.0 }
+            ],
+            "loop": true,
+            "hold_radius_m": 15.0,
+            "takeoff_alt_m": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_clear_air",
+      "class": "X500",
+      "nb_agents": 1,
+      "spawn": {
+        "x": -620.0,
+        "y": 300.0,
+        "z": 0.0,
+        "yaw": 0.0
+      },
+      "px4": true,
+      "px4_control": "offboard",
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "clear_transit",
+          "type": "action",
+          "task": "px4_offboard_patrol",
+          "params": {
+            "spawn": {
+              "x": -620.0,
+              "y": 300.0,
+              "z": 0.0
+            },
+            "waypoints": [
+              { "name": "clear_entry", "x": -450.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_mid_1", "x": 0.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_mid_2", "x": 400.0, "y": 300.0, "z": 52.0 },
+              { "name": "clear_exit", "x": 900.0, "y": 300.0, "z": 52.0 }
+            ],
+            "loop": true,
+            "hold_radius_m": 15.0,
+            "takeoff_alt_m": 30.0
+          }
+        }
+      ]
+    }
+  ]
+}

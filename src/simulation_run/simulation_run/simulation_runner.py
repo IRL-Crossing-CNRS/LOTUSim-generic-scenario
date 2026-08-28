@@ -33,6 +33,32 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _px4_cpu_affinity() -> Optional[str]:
+    """CPU core list (``taskset -c`` syntax) to pin the aerialWorld gz sim to.
+
+    aerialWorld is where PX4-driven X500 agents live. PX4 SITL's lockstep
+    clock/IMU timing is real-time-sensitive, and a scenario can run 15+
+    other heavy agents (xdyn processes, vision-based inspection tasks)
+    sharing the same CPU cores. Under contention this causes spurious PX4
+    EKF "Attitude failure" trips at takeoff: the same airframe flies in a
+    lighter scenario, fails reliably in a heavy one. Reserving a couple of
+    cores for aerialWorld + PX4 isolates them from that contention; see the
+    matching helper in ``lotusim_sdk.agents.entity.physical.x500``, which
+    pins the PX4 process itself to the same cores.
+
+    Override with the ``PX4_CPU_AFFINITY`` env var (comma-separated core
+    ids); set it to an empty string to disable pinning entirely. Falls back
+    to no pinning on machines with too few cores to spare any.
+    """
+    override = os.environ.get("PX4_CPU_AFFINITY")
+    if override is not None:
+        return override or None
+    cpu_count = os.cpu_count() or 1
+    if cpu_count < 4:
+        return None
+    return f"{cpu_count - 2},{cpu_count - 1}"
+
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
@@ -78,7 +104,7 @@ def build_launch_command(
     gui_flag = "--gui" if gui else ""
     commands: List[str] = []
 
-    def _with_log(wf: str) -> str:
+    def _with_log(wf: str, cpu_affinity: Optional[str] = None) -> str:
         """Append a tee into LOG_DIR/gz_<world>.log, matching the ros_tcp_endpoint
         / xdyn logging convention in scenario_launch.sh. Each gz sim world runs in
         its own gnome-terminal, outside that script's own stdout capture, so
@@ -86,8 +112,18 @@ def build_launch_command(
         messages — exactly what PX4/sensor issues need) never reaches
         scenario_logs and is lost once the terminal window closes. No-op if
         LOG_DIR isn't set (e.g. launched outside scenario_launch.sh).
+
+        ``cpu_affinity``, if given, prefixes the command with ``taskset -c``.
+        Safe to combine with the ``pgrep -f`` PID tracking in
+        start_simulation_process(): that matches against the *outer*
+        ``bash -c "<this whole string>"`` wrapper gnome-terminal launches
+        (its argv literally contains this string verbatim), not the process
+        taskset execs into, so a taskset prefix here doesn't hide the
+        process from cleanup.
         """
         cmd = f"{base_command} {debug_flag} {gui_flag} run {wf}".strip()
+        if cpu_affinity:
+            cmd = f"taskset -c {cpu_affinity} {cmd}"
         log_dir = os.environ.get("LOG_DIR")
         if not log_dir:
             return cmd
@@ -96,7 +132,10 @@ def build_launch_command(
 
     # The aerialWorld must come up first: the custom world's AerialEntityManager
     # waits on /aerialWorld/mas_cmd at load and logs "not available" if it's late.
-    commands.append(_with_log(utils.AERIAL_WORLD_FILE))
+    # Pinned to dedicated cores (see _px4_cpu_affinity docstring) since it's
+    # where PX4-driven X500 agents live and PX4's lockstep timing is
+    # real-time-sensitive to CPU contention from the rest of the scenario.
+    commands.append(_with_log(utils.AERIAL_WORLD_FILE, cpu_affinity=_px4_cpu_affinity()))
     commands.append(_with_log(world_file))
 
     logger.debug("Launch commands: %s", commands)

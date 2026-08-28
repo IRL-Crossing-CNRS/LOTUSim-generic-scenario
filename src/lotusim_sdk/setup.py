@@ -25,6 +25,10 @@ setup(
         "opencv-python",
         "pillow",
         "numpy",
+        # px4_offboard_patrol's MAVLink offboard link (already installed as
+        # a PX4-Autopilot build dependency; listed here too so a plain
+        # `pip install lotusim_sdk` is enough on its own).
+        "pymavlink",
     ],
     zip_safe=True,
     maintainer="Naval Group",
@@ -38,6 +42,7 @@ setup(
             "check_battery_state = lotusim_sdk.tasks.check_battery_state:CheckBatteryStateTask",
             "waypoint_follower = lotusim_sdk.tasks.waypoint_follower:WaypointFollowerTask",
             "waypoint_follower_avoidance = lotusim_sdk.tasks.waypoint_follower_avoidance:WaypointFollowerAvoidanceTask",
+            "px4_offboard_patrol = lotusim_sdk.tasks.px4_offboard_patrol:Px4OffboardPatrolTask",
             "kinematic_anchor = lotusim_sdk.tasks.kinematic_anchor:KinematicAnchorTask",
             "set_wind = lotusim_sdk.tasks.set_wind:SetWindTask",
             "wait = lotusim_sdk.tasks.wait:WaitTask",

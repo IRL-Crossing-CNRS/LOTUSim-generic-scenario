@@ -228,7 +228,9 @@ class Wake(Environment):
             region_msg = WindRegionMsg()
             region_msg.id = r["id"]
             region_msg.shape_type = WindRegionMsg.CONE_SEGMENT
-            region_msg.cone.origin = Point(x=r["origin_x"], y=r["origin_y"], z=0.0)
+            region_msg.cone.origin = Point(
+                x=r["origin_x"], y=r["origin_y"], z=r["origin_z"]
+            )
             region_msg.cone.axis = Vector3(x=r["axis_x"], y=r["axis_y"], z=0.0)
             region_msg.cone.length = r["length"]
             region_msg.cone.r_start = r["r_start"]

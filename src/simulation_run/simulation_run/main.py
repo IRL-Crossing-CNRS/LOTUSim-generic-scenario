@@ -10,7 +10,7 @@ It provides the following key functionalities:
 
 - Loads user-defined JSON configuration files specifying world, agents, and simulation parameters.
 - Resolves configuration paths using ROS 2 package shares or fallback to local directories.
-- Sets up signal handling (graceful shutdown on Ctrl+C / SIGINT).
+- Sets up signal handling (graceful shutdown on Ctrl+C / SIGINT or SIGTERM).
 - Parses agent definitions, SDFs, and simulation parameters.
 - Delegates simulation execution to `simulation_run.simulation_runner`.
 - Integrates configuration and SDF utilities via `simulation_run.utils`.
@@ -49,10 +49,15 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 def signal_handler(signum, frame):
     """
-    Handle Ctrl+C (SIGINT) by signalling the executor loop to exit cleanly.
-    Cleanup is handled by run_simulation's finally block — no exit() call needed.
+    Handles Ctrl+C (SIGINT) or `kill` (SIGTERM) by signalling the executor
+    loop to exit cleanly. Cleanup runs in run_simulation's finally block
+    (agents_manager.delete_agents() -> each agent's destroy_node(), e.g.
+    X500 killing its PX4 SITL subprocess). Without a SIGTERM handler,
+    `kill <pid>` terminates the process immediately and skips that cleanup,
+    leaving PX4 SITL running after the scenario stops.
     """
-    logger.info("Ctrl+C received — shutting down simulation...")
+    signame = signal.Signals(signum).name
+    logger.info("%s received — shutting down simulation...", signame)
     with ros_manager.shutdown_flag_lock:
         ros_manager.shutdown_flag = True
 
@@ -87,6 +92,7 @@ def main():
 
     # Setup signal handling
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Load config
     config = utils.load_config_from_json(config_path)

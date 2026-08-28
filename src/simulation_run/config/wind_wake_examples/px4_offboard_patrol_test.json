@@ -36,45 +36,45 @@
         { "name": "wind_turbine_4",  "x":    7.5000, "z": 85.02798, "y":  -29.5000 },
         { "name": "wind_turbine_5",  "x": -107.5000, "z": 85.02798, "y":  -29.5000 },
         { "name": "wind_turbine_6",  "x": -207.5000, "z": 85.02798, "y":  -29.5000 },
-        { "name": "wind_turbine_7",  "x": -307.5000, "z": 85.02798, "y":  -29.5000 },
-        { "name": "wind_turbine_8",  "x":  250.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_9",  "x":  150.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_10", "x":   50.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_11", "x":  -50.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_12", "x": -150.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_13", "x": -250.0000, "z": 85.02798, "y":  206.0000 },
-        { "name": "wind_turbine_14", "x": -350.0000, "z": 85.02798, "y":  206.0000 }
+        { "name": "wind_turbine_7",  "x": -307.5000, "z": 85.02798, "y":  -29.5000 }
       ]
     },
     {
-      "id": "x500_px4_wake",
+      "id": "x500_px4_patrol",
       "class": "X500",
       "nb_agents": 1,
       "spawn": {
         "x": 350,
         "y": 50,
-        "z": 90,
+        "z": 0,
         "yaw": 0.0
       },
       "px4": true,
-      "px4_control": "manual",
+      "px4_control": "offboard",
       "sdf_file": "model.sdf",
-      "xdyn": false
-    },
-    {
-      "id": "x500_px4_normal",
-      "class": "X500",
-      "nb_agents": 1,
-      "spawn": {
-        "x": 350,
-        "y": -100,
-        "z": 90,
-        "yaw": 0.0
-      },
-      "px4": true,
-      "px4_control": "manual",
-      "sdf_file": "model.sdf",
-      "xdyn": false
+      "xdyn": false,
+      "missions": [
+        {
+          "id": "turbine_patrol",
+          "type": "action",
+          "task": "px4_offboard_patrol",
+          "params": {
+            "spawn": { "x": 350, "y": 50, "z": 0 },
+            "waypoints": [
+              { "name": "wind_turbine_1", "x": 307.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_2", "x": 207.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_3", "x": 107.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_4", "x": 7.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_5", "x": -107.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_6", "x": -207.5, "y": -29.5, "z": 85.02798 },
+              { "name": "wind_turbine_7", "x": -307.5, "y": -29.5, "z": 85.02798 }
+            ],
+            "loop": true,
+            "hold_radius_m": 8.0,
+            "takeoff_alt_m": 15.0
+          }
+        }
+      ]
     }
   ]
 }

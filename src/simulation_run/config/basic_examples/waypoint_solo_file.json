@@ -30,7 +30,7 @@
             "angular_velocities_limits": 0.5,
             "angular_accel_limit": 0.1,
             "range_tolerance": 3.0,
-            "waypoints_file": "waypoint_windturbine7.json"
+            "waypoints_file": "../waypoints/waypoint_windturbine1.json"
           }
         }
       ]

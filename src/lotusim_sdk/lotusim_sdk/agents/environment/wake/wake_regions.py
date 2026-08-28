@@ -104,9 +104,13 @@ class WakeRegionGenerator:
 
         ``turbines_named`` is ``[(name, x, y, z), ...]`` in ENU; ``wind_vector``
         is ``[vx, vy]``. Each descriptor is a plain dict — ``{"id", "origin_x",
-        "origin_y", "axis_x", "axis_y", "length", "r_start", "r_end", "vx",
-        "vy", "vz"}`` — so this module stays free of any ROS message
-        dependency.
+        "origin_y", "origin_z", "axis_x", "axis_y", "length", "r_start",
+        "r_end", "vx", "vy", "vz"}`` — so this module stays free of any ROS
+        message dependency.
+
+        ``origin_z`` is the turbine's hub altitude: the wake is a horizontal
+        tube centred on the rotor, and the consumer measures its radius
+        perpendicular to the (horizontal) axis, vertical offset included.
         """
         if not self._template:
             return []
@@ -120,7 +124,7 @@ class WakeRegionGenerator:
         turbines = [(x, y, z) for _name, x, y, z in turbines_named]
         regions = []
 
-        for name, tx, ty, _tz in turbines_named:
+        for name, tx, ty, tz in turbines_named:
             origin = np.array([tx, ty])
             for i, (x_start, x_end, r_start, r_end) in enumerate(self._template):
                 centre = origin + 0.5 * (x_start + x_end) * unit_wind
@@ -140,6 +144,7 @@ class WakeRegionGenerator:
                 regions.append({
                     "id": f"wake_{name}_{i}",
                     "origin_x": float(segment_origin[0]), "origin_y": float(segment_origin[1]),
+                    "origin_z": float(tz),
                     "axis_x": float(unit_wind[0]), "axis_y": float(unit_wind[1]),
                     "length": float(x_end - x_start),
                     "r_start": float(r_start), "r_end": float(r_end),

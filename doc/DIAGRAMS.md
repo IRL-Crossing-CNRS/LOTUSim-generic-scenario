@@ -27,8 +27,13 @@ The project enables simulation of naval scenarios with surface vehicles (Fremm, 
 
 ```txt
 simulation_run/
-├── config/
-│   ├── defenseScenario.json    # Multi-agent defense scenario
+├── config/                     # Scenario JSON, grouped by subject
+│   ├── basic_examples/         # Behaviour-tree fundamentals
+│   ├── current_examples/       # Ocean-current models
+│   ├── wind_wake_examples/     # Wind, wake, PX4 aerial drones
+│   ├── multi_vehicle_examples/ # One scenario per vehicle class
+│   ├── facet_demo/             # Full-fleet turbine inspection
+│   └── waypoints/              # Patrol waypoint data files
 ├── executable/
 │   └── scenario_launch.sh      # Bash entry point (the script to run)
 └── simulation_run/
@@ -376,12 +381,12 @@ The `simulation_run` package runs in **3 phases**: startup, runtime, and shutdow
 
 ---
 
-## 5. Sequence Diagram - Launching the `defenseScenario.json` scenario
+## 5. Sequence Diagram - Launching the `facet_demo/demo_facet.json` scenario
 
 This diagram shows **everything that happens** when the user enters:
 
 ```bash
-./src/simulation_run/executable/scenario_launch.sh --config defenseScenario.json
+./src/simulation_run/executable/scenario_launch.sh --config facet_demo/demo_facet.json
 ```
 
 ```mermaid
@@ -399,7 +404,7 @@ sequenceDiagram
     participant AgentsMgr as AgentsManager
     participant Agent as Agent
 
-    User->>Shell: ./scenario_launch.sh --config defenseScenario.json
+    User->>Shell: ./scenario_launch.sh --config facet_demo/demo_facet.json
 
     Note over Shell: OS detection -> ROS Distro (humble/jazzy)
     Shell->>Shell: source /opt/ros/${DISTRO}/setup.bash
@@ -426,10 +431,10 @@ sequenceDiagram
     Shell->>Unity: ./lotusim_scenario.x86_64
 
     Note over Shell: Launch Python simulation
-    Shell->>Main: ros2 run simulation_run main --config defenseScenario.json
+    Shell->>Main: ros2 run simulation_run main --config facet_demo/demo_facet.json
 
     Main->>Utils: get_cli_args() -> config path
-    Main->>Utils: load_config_from_json(defenseScenario.json)
+    Main->>Utils: load_config_from_json(demo_facet.json)
     Main->>Utils: inject_first_ais_pose(agents) : no AIS for this scenario
     Main->>Utils: parse_simulation_config(config)
     Utils-->>Main: world_file, agents, aerial_enabled=true
@@ -498,7 +503,7 @@ Full system view showing all processes, their interconnections, and the protocol
 flowchart TB
     subgraph "User Input"
         USER["User"]
-        CONFIG["JSON config<br/>(defenseScenario.json)"]
+        CONFIG["JSON config<br/>(demo_facet.json)"]
         LAUNCH["scenario_launch.sh"]
     end
 

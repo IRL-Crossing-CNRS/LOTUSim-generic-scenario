@@ -63,6 +63,11 @@ feedback loop):
 MBARI's LRAUV is a real, publicly documented vehicle with published
 hydrodynamic data in the open literature.
 
+`all_vehicles_current_demo.json` spawns one of every vehicle class at once
+on `bluerov_ekman.world` -- Commando, Fremm, Pha, WAMV, Mine, LRAUV, and two
+`Bluerov2_heavy_pid` -- under a shared ocean current. It checks that every
+class still spawns and drifts, rather than demonstrating any one pipeline.
+
 **No dtmb_hull scenarios**: removed (no corresponding Unity asset).
 `dtmb_hull_gnc`'s code is untouched in case an asset shows up later, but
 no example scenario references it.
@@ -79,6 +84,6 @@ From this repository's root:
 Swap the filename for any scenario listed above. Add `"record_csv": true`
 at the scenario's top level to get position telemetry in
 `scenario_logs/<timestamp>/csv/<agent>.csv` -- the only way to confirm a
-trajectory is sane rather than just "didn't crash in the first 20
-seconds". `record_csv` is already on for `lrauv_xdyn.json`. Every
+trajectory is correct rather than merely crash-free over the first few
+seconds. `record_csv` is already on for `lrauv_xdyn.json`. Every
 scenario here runs with `renderer_unity: true`.

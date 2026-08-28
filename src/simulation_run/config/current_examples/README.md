@@ -11,12 +11,11 @@ See `../README.md` for the full per-vehicle capability table (this
 directory only covers BlueROV; other vehicles are in
 `../multi_vehicle_examples/`).
 
-This is **not** the ICRA current-modelling paper's experiment suite --
-that (multi-date Copernicus replays, fitted-parameter sweeps, seeds,
-transects) lives in the paper's own repository,
-`LOTUSim_current_modelling_evaluation`. These four scenarios exist so the
-current-model feature stays runnable and demonstrable from this repo alone,
-independent of the paper.
+This is not the ICRA current-modelling paper's experiment suite. That suite
+(multi-date Copernicus replays, fitted-parameter sweeps, seeds, transects)
+lives in the paper's own repository, `LOTUSim_current_modelling_evaluation`.
+These scenarios exist so the current-model feature stays runnable from this
+repository alone, independent of the paper.
 
 ## Scenarios
 
@@ -42,8 +41,8 @@ Current conditions, either trajectory:
   Gauss-Markov. Uses `copernicus_demo_profile.csv` in this directory. The
   `profile` path resolves relative to the config file's own directory, so
   keep the CSV alongside any config that references it. The profile is a
-  small **synthetic** demo, not real Copernicus Marine Service data -- see
-  the paper repo for that.
+  small synthetic demo, not real Copernicus Marine Service data. See the
+  paper repository for that.
 - `none` -- no-current control condition.
 
 ## Running
@@ -56,3 +55,8 @@ From this repository's root:
 ```
 
 Swap the filename for any of the other seven.
+
+## Also here
+
+`test_current.json` -- one `OceanCurrent` agent on `energy.world`, no
+vehicles. Isolates the current field itself, with no GNC pipeline involved.

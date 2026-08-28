@@ -101,6 +101,190 @@ executable, enter your local IP and ROS port `10000`, and pick **Spectator
 Mode** (free-fly, `W`/`A`/`S`/`D`/`Q`/`E` + mouse) or target-follower mode
 (arrow keys to cycle agents).
 
+### Scenario catalog
+
+Scenario JSON files are grouped by subject in subdirectories of
+`src/simulation_run/config/`. Each subdirectory has its own README listing
+its files.
+
+| Directory | Contents |
+| --- | --- |
+| `basic_examples/` | Behaviour-tree fundamentals on a single BlueROV: waypoint following, sequence and parallel nodes, a custom-task scaffold, accelerated world clocks, and an empty world |
+| `current_examples/` | Ocean-current models (`ekman`, `gauss`, `copernicus`, `none`) with a BlueROV2 under PID, in station-keeping and transect form |
+| `wind_wake_examples/` | Wind regions, turbine wake, and PX4 aerial drones |
+| `multi_vehicle_examples/` | One scenario per vehicle class and mode (Kinematic-controllable or xdyn drift-only) |
+| `facet_demo/` | Full-fleet turbine-inspection demos: BlueROV, WAMV, and X500 agents across a 16-turbine farm |
+| `waypoints/` | Patrol waypoint files referenced by `waypoints_file`. These are data files, not scenarios |
+
+Pass the path relative to the config directory:
+
+```bash
+./src/simulation_run/executable/scenario_launch.sh --config wind_wake_examples/wake_crossing_demo.json
+```
+
+The full index, including the per-vehicle capability table, is in
+[src/simulation_run/config/README.md](src/simulation_run/config/README.md).
+
+Turbine hub altitude differs between scenarios: 52 m in `facet_demo/` and in
+`wind_wake_examples/wake_crossing_demo.json`, 85 m in
+`wind_wake_examples/px4_offboard_patrol_test.json`. Within a single file,
+`wake.turbines[].z` and the flight-path `z` values must match each other;
+they are not shared across files.
+
+---
+
+## PX4 SITL (aerial drones)
+
+An `X500` agent with `"px4": true` in its scenario JSON is flown by an
+external **PX4 SITL** process instead of a built-in BT controller — PX4
+attaches to the airframe LOTUSim spawns in the aerial world and reads its
+Gazebo sensors / writes its motor commands directly
+(see [doc/ARCHITECTURE.md §5.1](doc/ARCHITECTURE.md)). PX4 itself is not part
+of this repo: it's a separate checkout you build once.
+
+### 1. Clone and build PX4-Autopilot
+
+```bash
+git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot
+cd ~/PX4-Autopilot
+```
+
+System packages needed beyond a base Ubuntu 24.04 dev machine (all via
+`sudo apt install`, no PPAs needed):
+
+```bash
+sudo apt install -y ninja-build ccache libopencv-dev \
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+```
+
+Python packages (PX4's `Tools/setup/requirements.txt`; `--break-system-packages`
+is required on Ubuntu 24.04's PEP 668-managed Python, and this only touches
+your user site-packages, not the system Python):
+
+```bash
+pip3 install --user --break-system-packages -r Tools/setup/requirements.txt
+```
+
+**Known build issue (clang 18+):** a few PX4 source files use
+variable-length arrays in C++, which clang 18 treats as a hard error
+(`-Werror` + `-Wvla-cxx-extension`) even though older clang only warned.
+If `make` fails with `variable length arrays in C++ are a Clang extension`,
+add one line to `cmake/px4_add_common_flags.cmake` in the clang branch
+(next to the existing `-Wno-c99-designator` etc.):
+
+```cmake
+-Wno-error=vla-cxx-extension
+```
+
+Then build the Gazebo x500 target:
+
+```bash
+make px4_sitl gz_x500
+```
+
+This command builds PX4 and then launches it in an interactive `pxh>` shell
+attached to whatever Gazebo world and model it finds. With no matching Gazebo
+instance running, PX4 attaches to nothing and the `pxh>` prompt redraws in a
+loop indefinitely. If the run is backgrounded or redirected to a log file,
+that file grows without bound (several GB within minutes) until the disk
+fills. After the first build, check for a leftover process with
+`ps aux | grep bin/px4`, kill it, and delete the log. Later scenario launches
+are unaffected: LOTUSim starts its own PX4 instance with `-d` (daemon mode,
+no `pxh>` prompt).
+
+### 2. Point LOTUSim at your PX4 checkout
+
+`X500._start_px4_sitl()` (in `lotusim_sdk/agents/entity/physical/x500.py`)
+looks for a built PX4 checkout at `$PX4_AUTOPILOT_PATH`, defaulting to
+`~/PX4-Autopilot`. If you cloned it elsewhere, export the real path before
+launching:
+
+```bash
+export PX4_AUTOPILOT_PATH=/path/to/PX4-Autopilot
+```
+
+### 3. Enable PX4 on an X500 agent
+
+In the scenario JSON:
+
+```json
+{
+  "id": "x500_px4",
+  "class": "X500",
+  "spawn": { "x": 20, "y": 30, "z": 0, "yaw": 0.0 },
+  "px4": true,
+  "px4_control": "manual",
+  "sdf_file": "model.sdf",
+  "xdyn": false
+}
+```
+
+On a `"px4": true` agent, `spawn.z` must be `0`. An unarmed multirotor
+produces no thrust, so a spawn above the surface falls under gravity before
+PX4 finishes booting. The resulting impact corrupts EKF2's attitude and
+velocity estimates, which surfaces as a persistent "not ready to arm" in
+QGroundControl. To start a mission at altitude, climb after arming using
+`takeoff_alt_m` in `px4_offboard_patrol`'s params (below) instead of raising
+`spawn.z`. Agents without `"px4": true` are unaffected and may spawn at any
+altitude.
+
+Then launch the scenario as usual — PX4 SITL starts automatically once the
+agent's spawn is confirmed, one instance per PX4-enabled agent:
+
+```bash
+./src/simulation_run/executable/scenario_launch.sh --config facet_demo/demo_facet_physics.json
+```
+
+Per-instance PX4 console output lands in
+`scenario_logs/<timestamp>/px4_sitl_<agent_name>.log` — check there first if
+a PX4 drone isn't responding. A clean attach looks like `gazebo already
+running world: aerialWorld` / `PX4_GZ_MODEL_NAME set, PX4 will attach to
+existing model`, followed by MAVLink listening on UDP port 14550.
+
+### 4. Flying it: manual or offboard
+
+`px4_control: "manual"` — PX4 takes no commands from LOTUSim's BT framework.
+The drone is flown over MAVLink from QGroundControl (next subsection).
+Example: `wind_wake_examples/px4_manual_wake_flying.json`.
+
+`px4_control: "offboard"` — a `px4_offboard_patrol` mission task arms the
+vehicle, takes off, switches to OFFBOARD, and streams position setpoints
+through a waypoint list over MAVLink. No ground control station is required.
+Examples: `wind_wake_examples/wake_crossing_demo.json` and
+`wind_wake_examples/px4_offboard_patrol_test.json`. Parameters, under the
+task's `missions[].params`:
+
+| Param | Default | Meaning |
+|---|---|---|
+| `spawn` | required | This agent's own `{x, y, z}` spawn. MAVLink's local NED frame is zeroed there, so waypoints are converted from world coordinates relative to it. |
+| `waypoints` | required | `[{"name", "x", "y", "z"}, ...]` in the same world frame as `spawn`. `name` is optional. |
+| `loop` | `true` | Cycle back to the first waypoint after the last, instead of finishing. |
+| `hold_radius_m` | `5.0` | 3D distance to a waypoint that counts as "reached". |
+| `takeoff_alt_m` | `15.0` | Climb straight up to this altitude (above spawn) before heading to the first waypoint. |
+| `setpoint_rate_hz` | `10.0` | Offboard setpoint stream rate. PX4 leaves OFFBOARD mode if the stream drops below 2 Hz. |
+
+`px4_control` is descriptive only; the attached task is what drives the
+vehicle. Keep the two consistent, as setting `"manual"` while attaching
+`px4_offboard_patrol` (or the reverse) has no defined behaviour.
+
+#### QGroundControl
+
+QGroundControl is not in Ubuntu's apt repositories. Download the official
+AppImage:
+
+```bash
+curl -L -o ~/Applications/QGroundControl-x86_64.AppImage \
+  "$(curl -s https://api.github.com/repos/mavlink/qgroundcontrol/releases/latest \
+     | grep browser_download_url | grep x86_64.AppImage | cut -d'"' -f4)"
+chmod +x ~/Applications/QGroundControl-x86_64.AppImage
+~/Applications/QGroundControl-x86_64.AppImage
+```
+
+QGroundControl connects automatically to any PX4 SITL instance listening on
+`localhost:14550`. With the scenario running it detects the vehicle within a
+few seconds and shows live telemetry. Arm and command takeoff or goto from
+its flight controls.
+
 ---
 
 ## Documentation
@@ -112,7 +296,7 @@ Mode** (free-fly, `W`/`A`/`S`/`D`/`Q`/`E` + mouse) or target-follower mode
 | [doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) | Full scenario JSON reference — every parameter, host vs. remote |
 | [doc/ACCELERATED_SIMULATION.md](doc/ACCELERATED_SIMULATION.md) | Running a world faster than real time (real_time_factor, `guidance_clock`) |
 | [doc/GNC_MODULAR_ARCHITECTURE.md](doc/GNC_MODULAR_ARCHITECTURE.md) | Navigation / Guidance / Control / Allocation as separate ROS2 nodes — topics, message schemas, how to plug in your own algorithm for one block |
-| [doc/bluerov_current_experiment/](doc/bluerov_current_experiment/) | BlueROV2 under PID across ocean-current models: how to run it, every parameter and its source, and what computes what |
+| [src/simulation_run/config/current_examples/](src/simulation_run/config/current_examples/) | BlueROV2 under PID across the four ocean-current models: the scenarios, what each current condition is, and how to run them |
 | [deployment/README.md](deployment/README.md) | Running an agent from a remote machine (no Gazebo installed) |
 
 ---
@@ -174,7 +358,7 @@ If you use [LOTUSim](https://github.com/naval-group/LOTUSim) in your research, o
 - [LOTUSim-generic-scenario](https://github.com/naval-group/LOTUSim-generic-scenario),
 - [LOTUSim-Unity-modules](https://github.com/naval-group/LOTUSim-Unity-modules),
 - [LOTUSim-UI-frontend](https://github.com/naval-group/LOTUSim-UI-frontend),
-- [LOTUSim-UI-frontend](https://github.com/naval-group/LOTUSim-UI-backend),
+- [LOTUSim-UI-backend](https://github.com/naval-group/LOTUSim-UI-backend),
 
 Please cite:
 
