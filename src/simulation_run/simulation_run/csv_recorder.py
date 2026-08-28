@@ -48,8 +48,11 @@ current/disturbance studies: it separates "where they meant to go" from
 active, without needing any change to the waypoint_follower plugin itself.
 Concretely, per sample:
 
-- ``mission_id`` / ``task_type`` — the ``id``/``task`` of whichever mission
-  in the agent's ``missions`` list is currently active.
+- ``mission_id`` / ``task_type`` — every mission in an agent's list is a
+  behaviour-tree root ticked on the same timer, so they all run at once. When
+  the agent has a trackable (waypoint) mission these name the one the
+  tracking columns below refer to; otherwise they list all of the agent's
+  concurrent missions, joined by ``|``.
 - ``distance_to_target_m`` — straight-line distance to the waypoint currently
   being pursued (only for ``waypoint_follower`` missions).
 - ``cross_track_error_m`` — perpendicular distance from the actual position
@@ -71,12 +74,11 @@ Caveats:
 
 - Only ``waypoint_follower`` missions can be progress-tracked (distance,
   cross-track, arrival) because they're the only task type with an explicit,
-  known target. Missions of any other ``task`` still show up in
-  ``mission_id``/``task_type`` while active, but the recorder has no signal
-  for when they finish — it can't auto-advance past one, so any missions
-  after a non-waypoint_follower one in the same agent's list won't be
-  reached. If your agents mix task types, treat this as a "task label" for
-  the currently-known mission rather than full sequencing.
+  known target. The tracking pointer walks those missions in order, advancing
+  on arrival; missions of any other ``task`` are never tracked and never
+  block it. A GNC pipeline (navigation + guidance + control + allocation,
+  all ticked together) has none, so its rows carry the joined mission list
+  and blank tracking columns.
 - Waypoints within a mission are assumed visited strictly in order with no
   looping (matches ``"loop": false``).
 - Assumes the ROS ``agent_name`` on ``/<world>/poses`` matches the agent
@@ -93,7 +95,11 @@ config (not from what happens to arrive first at runtime):
   configured ``OceanCurrent`` agent (see
   ``lotusim_sdk.agents.environment.ocean_current``), repeated on every row so
   a single agent's file is self-contained for "what current was this agent
-  under." ``current_vz_mps`` reflects the agent's configured ``z``, but
+  under." **Present only when the scenario declares such an agent**: a run
+  whose current comes from xdyn instead (``bluerov_current: ekman``, and the
+  gauss/copernicus models in the physics plugin) gets no current columns,
+  because this recorder has no handle on those values and writing zeros would
+  claim the run was current-free. ``current_vz_mps`` reflects the agent's configured ``z``, but
   KinematicInterface's own pose integration is 2D (x/y + yaw) only, see
   §5.4 of ``WRITE_SCENARIO.md`` — it has no physical effect yet.
 - Battery columns (only agents spawned with a battery sensor, e.g.
@@ -137,8 +143,10 @@ Rows are flushed continuously so a hard kill loses nothing (except the final
 """
 
 import csv
+import glob
 import math
 import os
+import re
 import threading
 import time
 
@@ -165,8 +173,16 @@ _BASE_HEADER = [
     "pos_x", "pos_y", "pos_z",
     "lat", "lon",
     "orient_x", "orient_y", "orient_z", "orient_w",
-    "current_vx_mps", "current_vy_mps", "current_vz_mps",
 ]
+# Only for scenarios that declare an ``OceanCurrent`` agent — see
+# _ocean_current_from_scenario. A scenario whose current comes from xdyn
+# instead (``bluerov_current: ekman|gauss|copernicus``) gets NO current
+# columns rather than three zeros that would read as "no current".
+_CURRENT_HEADER = ["current_vx_mps", "current_vy_mps", "current_vz_mps"]
+
+# Joins the ids/tasks of concurrently ticked missions in one CSV cell. Not a
+# comma, so the cell needs no quoting and stays readable in a plain reader.
+_CONCURRENT_SEP = "|"
 # Only for agents spawned with a battery sensor (sdf_file containing
 # "battery", e.g. "model-battery.sdf") — a mine on the plain model.sdf has no
 # battery, so it gets no battery_* columns at all rather than blank/zero ones.
@@ -215,6 +231,70 @@ _WGS84_E2 = 6.69437999014e-3    # first eccentricity squared
 _DEFAULT_REF_LAT = 50.32879166666667
 _DEFAULT_REF_LON = -4.195226666666667
 _DEFAULT_REF_ALT = 0.0
+
+
+def _world_origin_from_sdf(world_name: str) -> tuple:
+    """``(lat, lon, alt)`` of the run's world ``<spherical_coordinates>``, or
+    ``None``.
+
+    Worlds do not share an origin -- ``energy.world`` sits at 50.3288 N and
+    ``bluerov_ekman.world`` at 47.0 N -- so taking one world's value as a
+    constant puts every run on the other world 370 km from where Gazebo (and
+    therefore the AIS sensor, which reads Gazebo's spherical coordinates) says
+    it is. Read the origin from the world actually loaded instead.
+
+    Only ``$LOG_DIR/config``, where scenario_launch.sh snapshots that one
+    world, is searched. Scanning the core's ``assets/worlds`` instead would be
+    ambiguous: the SDF ``<world name>`` is not unique across files, and both
+    energy.world and bluerov_ekman.world declare ``name="energy"`` with
+    different origins. Without LOG_DIR (the recorder run standalone) the caller
+    keeps its default, overridable through ``record_csv``'s ``ref_lat`` and
+    ``ref_lon``.
+
+    XML comments are stripped first: energy.world keeps an older commented-out
+    block above the live one.
+    """
+    log_dir = os.environ.get("LOG_DIR")
+    if not log_dir:
+        return None
+    worlds = sorted(glob.glob(os.path.join(log_dir, "config", "*.world")))
+    if not worlds:
+        return None
+
+    def _origin(path):
+        try:
+            with open(path) as f:
+                text = re.sub(r"<!--.*?-->", "", f.read(), flags=re.S)
+        except OSError:
+            return None
+        block = re.search(
+            r"<spherical_coordinates>(.*?)</spherical_coordinates>", text, re.S
+        )
+        if not block:
+            return None
+
+        def _num(tag):
+            m = re.search(rf"<{tag}>([^<]+)</{tag}>", block.group(1))
+            return float(m.group(1)) if m else 0.0
+
+        try:
+            return _num("latitude_deg"), _num("longitude_deg"), _num("elevation")
+        except ValueError:
+            return None
+
+    if len(worlds) == 1:
+        return _origin(worlds[0])
+    # More than one snapshot: fall back to matching the SDF world name.
+    for path in worlds:
+        try:
+            with open(path) as f:
+                text = re.sub(r"<!--.*?-->", "", f.read(), flags=re.S)
+        except OSError:
+            continue
+        name = re.search(r"<world\s+name=[\"']([^\"']+)", text)
+        if name and name.group(1) == world_name:
+            return _origin(path)
+    return None
 
 
 def _enu_to_latlon(x: float, y: float, ref_lat_deg: float, ref_lon_deg: float,
@@ -380,7 +460,14 @@ def _ocean_current_from_scenario(scenario: dict) -> tuple:
     agent, if any — read straight from its JSON block in ``"agents"`` (the
     same static-config value the agent is constructed with), since a CSV
     reader has no live handle to the running agent to pick up later
-    ``set_current`` mission changes."""
+    ``set_current`` mission changes.
+
+    Returns ``None`` when the scenario declares no ``OceanCurrent`` agent, so
+    the caller can leave the current columns out entirely instead of writing
+    zeros. A scenario can also be under a current that never passes through
+    this agent — xdyn's own ekman/gauss/copernicus models are configured in
+    the vehicle YAML or the physics plugin and are not visible here — and
+    ``(0, 0, 0)`` would misreport those runs as current-free."""
     for agent in scenario.get("agents", []):
         agent_class = agent.get("class") or agent.get("type") or agent.get("id") or ""
         if str(agent_class).lower() != "oceancurrent":
@@ -390,7 +477,7 @@ def _ocean_current_from_scenario(scenario: dict) -> tuple:
             float(agent.get("y", 0.0)),
             float(agent.get("z", 0.0)),
         )
-    return (0.0, 0.0, 0.0)
+    return None
 
 
 def _agent_capabilities_from_scenario(scenario: dict) -> dict:
@@ -471,7 +558,7 @@ class CsvRecorder(Node):
         mission_specs: dict = None,
         obstacle_agents: set = None,
         agent_capabilities: dict = None,
-        ocean_current: tuple = (0.0, 0.0, 0.0),
+        ocean_current: tuple = None,
     ) -> None:
         super().__init__("csv_recorder")
         self._world = world
@@ -480,7 +567,13 @@ class CsvRecorder(Node):
         self._ref_lat = ref_lat
         self._ref_lon = ref_lon
         self._ref_alt = ref_alt
-        self._current_vx, self._current_vy, self._current_vz = ocean_current
+        # None when the scenario declares no OceanCurrent agent: the three
+        # current columns are then omitted from every CSV rather than filled
+        # with zeros (which would claim "no current" on an xdyn-current run).
+        self._has_ocean_current = ocean_current is not None
+        self._current_vx, self._current_vy, self._current_vz = (
+            ocean_current if ocean_current is not None else (0.0, 0.0, 0.0)
+        )
         # agent -> [ {id, task, path, tolerance, sonar_range_m}, ... ] ordered mission list
         self._mission_specs = mission_specs or {}
         # agent names whose scenario "class" is "mine" — the fake sonar's targets.
@@ -495,7 +588,19 @@ class CsvRecorder(Node):
             "battery": True, "mission": True, "sonar": False,
             "sensors": [], "actuators": [],
         }
-        # agent -> index into _mission_specs[agent] of the currently active mission
+        # agent -> indices into _mission_specs[agent] of the missions that can
+        # be progress-tracked (those with a waypoint path). Every mission in an
+        # agent's list is a behaviour-tree root ticked on the SAME timer (see
+        # Agent._tick_missions / MissionSet: "a list of behaviour-tree roots,
+        # ticked together"), so the list is concurrent, not sequential -- a
+        # single pointer walking all of it would sit on entry 0 forever. The
+        # pointer therefore walks only the trackable missions, which are the
+        # ones arrival can advance.
+        self._trackable_idx = {
+            v: [i for i, m in enumerate(specs) if m["path"]]
+            for v, specs in self._mission_specs.items()
+        }
+        # agent -> index into _trackable_idx[agent] of the mission being tracked
         self._mission_idx = {v: 0 for v in self._mission_specs}
         # agent -> index into that mission's path of the current target waypoint
         self._leg_idx = {v: 1 for v in self._mission_specs}
@@ -536,8 +641,16 @@ class CsvRecorder(Node):
 
         os.makedirs(outdir, exist_ok=True)
 
-        # Simulation time from Gazebo /stats (host machine only — gz transport
-        # does not cross machines the way ROS does). Falls back to wall clock.
+        # Simulation time from Gazebo (host machine only — gz transport does
+        # not cross machines the way ROS does). Falls back to wall clock.
+        #
+        # Subscribe to THIS world's own topic, not the bare "/stats": a run
+        # always launches the scenario world alongside aerialWorld, both
+        # advertise stats, and "/stats" then delivers whichever server got
+        # there first. That is how an accelerated run came to be recorded
+        # against the aerial world's clock -- the scenario world had reached
+        # 1564 s of sim time while "/stats" still read 25 s, making a vehicle
+        # held at 1 m/s look like it was doing 50 m/s.
         self._sim_time = None
         self._sim_time_lock = threading.Lock()
         self._gz_node = None
@@ -550,8 +663,11 @@ class CsvRecorder(Node):
                     self._sim_time = msg.sim_time.sec + msg.sim_time.nsec * 1e-9
 
             self._gz_node = GzNode()
-            self._gz_node.subscribe(WorldStatistics, "/stats", _on_stats)
-            self.get_logger().info("Sim time source: gz /stats")
+            stats_topic = f"/world/{world}/stats"
+            if not self._gz_node.subscribe(WorldStatistics, stats_topic, _on_stats):
+                stats_topic = "/stats"
+                self._gz_node.subscribe(WorldStatistics, stats_topic, _on_stats)
+            self.get_logger().info(f"Sim time source: gz {stats_topic}")
         except Exception as e:  # bindings absent or remote machine
             self.get_logger().warning(
                 f"gz /stats unavailable ({e}); sim_time_s falls back to wall clock."
@@ -646,6 +762,8 @@ class CsvRecorder(Node):
         if entry is None:
             caps = self._capabilities(agent)
             header = list(_BASE_HEADER)
+            if self._has_ocean_current:
+                header += _CURRENT_HEADER
             if caps["battery"]:
                 header += _BATTERY_HEADER
             if caps["mission"]:
@@ -677,18 +795,25 @@ class CsvRecorder(Node):
         if not specs:
             return ["", "", *_BLANK_TRACKING, 0]
 
+        trackable = self._trackable_idx.get(agent) or []
+
+        # Every mission in the list is ticked on the same timer, so they are
+        # all active at once. With nothing trackable there is no single
+        # "current" one to name: report the whole concurrent set.
+        if not trackable:
+            return [
+                _CONCURRENT_SEP.join(m["id"] for m in specs),
+                _CONCURRENT_SEP.join(m["task"] for m in specs),
+                *_BLANK_TRACKING, 0,
+            ]
+
         if self._all_missions_complete.get(agent, False):
-            last = specs[-1]
+            last = specs[trackable[-1]]
             return [last["id"], last["task"], *_BLANK_TRACKING, 1]
 
         midx = self._mission_idx[agent]
-        mission = specs[midx]
+        mission = specs[trackable[midx]]
         mission_id, task = mission["id"], mission["task"]
-
-        if not mission["path"]:
-            # No known target for this task type — report it as active but
-            # can't track progress or auto-advance past it (see docstring).
-            return [mission_id, task, *_BLANK_TRACKING, 0]
 
         path = mission["path"]
         leg_idx = self._leg_idx[agent]
@@ -727,13 +852,14 @@ class CsvRecorder(Node):
             if leg_idx + 1 < len(path):
                 self._leg_idx[agent] = leg_idx + 1
                 self._leg_min_distance[agent] = float("inf")
-            elif midx + 1 < len(specs):
+            elif midx + 1 < len(trackable):
                 self._mission_idx[agent] = midx + 1
                 self._leg_idx[agent] = 1
                 self._leg_min_distance[agent] = float("inf")
+                nxt = specs[trackable[midx + 1]]
                 self.get_logger().info(
                     f"'{agent}' finished mission '{mission_id}', "
-                    f"starting '{specs[midx + 1]['id']}' ({specs[midx + 1]['task']})"
+                    f"tracking '{nxt['id']}' ({nxt['task']}) next"
                 )
             else:
                 self._all_missions_complete[agent] = True
@@ -840,10 +966,9 @@ class CsvRecorder(Node):
                 f"{pose.orientation.y:.6f}",
                 f"{pose.orientation.z:.6f}",
                 f"{pose.orientation.w:.6f}",
-                self._current_vx,
-                self._current_vy,
-                self._current_vz,
             ]
+            if self._has_ocean_current:
+                row += [self._current_vx, self._current_vy, self._current_vz]
 
             stats = self._stats_for(agent)
             if stats["sim_time_start"] is None:
@@ -903,8 +1028,11 @@ class CsvRecorder(Node):
             "battery_start_pct", "battery_end_pct",
             "run_start_sim_time_s", "run_end_sim_time_s", "run_duration_s",
             "world_ref_lat", "world_ref_lon", "world_ref_alt",
-            "ocean_current_vx_mps", "ocean_current_vy_mps", "ocean_current_vz_mps",
         ]
+        if self._has_ocean_current:
+            header += [
+                "ocean_current_vx_mps", "ocean_current_vy_mps", "ocean_current_vz_mps",
+            ]
         try:
             with open(path, "w", newline="") as f:
                 writer = csv.writer(f)
@@ -951,8 +1079,8 @@ class CsvRecorder(Node):
                         f"{end_t:.3f}" if end_t is not None else "",
                         f"{duration:.3f}" if duration != "" else "",
                         f"{self._ref_lat:.8f}", f"{self._ref_lon:.8f}", f"{self._ref_alt:.3f}",
-                        self._current_vx, self._current_vy, self._current_vz,
-                    ])
+                    ] + ([self._current_vx, self._current_vy, self._current_vz]
+                         if self._has_ocean_current else []))
             self.get_logger().info(f"Wrote run summary -> {path}")
         except Exception:
             self.get_logger().exception("Could not write summary.csv")
@@ -1050,9 +1178,13 @@ def recorder_from_config(record_cfg, world_name: str, scenario: dict = None):
             os.getcwd(), f"csv_logs_{world_name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}"
         )
     )
-    ref_lat = float(cfg.get("ref_lat", _DEFAULT_REF_LAT))
-    ref_lon = float(cfg.get("ref_lon", _DEFAULT_REF_LON))
-    ref_alt = float(cfg.get("ref_alt", _DEFAULT_REF_ALT))
+    # Explicit record_csv values win; otherwise take the loaded world's own
+    # origin, and only fall back to the constants if it cannot be read.
+    world_origin = _world_origin_from_sdf(world_name)
+    fallback = world_origin or (_DEFAULT_REF_LAT, _DEFAULT_REF_LON, _DEFAULT_REF_ALT)
+    ref_lat = float(cfg.get("ref_lat", fallback[0]))
+    ref_lon = float(cfg.get("ref_lon", fallback[1]))
+    ref_alt = float(cfg.get("ref_alt", fallback[2]))
 
     mission_specs = (
         _mission_specs_from_scenario(scenario, ref_lat, ref_lon, ref_alt)

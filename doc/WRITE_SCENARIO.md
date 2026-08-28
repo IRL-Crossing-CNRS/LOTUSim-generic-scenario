@@ -735,7 +735,9 @@ back to the pre-existing heuristics (`sdf_file` naming,
 # base — every agent
 agent_name, sim_time_s,
 pos_x, pos_y, pos_z, lat, lon,
-orient_x, orient_y, orient_z, orient_w,
+orient_x, orient_y, orient_z, orient_w
+
+# + current — only scenarios declaring an OceanCurrent agent
 current_vx_mps, current_vy_mps, current_vz_mps
 
 # + battery — only agents spawned with a battery sensor
@@ -758,6 +760,15 @@ file is self-contained for "what current was it under" — not something
 computed per-agent, the same global value on every row of every agent's
 file. `current_vz_mps` reports the agent's configured `z`, but has no
 physical effect yet — the current model is horizontal-only (§5.4).
+
+These three columns exist **only when the scenario declares an
+`OceanCurrent` agent**. xdyn's own current models — `bluerov_current:
+ekman` in the vehicle YAML, and the gauss/copernicus models inside the
+physics plugin — never pass through that agent and are not visible to the
+recorder, so a run under one of them gets no current columns at all. Read
+the current's effect there from the trajectory itself (the crab angle and
+`cross_track_error_m`) or from a per-vehicle metrics recorder. `summary.csv`
+carries its `ocean_current_*` columns under the same condition.
 
 `sonar_range_m`/`sonar_contact`/`sonar_distance_m` are the fake sonar (§4.3,
 `waypoint_follower_avoidance`): a ground-truth distance to the nearest agent
@@ -808,12 +819,17 @@ multi-instance agent blocks too.
 - `mission_complete` — `1` once the agent has arrived at the last waypoint of
   its last mission.
 
+Every mission in an agent's list is a behaviour-tree root ticked on the same
+timer, so they all run at once rather than in sequence. `mission_id` and
+`task_type` therefore name the mission the tracking columns refer to when the
+agent has a trackable one, and otherwise list all of the agent's concurrent
+missions joined by `|` — a GNC pipeline row reads
+`navigation|crossing_layers|control|allocation|metrics`.
+
 Caveats: only `waypoint_follower` missions can be progress-tracked (they are
-the only task type with an explicit, known target) — a mission of any other
-`task` still shows up in `mission_id`/`task_type` while active, but the
-recorder has no "finished" signal for it and cannot auto-advance past it, so
-any mission *after* a non-`waypoint_follower` one in the same agent's list is
-never reached by the tracker. Waypoints within one mission are assumed
+the only task type with an explicit, known target). The tracking pointer
+walks those in order, advancing on arrival; missions of any other `task` are
+never tracked and never block it. Waypoints within one mission are assumed
 visited strictly in order, no looping (matches `"loop": false"`).
 
 **`summary.csv`** — a second file (`<outdir>/<prefix>summary.csv`), one row

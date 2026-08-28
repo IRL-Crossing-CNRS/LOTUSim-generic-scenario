@@ -20,10 +20,17 @@ resolved relative to this directory:
 | [`facet_demo/`](facet_demo/) | Full-fleet turbine-inspection demos |
 | [`waypoints/`](waypoints/) | Patrol waypoint data files referenced by `waypoints_file`; not scenarios |
 
-Add `"record_csv": true` at a scenario's top level to write position
-telemetry to `scenario_logs/<timestamp>/csv/<agent>.csv`. That telemetry is
-the only way to confirm a trajectory is correct rather than merely
-crash-free over the first few seconds.
+Every scenario here sets `"record_csv": true` at its top level, writing
+position telemetry to `scenario_logs/<timestamp>/csv/<agent>.csv`. That
+telemetry is the only way to confirm a trajectory is correct rather than
+merely crash-free over the first few seconds. The value may also be an object
+(`{"rate": 10.0}`) to set the sampling rate.
+
+The `current_*` columns come from a scenario's `OceanCurrent` agent and are
+absent from the files of runs that have none. `current_examples/` scenarios
+take their current from xdyn instead, so their telemetry carries no current
+columns; the current's effect shows in the trajectory and in the per-vehicle
+metrics CSV under `results/`.
 
 `current_examples/` and `multi_vehicle_examples/` are built on the generic
 Navigation/Guidance/Control/Allocation pipeline

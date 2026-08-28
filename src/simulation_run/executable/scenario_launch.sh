@@ -101,7 +101,12 @@ export LOTUSIM_WS="${LOTUSIM_WS:-$HOME/lotusim_ws}"
 export LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
 export PATH=$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH
 export LD_LIBRARY_PATH=$LOTUSIM_PATH/physics:$LD_LIBRARY_PATH
-export LOTUSIM_MODELS_PATH=$LOTUSIM_PATH/assets/models
+# Trailing slash required: xdyn joins this to a model YAML's relative
+# "mesh:" path by plain concatenation, so without it lrauv.yml's
+# "lrauv/tethys_hydrostatic_hull.stl" resolves to ".../assets/modelslrauv/..."
+# and xdyn refuses to simulate the vehicle at all. The installer's own export
+# already carries the slash; this one overrides it.
+export LOTUSIM_MODELS_PATH=$LOTUSIM_PATH/assets/models/
 
 # --- Updated paths for your scenario workspace ---
 LOTUSIM_SCENARIO_WS="${LOTUSIM_SCENARIO_WS:-$HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario}"
@@ -272,6 +277,28 @@ echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
 # the scenario has an aerial agent. Whether a scenario has wind is decided by
 # whether anything publishes /aerialWorld/wind, not by a flag.
 echo -e "${YELLOW}Bluerov current: $BLUEROV_CURRENT${NC}"
+
+# -------------------- PX4 SITL --------------------
+# The installer clones and builds PX4 into $HOME/PX4-Autopilot, which is also
+# X500's own default (agents/entity/physical/x500.py). Resolve it here so the
+# value the agents will use is printed once, up front, rather than discovered
+# per agent; an explicit PX4_AUTOPILOT_PATH still wins, for a checkout kept
+# elsewhere.
+export PX4_AUTOPILOT_PATH="${PX4_AUTOPILOT_PATH:-$HOME/PX4-Autopilot}"
+# .agents[] iterates values for both shapes the config allows, a list of
+# agent objects and an object keyed by agent type, so this needs no split.
+SCENARIO_USES_PX4=$(jq -r '[.agents[] | select(.px4 == true)] | length > 0' "$CONFIG_FILE")
+if [[ "$SCENARIO_USES_PX4" == "true" ]]; then
+    echo -e "${YELLOW}PX4-Autopilot: $PX4_AUTOPILOT_PATH${NC}"
+    # Fail here rather than let every "px4": true agent report the missing
+    # binary separately, several hundred log lines into the run.
+    [[ -x "$PX4_AUTOPILOT_PATH/build/px4_sitl_default/bin/px4" ]] || die \
+"This scenario has \"px4\": true agents but no PX4 SITL binary at
+        $PX4_AUTOPILOT_PATH/build/px4_sitl_default/bin/px4
+  Build it once with:
+        (cd $PX4_AUTOPILOT_PATH && make px4_sitl gz_x500)
+  or point PX4_AUTOPILOT_PATH at an existing built checkout."
+fi
 
 # ============================================================
 # Snapshot the scenario config into $LOG_DIR/config/
