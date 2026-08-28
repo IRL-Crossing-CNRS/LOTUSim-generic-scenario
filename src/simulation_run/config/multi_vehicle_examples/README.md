@@ -22,10 +22,8 @@ and an explanation of why scenarios here use `energy.world` while
   vertical-motion integration (`vz`) makes altitude hold work the same
   way depth hold does for marine vehicles. A rotor-mixer Allocation
   (Gazebo `MulticopterMotorModel`, alongside PX4 SITL, not replacing it)
-  exists with wiring confirmed correct (topic, message type, allocation
-  math for the symmetric-hover case) but the controlled trajectory not
-  yet stable -- stays on `feat/gnc-xdyn-hydro-wip` until it is (see
-  `x500_rotor_mixer.json` there).
+  is not yet available in this example set: the controlled trajectory
+  is not yet stable.
 - `lrauv_kinematic.json` -- underwater (LRAUV), via `lrauv_gnc`'s
   `LrauvControlTask` + the generic `kinematic_allocation`.
 - `wamv_kinematic.json` -- surface (WAMV), via `wamv_gnc`'s
@@ -48,22 +46,14 @@ feedback loop):
   supplies a fixed near-idle resting command forever, with no feedback
   loop -- same drift-only guarantee, without touching the real Allocation
   gains at all. Not literally 0 rpm: LRAUV's `Kt(J)&Kq(J)` propeller curve
-  divides by the commanded rpm, so an exact 0 crashes xdyn outright: see
-  the scenario's own `_comment` for the fix and the rad/s-vs-rpm unit
-  gotcha that goes with it.
+  divides by the commanded rpm, so an exact 0 crashes xdyn outright;
+  `propeller(rpm)` is in radians/second despite the key name.
 
 **xdyn controllable**:
 - `lrauv_xdyn.json` (`LrauvAllocationTask`) -- surge to a single
-  propeller, no yaw/fin actuation. Live-verified stable (2026-08-14, 25s+
-  run, `scenario_launch.sh`): converges to a steady ~0.9 m/s cruise, no
-  blow-up. Earlier instability was two real bugs, both fixed: (1) xdyn's
-  `propeller(rpm)` command key is actually radians/second despite the
-  name, so this task's rpm-scaled internal values were going out ~9.55x
-  too fast; (2) commanding exactly 0 rpm (this task's own resting/idle
-  value) hits a division-by-zero in the propeller's advance-ratio
-  calculation and crashes the sim outright. With both fixed, the vehicle
-  is numerically stable but still cannot turn or truly station-keep -- it
-  goes straight once launched and a `guidance_hold` mission can only
+  propeller, no yaw/fin actuation. Numerically stable, converging to a
+  steady ~0.9 m/s cruise. The vehicle cannot turn or truly station-keep --
+  it goes straight once launched and a `guidance_hold` mission can only
   correct depth, not position/heading, since there is no rudder/fin model
   wired into Allocation yet (the vehicle's own YAML has
   `vertical_fins`/`horizontal_fins` hydrodynamic-polar force models fully

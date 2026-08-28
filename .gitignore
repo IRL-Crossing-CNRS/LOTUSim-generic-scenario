@@ -38,6 +38,9 @@ UserSettings/
 # Scenario logs
 scenario_logs/
 
+# Simulation output
+results/
+
 *.egg
 *.egg-info
 

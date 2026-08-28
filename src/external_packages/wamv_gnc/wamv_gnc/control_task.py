@@ -1,17 +1,18 @@
-"""WAMV Control: the vehicle-agnostic ControlTask. No measured damping
-coefficients on hand yet, so the current feedforward stays off (zero) by
-default -- override ``xu``/``xuu``/``yv``/``yvv`` per scenario if/when
-they're characterized.
+"""WAMV Control: the vehicle-agnostic ControlTask. WAMV's damping
+coefficients have not been characterized, so the current feedforward stays
+off (zero) by default -- override ``xu``/``xuu``/``yv``/``yvv`` per
+scenario once they are.
 
-No real xdyn Allocation task exists for WAMV yet: its xdyn model
+No xdyn Allocation task exists for WAMV: its xdyn model
 (``assets/models/wamv/wamv.yaml``) is hull-only -- no thruster/maneuvering
-force model at all, so there's no propulsion geometry to write an allocator
-against. Today, run WAMV through the Kinematic path instead: this
+force model at all, so there is no propulsion geometry to write an
+allocator against. WAMV runs through the Kinematic path instead: this
 ``WamvControlTask`` plus ``lotusim_sdk.tasks.kinematic_allocation``
 (``kinematic_allocation`` task name), the same as any other Kinematic
-vehicle. The day a real thruster model is added to ``wamv.yaml``, add a
-``WamvAllocationTask`` here following the ``dtmb_hull_gnc``/``lrauv_gnc``
-pattern -- Navigation/Guidance/Control need no changes either way.
+vehicle. If a thruster model is added to ``wamv.yaml``, a
+``WamvAllocationTask`` can be added here following the
+``dtmb_hull_gnc``/``lrauv_gnc`` pattern -- Navigation/Guidance/Control need
+no changes either way.
 """
 
 from __future__ import annotations

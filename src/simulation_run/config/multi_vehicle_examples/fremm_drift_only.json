@@ -1,25 +1,11 @@
 {
   "_comment": [
-    "A hull-only xdyn vessel with no Allocation task at all -- no code",
-    "needed for this, it already works: xdyn's own force models here",
-    "(gravity, hydrostatic, damping) declare no command keys, so an empty",
-    "command set is harmless and the vessel drifts correctly under",
-    "hydrodynamics + current, with no propulsion possible (confirmed by",
-    "reading xdyn_websocket.cpp before writing this). Only Navigation",
-    "runs, for telemetry -- there is nothing to command.",
-    "",
-    "commando, pha and mine are hull-only the same way; see their own",
-    "*_drift_only.json for the same demo (fremm was just the first one",
-    "written).",
-    "",
-    "Uses energy.world, not bluerov_ekman.world: fremmConfig.yaml's own",
-    "'ekman current' model has its own latitude (43deg), independent of",
-    "the world file's display latitude (47deg, BlueROV-specific) -- see",
-    "../README.md for the full explanation. NOT re-tested after this",
-    "world-file switch."
+    "Fremm hull, xdyn drift-only under its own embedded Ekman current --",
+    "no thruster model, no Allocation task, Navigation only for telemetry."
   ],
   "world_file": "energy.world",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "fremm_drift_only",

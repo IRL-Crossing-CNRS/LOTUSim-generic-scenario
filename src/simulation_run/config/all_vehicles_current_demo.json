@@ -1,0 +1,140 @@
+{
+  "_comment": [
+    "Every vehicle that feels a current, in one scenario: all six",
+    "multi_vehicle_examples/*_drift_only.json hulls (Commando, Fremm,",
+    "Lrauv, Mine, Pha, Wamv -- each under its own embedded xdyn Ekman",
+    "current, per that directory's README) plus BlueROV2 running the two",
+    "current_examples/ trajectories (transect_ekman, station_keeping_ekman)",
+    "through the real Navigation/Guidance/Control/Allocation pipeline.",
+    "world_file is bluerov_ekman.world, not energy.world: per",
+    "config/README.md#why-bluerov_ekmanworld-vs-energyworld the two only",
+    "differ in latitude_deg/max_step_size, which only matter to BlueROV --",
+    "every other vehicle's current comes from its own xdyn YAML regardless",
+    "of which world file is loaded, so it is safe to standardize on the",
+    "BlueROV-validated one here. Agents are spread 300 m apart along y so",
+    "eight simultaneous spawns don't overlap; each keeps its own example's",
+    "spawn depth/x offset and every guidance target (LOS end point, hold",
+    "origin) is relative to that agent's own spawn, so the offset doesn't",
+    "change any trajectory's shape. 300 m, not the ~40 m the xdyn physics",
+    "would suggest, because xdyn's hydrodynamics use a tiny placeholder",
+    "hull (e.g. Commando's is a 1x2x1 m 'floating_cube') while the Unity",
+    "renderer loads the real full-scale naval mesh -- Fremm's .dae alone",
+    "is ~142 m long, Pha's real hull (BPC-class) is ~199 m -- so anything",
+    "closer visually overlaps neighbouring hulls even though the recorded",
+    "xdyn/CSV positions (agent centres) are correctly separated.",
+    "Lrauv appears once: lrauv_drift_only IS the propeller demo --",
+    "static_command_allocation holds propeller(rpm) at a fixed 1.5708",
+    "rad/s near-idle command (not 0, which crashes xdyn's Kt(J)/Kq(J)",
+    "curve) with no feedback loop, same drift-only guarantee as the hulls",
+    "with no thruster model at all."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "bluerov_current": "ekman",
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "commando_drift_only",
+      "class": "Commando",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": 0.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} }
+      ]
+    },
+    {
+      "id": "fremm_drift_only",
+      "class": "Fremm",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 300.0, "z": 0.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} }
+      ]
+    },
+    {
+      "id": "pha_drift_only",
+      "class": "Pha",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 600.0, "z": 0.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} }
+      ]
+    },
+    {
+      "id": "wamv_drift_only",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 20.0, "y": 900.0, "z": 0.096, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} }
+      ]
+    },
+    {
+      "id": "mine_drift_only",
+      "class": "Mine",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 1200.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} }
+      ]
+    },
+    {
+      "id": "lrauv_drift_only",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 1500.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
+        { "id": "allocation", "type": "action", "task": "static_command_allocation",
+          "params": { "commands": { "propeller(rpm)": 1.5708, "propeller(P/D)": 0.88 } } }
+      ]
+    },
+    {
+      "id": "bluerov_transect",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 1800.0, "z": -3.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "crossing_layers", "type": "action", "task": "bluerov_guidance_los",
+          "params": { "z_start_m": 3.0, "z_end_m": 55.0, "x_end_m": 200.0, "y_end_m": 0.0,
+                      "u_setpoint_ms": 0.5, "lookahead_m": 5.0 } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/all_vehicles_current_demo", "run_name": "bluerov_transect" } }
+      ]
+    },
+    {
+      "id": "bluerov_station_keeping",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 2100.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "bluerov_guidance_hold",
+          "params": { "z_setpoint_m": 10.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/all_vehicles_current_demo", "run_name": "bluerov_station_keeping" } }
+      ]
+    }
+  ]
+}

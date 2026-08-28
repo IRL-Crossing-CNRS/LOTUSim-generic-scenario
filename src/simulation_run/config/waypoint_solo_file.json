@@ -36,5 +36,6 @@
       ]
     }
   ],
-  "renderer_unity": true
+  "renderer_unity": true,
+  "record_csv": true
 }

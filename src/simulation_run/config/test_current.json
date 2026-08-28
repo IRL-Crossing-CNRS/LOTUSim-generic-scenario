@@ -1,6 +1,7 @@
 {
   "world_file": "energy.world",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     { "class": "OceanCurrent", "id": "ocean_current0", "x": 0.05, "y": 0.12, "z": 0.0 }
   ]

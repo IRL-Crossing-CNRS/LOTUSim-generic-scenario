@@ -12,74 +12,44 @@ desired heading/cross-track correction is received by Control but has
 nothing downstream to act on it -- LRAUV goes straight once launched, by
 design of the vehicle model, not a bug here.
 
-RESOLVED 2026-08-14: ``propeller(rpm)`` is NOT revolutions per minute
-despite the name -- it is radians/second. Confirmed by reading
-``AbstractWageningen::advance_ratio``/``get_force`` in xdyn's own source
-(``const double n = commands.at("rpm")/(2*PI);`` -- dividing by 2*pi only
-makes sense converting rad/s to rev/s) and cross-checked against xdyn's own
-unit tests, which construct e.g. ``commands["rpm"] = 20*2*PI`` to mean 20
-rev/s, and a code comment in xdyn's test data generator spelling out the
-recipe for a real 100 RPM: ``commands.set<double>("propeller(rpm)",
-100*(2*PI)/60.)``. This task previously sent its internally-RPM-scaled
-value straight through with no conversion -- meaning every command was
-effectively ~9.55x (2*pi vs 60) faster than intended (e.g. a command
-meant as "30 RPM" was read by xdyn as 30 rad/s = ~286 real RPM). This is
-almost certainly the actual cause of the wild instability documented in
-this task's git history (a straight-line transect accelerating to ~370
-m/s in 12s under the old Wageningen-B-series model) -- not a bad
-propeller curve, a 9.55x overpowered propeller. Fixed in ``_publish()``:
-this class's own params (``rpm_gain``, ``rpm_max``, ``rpm_min``) stay in
-real RPM (matching their documented meaning and LRAUV's own "300 RPM
-normal" spec), converted to rad/s only at the point of publishing.
+``propeller(rpm)`` is in radians/second despite the name (xdyn's
+``AbstractWageningen::advance_ratio`` computes
+``n = commands.at("rpm")/(2*PI)``). This class's own params (``rpm_gain``,
+``rpm_max``, ``rpm_min``) stay in real RPM, matching LRAUV's own "300 RPM
+normal" spec, and are converted to rad/s only at the point of publishing
+in ``_publish()``.
 
-RESOLVED 2026-08-13: a command of EXACTLY 0 rpm -- this task's own
-resting/idle command on ``on_enter``/``on_exit`` -- crashed the simulation
-outright rather than just producing zero thrust. lrauv.yml's propeller uses
-an explicit ``Kt(J) & Kq(J)`` table (a real MIT-PLL-measured curve, see
-that file's own comments), and advance ratio J = (1-w)*Va/(n*D) is
-mathematically infinite at n=0 regardless of Va (Va = the body's surge
-velocity relative to the current, xdyn's own
-``AbstractWageningen::advance_ratio``); unlike the generic Wageningen
-B-series model tried earlier (which merely warns and saturates on an
-out-of-domain J), this table-based model refuses the step outright on an
-infinite/out-of-range J and the whole scenario freezes (xdyn stops
-accepting any further step). Fixed by never commanding a magnitude below
-``rpm_min``.
+The propeller uses an explicit ``Kt(J) & Kq(J)`` table (an MIT-PLL-measured
+curve, see that file's own comments). The advance ratio
+J = (1-w)*Va/(n*D) is mathematically infinite at n=0 regardless of Va (Va =
+the body's surge velocity relative to the current), and this table-based
+model refuses the step outright on an infinite/out-of-range J, freezing
+the whole scenario. A commanded magnitude below ``rpm_min`` is never sent
+for this reason.
 
-RESOLVED 2026-08-14: a static ``rpm_min`` alone isn't enough -- J also
-exceeds the table's domain when the vehicle's OWN speed grows (from
-thrust, current, or both) faster than a fixed minimum rpm can compensate
-for. This task now subscribes to Navigation and computes a MINIMUM
-commanded magnitude from the vehicle's actual measured surge speed each
-control tick: ``rpm_floor_dynamic = |u_measured| / (J_safe*D) * 60``,
-keeping J comfortably inside its valid domain regardless of how fast the
-vehicle is actually moving, not just at the single operating speed a
-static constant was tuned for.
+A static ``rpm_min`` alone is not enough: J also exceeds the table's
+domain when the vehicle's own speed grows (from thrust, current, or both)
+faster than a fixed minimum rpm can compensate for. This task subscribes
+to Navigation and computes a minimum commanded magnitude from the
+vehicle's measured surge speed each control tick:
+``rpm_floor_dynamic = |u_measured| / (J_safe*D) * 60``, keeping J inside
+its valid domain across the vehicle's operating speed range, not just a
+single tuned point.
 
-RESOLVED 2026-08-14: an earlier version of this fix tried to also force
-the commanded rpm's SIGN to match measured surge velocity, on the theory
-that a rotation/travel sign mismatch is what drives J negative. That
-theory was wrong, found by reading xdyn's own
-``AbstractWageningen::advance_ratio`` source directly: ``const double Va =
-fabs(states.u()-WCurrent(0));`` -- Va is already an absolute value BEFORE
-the division, so ``J = (1-w)*Va/n/D`` is negative if and only if the
-commanded n itself is negative, independent of the vehicle's actual
-travel direction. In other words this propeller's Kt/Kq table effectively
-has no validated reverse-thrust behaviour at all (J's domain is
-[-0.001, 1.5], i.e. barely past zero on the low side) -- the fix is simply
-to never command a negative rpm, full stop, not to chase its sign to
-match velocity. When the demanded force is negative (braking/reverse),
-the propeller is commanded down toward its floor rather than reversed;
-matching this specific propeller table's real limitation, not a
-simplification of convenience.
+This propeller's Kt/Kq table has no validated reverse-thrust behaviour
+(J's domain is [-0.001, 1.5], barely past zero on the low side):
+``AbstractWageningen::advance_ratio`` takes ``Va`` as an absolute value
+before the division, so J is negative if and only if the commanded n
+itself is negative, independent of the vehicle's actual travel direction.
+The commanded magnitude is therefore clamped to [0, rpm_max] rather than
+mirroring velocity sign: a negative force demand (braking/reverse) is
+handled by commanding rpm down toward its floor, not by reversing the
+propeller.
 
-KNOWN ISSUE, still not resolved: the rpm mapping outside of the safety
-floor is still a naive proportional gain on force, not a real thrust-curve
-inversion -- it does not aim for a *target* J, only avoids leaving the
-table's valid domain, and it has no way to actually slow down/reverse.
-Trajectory quality (does it actually reach and hold a sensible
-speed/depth) still needs a live-verified run before trusting any
-resulting numbers.
+Known limitation: the rpm mapping outside the safety floor is a
+proportional gain on force, not a thrust-curve inversion -- it does not
+aim for a target J, only avoids leaving the table's valid domain, and has
+no way to actively slow down or reverse.
 """
 
 from __future__ import annotations

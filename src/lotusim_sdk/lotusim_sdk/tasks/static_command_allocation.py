@@ -2,7 +2,7 @@
 
 For an xdyn vehicle whose force models *declare* actuator command keys
 (e.g. a propeller), xdyn stalls every step until it receives a complete
-command set -- confirmed by reading xdyn_websocket.cpp. That's true even
+command set (see ``xdyn_websocket.cpp``). That's true even
 if the desired behaviour is simply "let it drift", the way a hull-only
 vehicle (no declared actuators at all) already does for free. This task
 is the actuator-bearing equivalent: it publishes a fixed resting command

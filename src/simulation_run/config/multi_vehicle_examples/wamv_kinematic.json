@@ -1,9 +1,7 @@
 {
   "_comment": [
     "WAMV via the generic Navigation/Guidance/Control pipeline, Kinematic",
-    "backend: wamv.yaml has no thruster model yet, so there is no xdyn",
-    "Allocation task to write -- kinematic_allocation is the same one every",
-    "other Kinematic vehicle in this example set uses."
+    "backend (no xdyn). Fully controllable."
   ],
   "world_file": "energy.world",
   "renderer_unity": true,

@@ -1,11 +1,12 @@
 {
   "_comment": [
-    "Same as station_keeping_ekman.json, but with no current at all --",
-    "the control condition. See current_examples/README.md."
+    "BlueROV2 station-keeping at 10 m depth with no current (control",
+    "condition)."
   ],
   "world_file": "bluerov_ekman.world",
   "bluerov_current": "none",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "bluerov_station_keeping",

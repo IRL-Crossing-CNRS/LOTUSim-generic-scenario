@@ -1,17 +1,13 @@
 {
   "_comment": [
-    "Minimal worked example: one BlueROV holding position at 10 m depth",
-    "under xdyn's own native Ekman-spiral current (the default current",
-    "model if 'bluerov_current' is omitted entirely). See",
-    "current_examples/README.md for the sibling gauss/copernicus/none",
-    "scenarios -- everything else about this file is identical across all",
-    "four, so a diff between them shows exactly what changes.",
-    "",
-    "z is negative in Gazebo's ENU frame: z = -10 means 10 m of immersion."
+    "BlueROV2 station-keeping at 10 m depth under xdyn's native Ekman-spiral",
+    "current (z is negative in Gazebo's ENU frame, so z = -10 is 10 m of",
+    "immersion)."
   ],
   "world_file": "bluerov_ekman.world",
   "bluerov_current": "ekman",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "bluerov_station_keeping",

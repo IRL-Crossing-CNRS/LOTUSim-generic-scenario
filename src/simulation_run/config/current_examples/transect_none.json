@@ -1,11 +1,12 @@
 {
   "_comment": [
-    "Same as transect_ekman.json, but with no current at all -- the control",
-    "condition. See current_examples/README.md."
+    "BlueROV2 line-of-sight transect (3-55 m immersion over 200 m) with no",
+    "current (control condition)."
   ],
   "world_file": "bluerov_ekman.world",
   "bluerov_current": "none",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "bluerov_transect",

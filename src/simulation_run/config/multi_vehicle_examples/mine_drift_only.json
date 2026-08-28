@@ -1,18 +1,12 @@
 {
   "_comment": [
-    "A hull-only xdyn vessel with no Allocation task at all -- same pattern",
-    "as fremm_drift_only.json. mineConfig.yaml has no 'controlled forces'/",
-    "'commands' section (confirmed by grepping the file), so an empty",
-    "command set is harmless and the vessel drifts correctly under",
-    "hydrodynamics + its own embedded 'ekman current' model. Only",
-    "Navigation runs, for telemetry -- there is nothing to command.",
-    "",
-    "Unlike Fremm/WAMV/commando/pha, this is Mine's only mode, permanently:",
-    "by design it never has a Kinematic-controllable alternative in any",
-    "scenario."
+    "Mine hull, xdyn drift-only under its own embedded Ekman current -- no",
+    "thruster model, no Allocation task. This is Mine's only mode; it has",
+    "no Kinematic-controllable alternative."
   ],
   "world_file": "energy.world",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "mine_drift_only",

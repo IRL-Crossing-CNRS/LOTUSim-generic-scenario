@@ -1,5 +1,6 @@
 {
   "world_file": "energy.world",
   "agents": {},
-  "renderer_unity": true
+  "renderer_unity": true,
+  "record_csv": true
 }

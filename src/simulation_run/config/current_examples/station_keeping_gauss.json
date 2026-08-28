@@ -1,13 +1,12 @@
 {
   "_comment": [
-    "Same as station_keeping_ekman.json, but the current is a uniform",
-    "first-order Gauss-Markov process injected by physics_engine_interface",
-    "instead of xdyn's native Ekman spiral -- see 'gauss_markov_current'",
-    "below and current_examples/README.md."
+    "BlueROV2 station-keeping at 10 m depth under a Gauss-Markov stochastic",
+    "current."
   ],
   "world_file": "bluerov_ekman.world",
   "bluerov_current": "gauss",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "bluerov_station_keeping",

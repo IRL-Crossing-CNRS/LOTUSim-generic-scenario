@@ -29,11 +29,11 @@ class WaypointFollowerAvoidanceTask(WaypointFollowerTask):
     it's rotated by a fixed ``_AVOID_BIAS_RAD`` before blending. Pure radial
     repulsion + attraction is a well-known potential-field trap (Koren &
     Borenstein 1991) — the two can settle into a stable circular orbit at a
-    fixed standoff radius (confirmed happening here without the bias: a live
-    run had an agent circling a mine at an exact fixed distance, heading
-    rotating, distance-to-target frozen, forever). Rotating the repulsion by
-    a fixed angle breaks that radial symmetry and turns the would-be orbit
-    into an outward spiral that clears the obstacle.
+    fixed standoff radius, with the agent circling the obstacle at a fixed
+    distance and heading rotating forever, distance-to-target never
+    decreasing. Rotating the repulsion by a fixed angle breaks that radial
+    symmetry and turns the would-be orbit into an outward spiral that
+    clears the obstacle.
 
     Params (mission JSON ``"params"``, all optional, in addition to the base
     task's params):

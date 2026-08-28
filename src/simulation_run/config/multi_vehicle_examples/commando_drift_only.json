@@ -1,14 +1,11 @@
 {
   "_comment": [
-    "A hull-only xdyn vessel with no Allocation task at all -- same pattern",
-    "as fremm_drift_only.json. commandoConfig.yaml has no 'controlled",
-    "forces'/'commands' section (confirmed by grepping the file), so an",
-    "empty command set is harmless and the vessel drifts correctly under",
-    "hydrodynamics + its own embedded 'ekman current' model. Only",
-    "Navigation runs, for telemetry -- there is nothing to command."
+    "Commando hull, xdyn drift-only under its own embedded Ekman current --",
+    "no thruster model, no Allocation task, Navigation only for telemetry."
   ],
   "world_file": "energy.world",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "commando_drift_only",

@@ -1,6 +1,7 @@
 {
   "world_file": "energy.world",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "wind",

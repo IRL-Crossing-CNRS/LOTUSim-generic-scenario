@@ -1,14 +1,11 @@
-"""LRAUV Control: the vehicle-agnostic ControlTask, LRAUV has no measured
-horizontal damping coefficients on hand yet, so the current feedforward
-stays off (zero) by default -- override ``xu``/``xuu``/``yv``/``yvv`` per
-scenario if/when they're characterized.
+"""LRAUV Control: the vehicle-agnostic ControlTask. LRAUV's horizontal
+damping coefficients have not been characterized, so the current
+feedforward stays off (zero) by default -- override
+``xu``/``xuu``/``yv``/``yvv`` per scenario once they are.
 
-A real xdyn Allocation task for LRAUV (mapping surge force demand to its
-propeller) exists but is not yet validated: the active propeller model
-was a generic placeholder and produced diverging trajectories, now fixed
-but not re-tested. Use the Kinematic path
-(``lrauv_control`` + ``lotusim_sdk.tasks.kinematic_allocation``) --
-see ``multi_vehicle_examples/lrauv_kinematic.json``.
+Both Kinematic and xdyn Allocation are available -- see
+``multi_vehicle_examples/lrauv_kinematic.json`` and
+``multi_vehicle_examples/lrauv_xdyn.json``.
 """
 
 from __future__ import annotations

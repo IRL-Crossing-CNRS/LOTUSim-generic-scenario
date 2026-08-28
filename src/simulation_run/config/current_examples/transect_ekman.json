@@ -1,23 +1,12 @@
 {
   "_comment": [
-    "Minimal worked example: one BlueROV running a straight transect that",
-    "crosses the layers of xdyn's own native Ekman spiral (the default",
-    "current model if 'bluerov_current' is omitted), from 3 m to 55 m of",
-    "immersion over 200 m of ground track. Guidance is bluerov_guidance_los",
-    "(line-of-sight tracking, immersion linearly interpolated along the",
-    "segment). See current_examples/README.md for the sibling",
-    "gauss/copernicus/none scenarios and the station_keeping_* scenarios --",
-    "everything else about this file is identical across the four transect",
-    "scenarios, so a diff between them shows exactly what changes.",
-    "",
-    "The transect crosses 10 m of immersion, the threshold at which",
-    "XdynWebsocket::getNewState() switches from Surface to Underwater --",
-    "Bluerov2_heavy_pid declares both domains, without which the transition",
-    "fails on every step."
+    "BlueROV2 line-of-sight transect (3-55 m immersion over 200 m ground",
+    "track) under xdyn's native Ekman-spiral current."
   ],
   "world_file": "bluerov_ekman.world",
   "bluerov_current": "ekman",
   "renderer_unity": true,
+  "record_csv": true,
   "agents": [
     {
       "id": "bluerov_transect",
