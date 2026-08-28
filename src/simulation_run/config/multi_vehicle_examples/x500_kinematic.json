@@ -1,0 +1,22 @@
+{
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "x500_kinematic",
+      "class": "X500",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": { "x": 0.0, "y": 0.0, "z": 30.0, "yaw": 0.0 },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "guidance_hold",
+          "params": { "z_setpoint_m": -40.0, "psi_setpoint_deg": 0.0, "x_setpoint_m": 20.0, "y_setpoint_m": 0.0, "hold_origin": false } },
+        { "id": "control", "type": "action", "task": "control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "kinematic_allocation", "params": {} }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "wamv_inspection"
+package_name = "dtmb_hull_gnc"
 
 setup(
     name=package_name,
@@ -14,11 +14,11 @@ setup(
     zip_safe=True,
     maintainer="juliette",
     maintainer_email="jgrosset10@gmail.com",
-    description="External WamvInspection agent with YOLO corrosion/crack detection",
+    description="Dtmb_hull under the generic GNC pipeline (Kinematic backend; xdyn Allocation not yet validated).",
     license="EPL-2.0",
     entry_points={
-        "lotusim.agents": [
-            "wamv_inspection = wamv_inspection:WamvInspection",
+        "lotusim.tasks": [
+            "dtmb_hull_control = dtmb_hull_gnc:DtmbHullControlTask",
         ],
         "console_scripts": [],
     },

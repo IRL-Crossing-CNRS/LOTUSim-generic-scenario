@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer="juliette",
     maintainer_email="jgrosset10@gmail.com",
-    description="Agent externe Bluerov2HeavyInspection avec détection YOLO corrosion/fissures",
+    description="External Bluerov2HeavyInspection agent with YOLO corrosion/crack detection",
     license="EPL-2.0",
     entry_points={
         "lotusim.agents": [

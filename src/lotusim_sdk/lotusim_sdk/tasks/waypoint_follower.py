@@ -105,9 +105,10 @@ class WaypointFollowerTask(TaskAgent):
         self._control_period = 1.0 / float(self.params.get("control_rate_hz", 20.0))
 
         # Request a kinematic spawn: the host KinematicInterface integrates the
-        # velocity set-point we publish. The SDF is emitted at spawn time, AFTER
-        # set_missions builds this task but BEFORE the CREATE_CMD is sent, so the
-        # flag is in place when PhysicalEntity._lotus_blocks() runs.
+        # velocity set-point this task publishes. The SDF is emitted at spawn
+        # time, AFTER set_missions builds this task but BEFORE the CREATE_CMD
+        # is sent, so the flag is in place when PhysicalEntity._lotus_blocks()
+        # runs.
         host._kinematic_guidance = True
 
         # --- resolved controller parameters (fall back to the C++ defaults) ---

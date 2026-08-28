@@ -41,8 +41,8 @@ class CheckBatteryStateTask(TaskAgent):
         world = self.host.world_name
         agent = self.host.agent_name
 
-        # Match the battery_sensor publisher QoS (TRANSIENT_LOCAL) so we still get
-        # the latest reading even if it published before this leaf became active.
+        # Match the battery_sensor publisher QoS (TRANSIENT_LOCAL) so the latest
+        # reading still arrives even if it published before this leaf became active.
         self._battery_sub = self.host.create_subscription(
             BatteryState,
             f"/{world}/{agent}/battery/state",
@@ -54,7 +54,7 @@ class CheckBatteryStateTask(TaskAgent):
             ),
         )
         # TRANSIENT_LOCAL so the light_actuator gets the last command even if it
-        # subscribes slightly after we first publish.
+        # subscribes slightly after the first publish.
         self._light_pub = self.host.create_publisher(
             Bool,
             f"/{world}/{agent}/light/cmd",

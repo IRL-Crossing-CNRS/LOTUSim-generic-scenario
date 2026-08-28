@@ -1,17 +1,15 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>lrauv_propeller</name>
+  <name>lrauv_gnc</name>
   <version>0.0.1</version>
-  <description>External Agent: LrauvPropeller</description>
+  <description>LRAUV Control/Allocation: thin adapter onto the generic Navigation/Guidance/Control pipeline, allocating to LRAUV's single propeller.</description>
   <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
 
   <author email="jgrosset10@gmail.com">juliette</author>
 
   <license>EPL-2.0</license>
 
-  <depend>lrauv</depend>
-  <depend>simulation_run</depend>
   <depend>lotusim_sdk</depend>
   <depend>lotusim_msgs</depend>
   <depend>geometry_msgs</depend>

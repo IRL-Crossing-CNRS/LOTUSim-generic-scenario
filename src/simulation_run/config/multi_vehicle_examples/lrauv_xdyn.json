@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "LRAUV via real xdyn dynamics, using the same generic Navigation/",
+    "Guidance/Control pipeline as BlueROV. LRAUV's xdyn model has exactly",
+    "one actuator (a propeller, no rudder/fins), so only surge is",
+    "controllable -- lrauv_allocation ignores yaw/sway demand. Guidance is",
+    "guidance_hold, so the vehicle attempts to hold a point but can only",
+    "correct depth, not heading."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "lrauv_xdyn",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "guidance_hold",
+          "params": { "z_setpoint_m": 15.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+        { "id": "control", "type": "action", "task": "lrauv_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "lrauv_allocation", "params": {} }
+      ]
+    }
+  ]
+}

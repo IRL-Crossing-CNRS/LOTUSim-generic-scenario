@@ -82,16 +82,16 @@ class X500(PhysicalEntity):
         Analyze Tools > MAVLink Console instead (connects over MAVLink, no local
         shell required). ``make px4_sitl gz_x500`` doesn't go through PX4's
         classic sitl_run.sh wrapper scripts (that's gazebo-classic/jsbsim only),
-        so it ignores ``NO_PXH`` entirely — confirmed empirically: with NO_PXH=1
-        set, the ``pxh>`` prompt redraw loop still free-spun and wrote ~90MB/run
-        of ``[2Kpxh>`` escape codes with nothing on the other end of the pipe to
-        read them. ``make`` was only adding a "rebuild if stale" check on top of
-        one fixed command anyway (visible via ``make``'s own "[0/1] cd .../
-        gz_bridge && cmake -E env ... bin/px4" log line once already built), so
-        we invoke that px4 binary directly with ``-d`` (its own documented
-        "daemon mode, don't start pxh shell" flag) instead of going through
-        ``make``. Requires ``PX4_AUTOPILOT_PATH`` already built once via
-        ``make px4_sitl gz_x500`` — this does NOT rebuild it.
+        so it ignores ``NO_PXH`` entirely -- setting it does not stop the
+        ``pxh>`` prompt redraw loop, which free-spins and writes escape codes
+        with nothing on the other end of the pipe to read them. ``make`` only
+        adds a "rebuild if stale" check on top of one fixed command (visible
+        via ``make``'s own "[0/1] cd .../gz_bridge && cmake -E env ...
+        bin/px4" log line once already built), so this invokes that px4
+        binary directly with ``-d`` (its own documented "daemon mode, don't
+        start pxh shell" flag) instead of going through ``make``. Requires
+        ``PX4_AUTOPILOT_PATH`` already built once via ``make px4_sitl
+        gz_x500`` -- this does NOT rebuild it.
         """
         instance = X500._next_px4_instance
         X500._next_px4_instance += 1

@@ -128,11 +128,11 @@ class Wind(Environment):
         self._regions_pub = self.create_publisher(WindRegionArrayMsg, WIND_REGIONS_TOPIC, latched_qos)
 
         # Plain (volatile) QoS: WIND_TOPIC may also be written directly by the
-        # Unity sliders over ROS-TCP, whose publisher durability we don't
-        # control. Requesting TRANSIENT_LOCAL here would risk a silent QoS
-        # incompatibility (zero delivery) against a volatile publisher —
-        # volatile accepts either durability, so it's the only safe choice for
-        # a subscription to a topic we don't fully own.
+        # Unity sliders over ROS-TCP, whose publisher durability is not
+        # controlled here. Requesting TRANSIENT_LOCAL here would risk a
+        # silent QoS incompatibility (zero delivery) against a volatile
+        # publisher — volatile accepts either durability, so it's the only
+        # safe choice for a subscription to a topic not fully owned here.
         self._ambient_sub = self.create_subscription(WindMsg, WIND_TOPIC, self._on_ambient_wind, 10)
 
         self.create_timer(1.0 / publish_rate_hz, self._publish)

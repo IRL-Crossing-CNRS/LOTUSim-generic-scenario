@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "LRAUV via the generic Navigation/Guidance/Control pipeline, Kinematic",
+    "backend: no xdyn hydrodynamics, a simple always-stable kinematic",
+    "integrator instead. Depth/heading hold is fully controllable.",
+    "",
+    "Uses energy.world, not bluerov_ekman.world: Kinematic never touches",
+    "xdyn, so the world file's physics timestep/latitude (the only two",
+    "things bluerov_ekman.world changes relative to energy.world) are",
+    "irrelevant here."
+  ],
+  "world_file": "energy.world",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "lrauv_kinematic",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "guidance_hold",
+          "params": { "z_setpoint_m": 15.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+        { "id": "control", "type": "action", "task": "lrauv_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "kinematic_allocation", "params": {} }
+      ]
+    }
+  ]
+}

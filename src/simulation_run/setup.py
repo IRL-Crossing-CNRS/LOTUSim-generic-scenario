@@ -28,6 +28,7 @@ setup(
             "spawn_agent = simulation_run.dynamic_spawn.spawn_agent:main",
             "despawn_agent = simulation_run.dynamic_spawn.despawn_agent:main",
             "list_agents = simulation_run.dynamic_spawn.list_agents:main",
+            "set_waypoints = simulation_run.dynamic_spawn.set_waypoints:main",
         ],
     },
 )

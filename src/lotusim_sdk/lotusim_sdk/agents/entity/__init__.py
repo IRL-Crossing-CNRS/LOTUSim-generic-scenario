@@ -87,7 +87,7 @@ def _get_shared_mas_array_client(node, world_name: str) -> ActionClient:
         return client
 
 
-def send_batch_mas_cmd(entries, server_timeout_sec: float = 5.0) -> bool:
+def send_batch_mas_cmd(entries, server_timeout_sec: float = 30.0) -> bool:
     """Spawn a whole wave of agents with ONE MASCmdArray goal per world.
 
     ``entries`` is a list of ``(entity, value)`` pairs, where ``value`` is an ENU
@@ -185,6 +185,11 @@ def send_batch_mas_cmd(entries, server_timeout_sec: float = 5.0) -> bool:
 # name -> pose dict; each entity then does an O(1) lookup by its own name via
 # the current_pose/last_pose_update properties below.
 _shared_pose_tables: dict[str, dict[str, Pose]] = {}
+# Same fan-out for the velocity the host publishes alongside each pose
+# (VesselPosition.twist, world-frame ENU). Only holds entries for vessels whose
+# has_twist is set, so a missing key means "not published" rather than "at
+# rest" — see the current_twist property below.
+_shared_twist_tables: dict[str, dict[str, object]] = {}
 _shared_pose_stamps: dict[str, float] = {}
 # Latest /<world>/poses header stamp, in SIMULATION seconds (Gazebo sim time,
 # set host-side in entity_manager::publishPose). Distinct from _shared_pose_stamps
@@ -228,6 +233,14 @@ def _ensure_shared_pose_subscription(node, world_name: str) -> None:
         def _on_poses(msg: VesselPositionArray, _world=world_name):
             _shared_pose_tables[_world] = {
                 vessel.vessel_name: vessel.pose for vessel in msg.vessels
+            }
+            # Velocity, when the host publishes it (VesselPosition.has_twist).
+            # A control loop that needs a speed would otherwise have to
+            # differentiate the position: noisy, and one sample late.
+            _shared_twist_tables[_world] = {
+                vessel.vessel_name: vessel.twist
+                for vessel in msg.vessels
+                if getattr(vessel, "has_twist", False)
             }
             _shared_pose_stamps[_world] = time.time()
             stamp = msg.header.stamp
@@ -326,9 +339,9 @@ class Entity(Agent):
         # otherwise both register a node called e.g. "mybluerov0", which ROS 2
         # only tolerates with warnings and undefined behaviour. The node name is
         # purely a graph identifier here — all data routing goes through
-        # agent_name (topics, poses, MAS cmds) — so we append a short random
-        # suffix to the node name only, leaving agent_name as the clean logical
-        # name the host deconflicts and the client adopts.
+        # agent_name (topics, poses, MAS cmds) — so a short random suffix is
+        # appended to the node name only, leaving agent_name as the clean
+        # logical name the host deconflicts and the client adopts.
         node_name = f"{self.agent_name}_{uuid.uuid4().hex[:8]}"
         super().__init__(node_name, world_name)
 
@@ -346,8 +359,8 @@ class Entity(Agent):
         self.xdyn_port: int | None = getattr(self, "xdyn_port", None)
         self.sdf_file: str = getattr(self, "sdf_file", "")
 
-        # True once the host has confirmed THIS agent's own CREATE_CMD and we have
-        # adopted the name it assigned (see confirm_spawn / send_single_mas_cmd_*).
+        # True once the host has confirmed THIS agent's own CREATE_CMD and the
+        # name it assigned has been adopted (see confirm_spawn / send_single_mas_cmd_*).
         # missions_ready() gates the first mission tick on it so a leaf never binds
         # its topics to a same-named entity that belonged to another spawn. Reuse
         # paths that skip the CREATE_CMD set it directly.
@@ -399,6 +412,17 @@ class Entity(Agent):
     def current_pose(self):
         return _shared_pose_tables.get(self.world_name, {}).get(self.agent_name)
 
+    @property
+    def current_twist(self):
+        """World-frame (ENU) velocity from the latest /<world>/poses, or None.
+
+        None means the host did not publish one for this vessel — either an
+        older LOTUSim without the `twist` field on VesselPosition, or a vessel
+        whose base link has no velocity checks enabled. Callers that need a
+        speed should fall back to differentiating current_pose.
+        """
+        return _shared_twist_tables.get(self.world_name, {}).get(self.agent_name)
+
     def poses_of_others(self) -> dict:
         """Live pose of every other vessel in this entity's world, keyed by
         name (same ground-truth table current_pose reads, e.g. for a task
@@ -423,7 +447,8 @@ class Entity(Agent):
         """Hold the first mission tick until this entity is actually present in
         the simulation: its CREATE_CMD confirmed by the host AND its pose received
         on ``/<world>/poses``. Until then a leaf could bind its topics to a pose
-        that belonged to another spawn sharing our pre-deconfliction name."""
+        that belonged to another spawn sharing this agent's pre-deconfliction
+        name."""
         return self._spawn_confirmed and self.current_pose is not None
 
     def get_first_domain(self):
@@ -445,12 +470,12 @@ class Entity(Agent):
         The host (entity_manager) is the single authority on entity names: if the
         requested name is already taken (e.g. another machine spawned an agent of
         the same class) it deconflicts to a unique name and returns the actual name
-        in ``Result.name``. We adopt it into ``agent_name`` so every topic / pose /
-        mission / delete routes to the real entity. ``current_pose`` reads the
-        shared pose table by ``agent_name``, so adopting the new name naturally
+        in ``Result.name``. That name is adopted into ``agent_name`` so every topic
+        / pose / mission / delete routes to the real entity. ``current_pose`` reads
+        the shared pose table by ``agent_name``, so adopting the new name naturally
         reads as "no pose yet" until a pose under that name arrives — a pose that
         matched the *old* name (possibly another machine's same-named entity)
-        cannot make missions start before our own entity reports in.
+        cannot make missions start before this agent's own entity reports in.
         """
         if assigned_name and assigned_name != self.agent_name:
             self.get_logger().info(
@@ -502,7 +527,7 @@ class Entity(Agent):
 
         goal_future.add_done_callback(_on_goal)
 
-    def send_single_mas_cmd(self, value, server_timeout_sec: float = 5.0):
+    def send_single_mas_cmd(self, value, server_timeout_sec: float = 30.0):
         if isinstance(value, (list, tuple)):
             if len(value) == 2:
                 lat, lon = value
@@ -601,7 +626,7 @@ class Entity(Agent):
         timer = self.create_timer(timeout_sec, _check)
 
     def send_single_mas_cmd_geo(
-        self, lat, lon, alt=0.0, server_timeout_sec: float = 5.0, _retries_left: int = 2
+        self, lat, lon, alt=0.0, server_timeout_sec: float = 30.0, _retries_left: int = 2
     ):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         goal_msg.cmd = self._build_create_cmd([lat, lon, alt])
@@ -619,7 +644,7 @@ class Entity(Agent):
         )
         return goal_future
 
-    def send_single_mas_cmd_pose(self, pose, server_timeout_sec: float = 5.0, _retries_left: int = 2):
+    def send_single_mas_cmd_pose(self, pose, server_timeout_sec: float = 30.0, _retries_left: int = 2):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         goal_msg.cmd = self._build_create_cmd(list(pose[:6]))
 
@@ -636,7 +661,7 @@ class Entity(Agent):
         )
         return goal_future
 
-    def send_single_delete_cmd(self, server_timeout_sec: float = 5.0):
+    def send_single_delete_cmd(self, server_timeout_sec: float = 30.0):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         cmd = MASCmd()
         cmd.cmd_type = MASCmd.DELETE_CMD

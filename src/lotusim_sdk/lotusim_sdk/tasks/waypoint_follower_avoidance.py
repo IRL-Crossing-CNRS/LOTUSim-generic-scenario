@@ -50,11 +50,11 @@ class WaypointFollowerAvoidanceTask(WaypointFollowerTask):
     # Fixed rotation applied to the "away from obstacle" vector before it's
     # blended with the goal direction (see class docstring for why this is
     # needed, not optional polish). Always the same rotational sense so the
-    # avoidance decision doesn't flip-flop. 70 deg is the centre of the
-    # empirically safe range (a head-on/off-axis/multi-obstacle/drifting-
-    # obstacle battery of cases reliably escapes for roughly 50-85 deg;
-    # below that it reduces to the orbiting failure mode, above ~95 deg the
-    # repulsion overshoots into a different stuck configuration).
+    # avoidance decision doesn't flip-flop. 70 deg is the centre of the safe
+    # range (head-on/off-axis/multi-obstacle/drifting-obstacle cases escape
+    # reliably for roughly 50-85 deg; below that it reduces to the orbiting
+    # failure mode, above ~95 deg the repulsion overshoots into a different
+    # stuck configuration).
     _AVOID_BIAS_RAD = math.radians(70.0)
 
     def __init__(self, host, params=None, blackboard=None, id: str = "") -> None:

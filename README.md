@@ -111,6 +111,8 @@ Mode** (free-fly, `W`/`A`/`S`/`D`/`Q`/`E` + mouse) or target-follower mode
 | [doc/MISSIONS.md](doc/MISSIONS.md) | The Behaviour Tree framework: engine, task lifecycle, built-in tasks, diagrams, references |
 | [doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) | Full scenario JSON reference — every parameter, host vs. remote |
 | [doc/ACCELERATED_SIMULATION.md](doc/ACCELERATED_SIMULATION.md) | Running a world faster than real time (real_time_factor, `guidance_clock`) |
+| [doc/GNC_MODULAR_ARCHITECTURE.md](doc/GNC_MODULAR_ARCHITECTURE.md) | Navigation / Guidance / Control / Allocation as separate ROS2 nodes — topics, message schemas, how to plug in your own algorithm for one block |
+| [doc/bluerov_current_experiment/](doc/bluerov_current_experiment/) | BlueROV2 under PID across ocean-current models: how to run it, every parameter and its source, and what computes what |
 | [deployment/README.md](deployment/README.md) | Running an agent from a remote machine (no Gazebo installed) |
 
 ---

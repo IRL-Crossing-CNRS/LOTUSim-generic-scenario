@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "wamv_inspection"
+package_name = "lrauv_gnc"
 
 setup(
     name=package_name,
@@ -14,11 +14,12 @@ setup(
     zip_safe=True,
     maintainer="juliette",
     maintainer_email="jgrosset10@gmail.com",
-    description="External WamvInspection agent with YOLO corrosion/crack detection",
+    description="LRAUV under the generic GNC pipeline: single-propeller allocation, no yaw actuation.",
     license="EPL-2.0",
     entry_points={
-        "lotusim.agents": [
-            "wamv_inspection = wamv_inspection:WamvInspection",
+        "lotusim.tasks": [
+            "lrauv_control = lrauv_gnc:LrauvControlTask",
+            "lrauv_allocation = lrauv_gnc:LrauvAllocationTask",
         ],
         "console_scripts": [],
     },

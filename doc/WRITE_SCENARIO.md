@@ -852,7 +852,7 @@ particular scenario launch), run the standalone CLI instead of setting
 `record_csv` in the JSON:
 
 ```bash
-python3 src/simulation_run/executable/log_run_csv.py --world energy \
+python3 src/simulation_run/scripts/log_run_csv.py --world energy \
     --outdir csv_logs [--rate 2.0] [--prefix run1_]
 ```
 
