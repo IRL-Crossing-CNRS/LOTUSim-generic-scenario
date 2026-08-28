@@ -17,13 +17,15 @@ def enu_to_ned_position(x, y, z):
 def enu_quat_to_ned_euler(qx, qy, qz, qw):
     """ENU quaternion (Gazebo) -> (phi, theta, psi) in NED.
 
-    q_ned = q_ned_to_enu^-1 * q_enu * q_ned_to_enu, with
-    q_ned_to_enu = (w=0, x=0.70710678, y=0.70710678, z=0) -- see
-    ``xdyn_websocket.hpp``.
+    q_ned = q_ned_to_enu^-1 * q_enu * q_frd_to_flu, the inverse of
+    ``lotusim::gazebo::quatNedToEnu()``. The world basis change
+    (q_ned_to_enu, 180 deg about (1,1,0)/sqrt2) and the body one
+    (q_frd_to_flu, 180 deg about x) are different rotations, so this is not a
+    conjugation -- see ``xdyn_websocket.cpp``. Both sides must change together.
     """
     s = 0.70710678118
-    r = (0.0, s, s, 0.0)          # (w, x, y, z)
-    rinv = (0.0, -s, -s, 0.0)
+    b = (0.0, 1.0, 0.0, 0.0)      # q_frd_to_flu, (w, x, y, z)
+    rinv = (0.0, -s, -s, 0.0)     # q_ned_to_enu^-1
 
     def mul(a, b):
         aw, ax, ay, az = a
@@ -33,7 +35,7 @@ def enu_quat_to_ned_euler(qx, qy, qz, qw):
                 aw * by - ax * bz + ay * bw + az * bx,
                 aw * bz + ax * by - ay * bx + az * bw)
 
-    qw_, qx_, qy_, qz_ = mul(mul(rinv, (qw, qx, qy, qz)), r)
+    qw_, qx_, qy_, qz_ = mul(mul(rinv, (qw, qx, qy, qz)), b)
     sinr = 2.0 * (qw_ * qx_ + qy_ * qz_)
     cosr = 1.0 - 2.0 * (qx_ * qx_ + qy_ * qy_)
     phi = math.atan2(sinr, cosr)
