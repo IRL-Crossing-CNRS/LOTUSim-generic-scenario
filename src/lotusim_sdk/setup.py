@@ -41,6 +41,13 @@ setup(
             "kinematic_anchor = lotusim_sdk.tasks.kinematic_anchor:KinematicAnchorTask",
             "set_wind = lotusim_sdk.tasks.set_wind:SetWindTask",
             "wait = lotusim_sdk.tasks.wait:WaitTask",
+            "navigation = lotusim_sdk.tasks.navigation:NavigationTask",
+            "guidance_hold = lotusim_sdk.tasks.guidance:HoldGuidanceTask",
+            "guidance_los = lotusim_sdk.tasks.guidance:LOSGuidanceTask",
+            "guidance_pure_pursuit = lotusim_sdk.tasks.guidance:PurePursuitGuidanceTask",
+            "control = lotusim_sdk.tasks.control:ControlTask",
+            "kinematic_allocation = lotusim_sdk.tasks.kinematic_allocation:KinematicAllocationTask",
+            "static_command_allocation = lotusim_sdk.tasks.static_command_allocation:StaticCommandAllocationTask",
         ],
         "lotusim.agents": [
             "bluerov2_heavy = lotusim_sdk.agents.entity.physical.bluerov2_heavy:Bluerov2Heavy",

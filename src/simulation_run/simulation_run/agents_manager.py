@@ -34,6 +34,7 @@ Copyright (c) 2025 Naval Group
 
 import inspect
 import logging
+import os
 import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
@@ -250,6 +251,28 @@ class AgentsManager:
                 # run_agent's "_config_dir" on the remote path.
                 if config_dir is not None:
                     agent_node._config_dir = config_dir
+
+                # Optional per-agent Gauss-Markov current, forwarded verbatim
+                # into the entity's <physics_engine_interface> SDF block (see
+                # PhysicalEntity._lotus_blocks). Set before spawn, which is
+                # when lotus_param() renders that block.
+                gauss_markov = agent_info.get("gauss_markov_current")
+                if gauss_markov:
+                    agent_node.gauss_markov_current = dict(gauss_markov)
+
+                # Optional per-agent replay of a measured current profile,
+                # forwarded the same way. Its "profile" path is resolved here,
+                # while the scenario's own directory is known, so the scenario
+                # can name the CSV relative to itself instead of depending on
+                # the working directory the run was launched from.
+                copernicus = agent_info.get("copernicus_current")
+                if copernicus:
+                    copernicus = dict(copernicus)
+                    profile = copernicus.get("profile")
+                    if profile and not os.path.isabs(profile) and config_dir:
+                        copernicus["profile"] = os.path.normpath(
+                            os.path.join(config_dir, profile))
+                    agent_node.copernicus_current = copernicus
 
                 # Behaviour-tree missions (mission system): start the tick timer.
                 self._maybe_set_missions(agent_node, agent_info)

@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Same as transect_ekman.json, but the current is a uniform first-order",
+    "Gauss-Markov process injected by physics_engine_interface instead of",
+    "xdyn's native Ekman spiral -- see 'gauss_markov_current' below and",
+    "current_examples/README.md."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "bluerov_current": "gauss",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "bluerov_transect",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -3.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "crossing_layers", "type": "action", "task": "bluerov_guidance_los",
+          "params": { "z_start_m": 3.0, "z_end_m": 55.0, "x_end_m": 200.0, "y_end_m": 0.0,
+                      "u_setpoint_ms": 0.5, "lookahead_m": 5.0 } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/current_examples", "run_name": "transect_gauss" } }
+      ],
+      "gauss_markov_current": { "mean_x": 0.20, "mean_y": 0.08, "tau": 60.0, "std_dev": 0.05, "seed": 1 }
+    }
+  ]
+}

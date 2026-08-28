@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>bluerov_gnc</name>
+  <version>0.0.1</version>
+  <description>BlueROV2 under fixed-gain PID in layered ocean currents: closed-loop comparison of current models.</description>
+  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+
+  <author email="jgrosset10@gmail.com">juliette</author>
+
+  <license>EPL-2.0</license>
+
+  <depend>lotusim_sdk</depend>
+  <depend>simulation_run</depend>
+  <depend>lotusim_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

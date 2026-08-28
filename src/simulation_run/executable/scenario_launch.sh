@@ -74,6 +74,11 @@ echo -e "${GREEN}[INFO] Scenario execution logs will be saved to: $LOG_DIR${NC}"
 #   UNITY_MODE=editor ./scenario_launch.sh --config raj_scenario.json
 UNITY_MODE="${UNITY_MODE:-exe}"
 
+# XDYN_VERBOSE=1 passes -v -w to every xdyn-for-cs instance launched below,
+# logging every message and every websocket event (connect/disconnect/
+# payload) to $LOG_DIR/xdyn_<agent_type>.log -- off by default (very chatty):
+#   XDYN_VERBOSE=1 ./scenario_launch.sh --config bluerov_current_experiment/station_keeping_ekman.json
+
 # Extra command-line args passed to the Unity player (only in "exe" mode).
 # Default = windowed 1280x720 (Unity would otherwise go fullscreen). Graphics
 # API is the build's default (Vulkan). The inspection-camera SIGSEGV was a render-
@@ -131,6 +136,9 @@ WORLD_UNITY_BASENAMES["energy.world"]="lotusimenergy"
 # Accelerated variants keep world name "energy", so they reuse the same Unity build.
 WORLD_UNITY_BASENAMES["energy_accelerated5x.world"]="lotusimenergy"
 WORLD_UNITY_BASENAMES["energy_accelerated50x.world"]="lotusimenergy"
+# bluerov_ekman.world's own header comment: "Derived from energy.world" — same scene.
+WORLD_UNITY_BASENAMES["bluerov_ekman.world"]="lotusimenergy"
+WORLD_UNITY_BASENAMES["bluerov_ekman_accelerated50x.world"]="lotusimenergy"
 
 # -------------------- Functions --------------------
 die() {
@@ -163,6 +171,30 @@ kill_unity_processes() {
 source "$ROS_SETUP"
 source "$LOTUSIM_WS/install/setup.bash"
 source "$LOTUSIM_SCENARIO_WS/install/setup.bash"
+
+# Force this core workspace to the FRONT of every resolution path.
+#
+# Sourcing the overlay above is not enough: whatever a shell already had in
+# these variables stays ahead, because colcon's prepend-unique dedupes an
+# existing entry rather than moving it. Another overlay carrying a different
+# lotusim_msgs then wins, and the two are not interchangeable:
+#   * C++ (LD_LIBRARY_PATH): plugins load from this install
+#     (GZ_SIM_SYSTEM_PLUGIN_PATH points here) while the message typesupport
+#     comes from the other one, so the serializer walks a struct laid out by
+#     the other definition — segfault on the first pose published.
+#   * Python (PYTHONPATH/AMENT_PREFIX_PATH): tasks import the other
+#     definition, so their subscription's type hash never matches the
+#     publisher's and no pose is ever delivered.
+if [[ -d "$LOTUSIM_WS/install/lib" ]]; then
+    export LD_LIBRARY_PATH="$LOTUSIM_WS/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+_core_pythonpath="$LOTUSIM_WS/install/lib/python${PYTHON_VERSION:-3.12}/site-packages"
+if [[ -d "$_core_pythonpath" ]]; then
+    export PYTHONPATH="$_core_pythonpath${PYTHONPATH:+:$PYTHONPATH}"
+fi
+if [[ -d "$LOTUSIM_WS/install" ]]; then
+    export AMENT_PREFIX_PATH="$LOTUSIM_WS/install${AMENT_PREFIX_PATH:+:$AMENT_PREFIX_PATH}"
+fi
 
 # Apply domain ID globally
 export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
@@ -228,11 +260,17 @@ fi
 echo -e "${YELLOW}[INFO] Loading config from: $CONFIG_FILE${NC}"
 USE_UNITY=$(jq -r '.renderer_unity // false' "$CONFIG_FILE")
 WORLD_FILE=$(jq -r '.world_file // ""' "$CONFIG_FILE")
+# Ocean-current condition for Bluerov2_heavy_pid agents (see XDYN_CONFIGS
+# below). Lives in the scenario json like everything else here; BLUEROV_CURRENT
+# in the environment is only an escape hatch for a one-off override, not the
+# normal way to select it.
+BLUEROV_CURRENT="${BLUEROV_CURRENT:-$(jq -r '.bluerov_current // "ekman"' "$CONFIG_FILE")}"
 echo -e "${YELLOW}Unity Rendering: $USE_UNITY${NC}"
 echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
 # Whether the aerial world is launched is no longer a config field — it is
 # derived from the scenario's agents (utils.needs_aerial_world) and logged by
 # simulation_runner at startup.
+echo -e "${YELLOW}Bluerov current: $BLUEROV_CURRENT${NC}"
 
 # ============================================================
 # Snapshot the scenario config into $LOG_DIR/config/
@@ -263,6 +301,13 @@ fi
 # mine, wamv, ...). Python's own class->folder mapping (each PhysicalEntity
 # subclass's MODEL_NAME) isn't reachable from bash, so this mirrors the
 # convention rather than importing it.
+#
+# Exception: agent classes whose model folder isn't their own lowercased name
+# because they reuse another class's physical SDF/mesh (e.g. Bluerov2_heavy_pid
+# is a distinct xdyn/PID wiring around the same assets/models/bluerov2_heavy/
+# as plain Bluerov2_heavy).
+declare -A AGENT_CLASS_MODEL_DIR_OVERRIDES
+AGENT_CLASS_MODEL_DIR_OVERRIDES["bluerov2_heavy_pid"]="bluerov2_heavy"
 if [[ "$(jq -r '.agents | type' "$CONFIG_FILE")" == "array" ]]; then
     AGENT_SDF_PAIRS=$(jq -r '.agents[] | (.class // .type // .id // "") as $c | (.sdf_file // "model.sdf") as $s | select($c | length > 0) | "\($c)|\($s)"' "$CONFIG_FILE")
 else
@@ -271,6 +316,7 @@ fi
 while IFS='|' read -r agent_class sdf_name; do
     [[ -n "$agent_class" ]] || continue
     model_dir=$(echo "$agent_class" | tr '[:upper:]' '[:lower:]')
+    model_dir="${AGENT_CLASS_MODEL_DIR_OVERRIDES[$model_dir]:-$model_dir}"
     sdf_src="$LOTUSIM_MODELS_PATH/$model_dir/$sdf_name"
     if [[ -f "$sdf_src" ]]; then
         mkdir -p "$AGENTS_SNAPSHOT_DIR/$model_dir"
@@ -302,6 +348,23 @@ XDYN_CONFIGS["Fremm"]="$LOTUSIM_PATH/assets/models/fremm/fremmConfig.yaml 12349"
 XDYN_CONFIGS["Mine"]="$LOTUSIM_PATH/assets/models/mine/mineConfig.yaml 12350"
 XDYN_CONFIGS["Pha"]="$LOTUSIM_PATH/assets/models/pha/phaConfig.yaml 12351"
 XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.yaml 12352"
+
+# Closed-loop PID + ocean-current runs (package
+# src/external_packages/bluerov_gnc). xdyn model distinct from
+# BlueROV2.yml: commands are thrusts in newtons instead of rpm, and the
+# hydrostatics and thruster geometry are corrected. Same port as
+# Bluerov2_heavy, so the two cannot run in the same scenario.
+#
+# BLUEROV_CURRENT (set above, from the scenario json's "bluerov_current")
+# selects the current condition, by picking the matching model file:
+#   "ekman" the layered, depth-resolved Ekman model;
+#   "none"  no current, the control condition;
+#   "gauss" a uniform first-order Gauss-Markov current. xdyn has no such
+#           environment model, so that file declares NO current and the host
+#           plugin injects the process instead, parametrised by the agent's
+#           "gauss_markov_current" block in the scenario json.
+# See doc/bluerov_current_experiment/PROTOCOL.md.
+XDYN_CONFIGS["Bluerov2_heavy_pid"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12347"
 
 # ============================================================
 # Agent Types
@@ -481,7 +544,7 @@ for agent_type in $AGENT_TYPES; do
             gnome-terminal -- bash -c "
                 export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
                 export ROS_IP=$ROS_IP
-                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt 0.2 2>&1 | tee \"$LOG_DIR/xdyn_${agent_type}.log\";
+                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt 0.2 ${XDYN_VERBOSE:+-v -w} 2>&1 | tee \"$LOG_DIR/xdyn_${agent_type}.log\";
                 exec bash
             " &
             CHILD_PIDS+=($!)

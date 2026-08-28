@@ -21,7 +21,7 @@ Enable it from the scenario JSON (host side)::
       ...
     }
 
-or run it standalone from anywhere (see ``executable/log_run_csv.py``).
+or run it standalone from anywhere (see ``scripts/log_run_csv.py``).
 
 It subscribes to ``/<world>/poses`` (authoritative host-side poses of ALL
 agents) and auto-discovers every ``/<world>/<agent>/battery/state`` topic
@@ -597,7 +597,8 @@ class CsvRecorder(Node):
                 continue
             agent = topic[len(prefix):].split("/", 1)[0]
             # Match the battery_sensor publisher QoS (TRANSIENT_LOCAL) so the
-            # latest reading arrives even if it was published before we joined.
+            # latest reading arrives even if it was published before this
+            # subscription was created.
             self._battery_subs[topic] = self.create_subscription(
                 BatteryState,
                 topic,
@@ -888,7 +889,7 @@ class CsvRecorder(Node):
             self._finalize(early=True)
 
     def _write_summary(self) -> None:
-        """One row per agent we ever sampled: objective, outcome, and
+        """One row per agent ever sampled: objective, outcome, and
         difficulty indicators — a compact numeric fact sheet for this run
         (e.g. for an LLM to turn into a narrative report), not prose itself.
         """

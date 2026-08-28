@@ -1,0 +1,34 @@
+{
+  "_comment": [
+    "Minimal worked example: one BlueROV holding position at 10 m depth",
+    "under xdyn's own native Ekman-spiral current (the default current",
+    "model if 'bluerov_current' is omitted entirely). See",
+    "current_examples/README.md for the sibling gauss/copernicus/none",
+    "scenarios -- everything else about this file is identical across all",
+    "four, so a diff between them shows exactly what changes.",
+    "",
+    "z is negative in Gazebo's ENU frame: z = -10 means 10 m of immersion."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "bluerov_current": "ekman",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "bluerov_station_keeping",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "bluerov_guidance_hold",
+          "params": { "z_setpoint_m": 10.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/current_examples", "run_name": "station_keeping_ekman" } }
+      ]
+    }
+  ]
+}

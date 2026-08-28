@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "Minimal worked example: one BlueROV running a straight transect that",
+    "crosses the layers of xdyn's own native Ekman spiral (the default",
+    "current model if 'bluerov_current' is omitted), from 3 m to 55 m of",
+    "immersion over 200 m of ground track. Guidance is bluerov_guidance_los",
+    "(line-of-sight tracking, immersion linearly interpolated along the",
+    "segment). See current_examples/README.md for the sibling",
+    "gauss/copernicus/none scenarios and the station_keeping_* scenarios --",
+    "everything else about this file is identical across the four transect",
+    "scenarios, so a diff between them shows exactly what changes.",
+    "",
+    "The transect crosses 10 m of immersion, the threshold at which",
+    "XdynWebsocket::getNewState() switches from Surface to Underwater --",
+    "Bluerov2_heavy_pid declares both domains, without which the transition",
+    "fails on every step."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "bluerov_current": "ekman",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "bluerov_transect",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -3.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "crossing_layers", "type": "action", "task": "bluerov_guidance_los",
+          "params": { "z_start_m": 3.0, "z_end_m": 55.0, "x_end_m": 200.0, "y_end_m": 0.0,
+                      "u_setpoint_ms": 0.5, "lookahead_m": 5.0 } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/current_examples", "run_name": "transect_ekman" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "Same as station_keeping_ekman.json, but the current is a uniform",
+    "first-order Gauss-Markov process injected by physics_engine_interface",
+    "instead of xdyn's native Ekman spiral -- see 'gauss_markov_current'",
+    "below and current_examples/README.md."
+  ],
+  "world_file": "bluerov_ekman.world",
+  "bluerov_current": "gauss",
+  "renderer_unity": true,
+  "agents": [
+    {
+      "id": "bluerov_station_keeping",
+      "class": "Bluerov2_heavy_pid",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
+        { "id": "hold", "type": "action", "task": "bluerov_guidance_hold",
+          "params": { "z_setpoint_m": 10.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+        { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
+        { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
+        { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",
+          "params": { "output_dir": "results/current_examples", "run_name": "station_keeping_gauss" } }
+      ],
+      "gauss_markov_current": { "mean_x": 0.20, "mean_y": 0.08, "tau": 60.0, "std_dev": 0.05, "seed": 1 }
+    }
+  ]
+}
