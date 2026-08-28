@@ -143,7 +143,7 @@
     },
     {
       "id": "bluerov_wt1",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -197,7 +197,7 @@
     },
     {
       "id": "bluerov_wt5",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -251,7 +251,7 @@
     },
     {
       "id": "bluerov_wt9",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -305,7 +305,7 @@
     },
     {
       "id": "bluerov_wt10",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -359,7 +359,7 @@
     },
     {
       "id": "bluerov_wt13",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {

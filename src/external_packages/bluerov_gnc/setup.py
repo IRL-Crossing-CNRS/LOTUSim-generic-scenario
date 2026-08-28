@@ -12,13 +12,13 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="BlueROV2 under fixed-gain PID in layered ocean currents",
     license="EPL-2.0",
     entry_points={
         "lotusim.agents": [
-            "bluerov2_heavy_pid = bluerov_gnc:Bluerov2HeavyPid",
+            "bluerov2_heavy_current = bluerov_gnc:Bluerov2HeavyCurrent",
         ],
         "lotusim.tasks": [
             "bluerov_navigation = bluerov_gnc:BlueRovNavigationTask",

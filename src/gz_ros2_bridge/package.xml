@@ -4,9 +4,9 @@
   <name>gz_ros2_bridge</name>
   <version>0.0.1</version>
   <description>Bridge between Gazebo simulation stats and ROS2 topics</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
 
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
 
   <license>EPL-2.0</license>
 

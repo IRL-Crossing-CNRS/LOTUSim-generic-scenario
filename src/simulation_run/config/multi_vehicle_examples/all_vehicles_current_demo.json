@@ -103,7 +103,7 @@
     },
     {
       "id": "bluerov_transect",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": { "x": 0.0, "y": 1800.0, "z": -3.0, "yaw": 0.0 },
@@ -121,7 +121,7 @@
     },
     {
       "id": "bluerov_station_keeping",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": { "x": 0.0, "y": 2100.0, "z": -10.0, "yaw": 0.0 },

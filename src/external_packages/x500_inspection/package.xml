@@ -3,8 +3,8 @@
   <name>x500_inspection</name>
   <version>0.0.1</version>
   <description>Agent externe X500Inspection avec détection YOLO corrosion/fissures</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
   <license>EPL-2.0</license>
 
   <depend>x500</depend>

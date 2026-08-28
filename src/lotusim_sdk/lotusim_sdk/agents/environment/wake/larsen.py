@@ -8,8 +8,8 @@ Ported from the IRL Crossing benchmark repository
 which validated it against OpenFOAM v8 + turbinesFoam actuator-line CFD and
 FLORIS v4 on the NREL 5MW reference turbine. It is the best of the four
 benchmarked models on every power protocol — P2-1 RMSE 0.212 MW against
-0.309 MW for Jensen and 0.767 MW for FLORIS-Gauss — which is why it replaced
-the Jensen and Gaussian models this package used to carry.
+0.309 MW for Jensen and 0.767 MW for FLORIS-Gauss — and is the only wake
+model this package provides.
 
 Two deliberate departures from the upstream code, both marked in place below:
 
@@ -339,8 +339,8 @@ class LarsenWakeModel(WakeModelBase):
             # into the CFD-validated results this model is trusted for — the
             # published [3.724, 1.707, 0.858] MW for the 3-turbine 7D layout
             # only come out with both subtractions. Removing one silently
-            # under-predicts wake losses and breaks agreement with the paper,
-            # so it stays until upstream decides otherwise.
+            # under-predicts wake losses and breaks agreement with those
+            # reference results, so it stays until upstream decides otherwise.
             u_local = max(0.0, u_local - deficit)
             u_local = max(0.0, u_local - deficit)
 

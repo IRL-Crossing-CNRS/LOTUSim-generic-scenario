@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="External Agent: LrauvPropeller",
     license="EPL-2.0",

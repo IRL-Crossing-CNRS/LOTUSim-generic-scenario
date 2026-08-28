@@ -34,7 +34,7 @@ Navigation/Guidance/Control/Allocation pipeline
 
 | Vehicle | Domain | Kinematic (no xdyn) | Real xdyn dynamics | Example scenario(s) |
 |---|---|---|---|---|
-| **BlueROV2 heavy** | Underwater (+ Surface transition) | not used (has real thrusters) | Controllable -- 8-thruster allocator, station-keeping and transects, all 4 current models | `current_examples/*.json` |
+| **BlueROV2 heavy** | Underwater (+ Surface transition) | not used (has real thrusters) | Controllable -- fixed allocator over the 6 modelled thrusters of the 8 (4 vectored + 2 vertical; roll and pitch are not commandable), station-keeping and transects, all 4 current models | `current_examples/*.json` |
 | **X500** (aerial drone) | Aerial | Controllable -- generic pipeline, altitude/heading hold via `vz` | not modeled (no xdyn thruster/rotor model; PX4 SITL is the separate non-GNC path, see `wind_wake_examples/x500_px4.json`) | `multi_vehicle_examples/x500_kinematic.json` |
 | **WAMV** (surface) | Surface | Controllable -- generic pipeline | Drift-only -- `wamv.yaml` has no thruster model | `multi_vehicle_examples/wamv_kinematic.json`, `wamv_drift_only.json` |
 | **LRAUV** (underwater) | Underwater | Controllable -- generic pipeline, depth/heading hold | Controllable, stable: single propeller, surge-only, no yaw/fin actuation -- goes straight once launched, `guidance_hold` can only correct depth. Drift-only alternative: propeller held at a near-idle resting command | `multi_vehicle_examples/lrauv_kinematic.json`, `lrauv_xdyn.json`, `lrauv_drift_only.json` |

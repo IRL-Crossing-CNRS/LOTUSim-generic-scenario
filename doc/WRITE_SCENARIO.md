@@ -510,9 +510,9 @@ block it also publishes `lotusim_msgs/LCOEState` on `/<world>/lcoe`.
 from the IRL Crossing benchmark repository
 ([`lotusim-wake-models`](https://github.com/IRL-Crossing-CNRS/lotusim-wake-models)),
 where it was validated against OpenFOAM v8 + turbinesFoam actuator-line CFD.
-It replaced the Jensen and Gaussian models this repo used to carry, which it
-beats on every power protocol (baseline RMSE 0.212 MW against 0.309 MW for
-Jensen and 0.767 MW for FLORIS-Gauss). Two things worth knowing before you
+It beats Jensen and FLORIS-Gauss on every power protocol there (baseline RMSE
+0.212 MW against 0.309 MW for Jensen and 0.767 MW for FLORIS-Gauss). Two
+things worth knowing before you
 trust a number it gives you:
 
 - Its centreline deficit is an **empirical fit calibrated on the NREL 5MW**
@@ -561,7 +561,7 @@ computing turbine power, so rotor geometry can't drift between the two).
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `cell_diameters` | float | `0.5` | Downstream length of each segment, in rotor diameters — the resolution knob. Independent of `max_downstream_diameters` (the reach knob): halving this doubles the segment count over the same distance instead of shortening it. Because each segment already tapers smoothly (and chains seamlessly into the next), this is now purely a velocity-gradient granularity knob, not a visual-smoothness one — it can typically be set coarser than a box stack needed to look smooth. |
+| `cell_diameters` | float | `0.5` | Downstream length of each segment, in rotor diameters — the resolution knob. Independent of `max_downstream_diameters` (the reach knob): halving this doubles the segment count over the same distance instead of shortening it. Because each segment already tapers smoothly (and chains without a seam into the next), this is purely a velocity-gradient granularity knob and not a visual-smoothness one, so it can usually be set coarse. |
 | `deficit_threshold` | float | `0.05` | Lateral cutoff used to find each segment's radius — where the deficit falls below this fraction, sideways, is the wake's edge at that distance. In principle also stops the downstream chain once the *centreline* deficit itself falls below it, but see the note below: for the calibrated fit this almost never happens within a farm-sized distance, so `max_downstream_diameters` is what actually stops the chain. |
 | `max_downstream_diameters` | float | `8.0` | Hard cap on how far downstream segments are generated, in rotor diameters. **This is the parameter that controls wake length in practice** — tune it to your farm's own turbine spacing. |
 | `direction_hysteresis_deg` / `speed_hysteresis_mps` | float | `5.0` / `0.5` | Regions are only recomputed and republished once the wind has drifted past one of these thresholds since the last publish — not on every wind message. |
@@ -580,11 +580,10 @@ visually and computationally sane.
 
 **Performance note.** The `wind_regions` Gazebo plugin re-scans the *entire*
 region list for *every* wind-enabled link on *every* physics tick (500 Hz by
-default). Region count now scales with velocity-gradient granularity rather
-than with how smooth the shape needs to look, so a farm at the defaults above
-should publish noticeably fewer regions than the old box-stack approach did
-for the same `cell_diameters` — worth re-tuning `cell_diameters` coarser
-against a live run rather than assuming the old defaults are still optimal.
+default). Region count scales with velocity-gradient granularity rather than
+with how smooth the shape needs to look, so `cell_diameters` can usually be
+set coarser than a purely visual criterion would suggest — worth tuning it
+against a live run rather than assuming the defaults are optimal.
 
 **`Wind` and `Wake` must not both write regions in the same scenario.**
 `/aerialWorld/wind/regions` is latched with no merging between publishers —

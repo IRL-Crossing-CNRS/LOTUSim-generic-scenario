@@ -3,10 +3,10 @@
 <package format="3">
   <name>bluerov_gnc</name>
   <version>0.0.1</version>
-  <description>BlueROV2 under fixed-gain PID in layered ocean currents: closed-loop comparison of current models.</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+  <description>BlueROV2 Heavy GNC stack (guidance, control, allocation, metrics recorder) used by every BlueROV2 scenario. See README.md.</description>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
 
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
 
   <license>EPL-2.0</license>
 

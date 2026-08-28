@@ -4,9 +4,9 @@
   <name>dtmb_hull_gnc</name>
   <version>0.0.1</version>
   <description>Dtmb_hull Control/Allocation: thin adapter onto the generic Navigation/Guidance/Control pipeline, allocating to the twin propeller+rudder layout.</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
 
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
 
   <license>EPL-2.0</license>
 

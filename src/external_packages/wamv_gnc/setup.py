@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="WAMV under the generic GNC pipeline (Kinematic today; xdyn Allocation once a thruster model exists).",
     license="EPL-2.0",

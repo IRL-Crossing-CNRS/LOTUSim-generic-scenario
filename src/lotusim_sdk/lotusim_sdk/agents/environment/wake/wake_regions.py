@@ -6,10 +6,10 @@ radial bound) done directly in the Gazebo plugin — no box approximation.
 :class:`WakeRegionGenerator` represents each turbine's wake footprint as a
 handful of these segments chained end to end (each one's ``r_end`` is the
 next one's ``r_start``, so the geometry is one continuous tapered cone, not
-stacked rectangles). Segment count is now purely a velocity-granularity
-knob — the geometry itself is smooth within and across segments regardless
-of how many there are — so a drone crossing the wake edge feels a graduated
-deficit without needing anywhere near as many regions as the old box stack.
+stacked rectangles). Segment count is purely a velocity-granularity knob —
+the geometry itself is smooth within and across segments regardless of how
+many there are — so a drone crossing the wake edge feels a graduated deficit
+from a small number of regions.
 
 Pure Python, no ROS/rclpy dependency — the ROS-facing side (config, topic,
 publishing) lives in :mod:`~.wake`.

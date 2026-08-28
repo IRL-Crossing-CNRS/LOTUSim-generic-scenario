@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="External Bluerov2HeavyInspection agent with YOLO corrosion/crack detection",
     license="EPL-2.0",

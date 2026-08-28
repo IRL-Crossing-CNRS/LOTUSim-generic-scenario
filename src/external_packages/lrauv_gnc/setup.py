@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="LRAUV under the generic GNC pipeline: single-propeller allocation, no yaw actuation.",
     license="EPL-2.0",

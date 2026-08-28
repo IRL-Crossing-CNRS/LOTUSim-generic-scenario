@@ -16,7 +16,7 @@ setup(
     ],
     install_requires=["setuptools", "lotusim_sdk"],
     zip_safe=True,
-    maintainer="juliette",
+    maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
     description="Description de ton package",
     license="SPDX-License-Identifier: EPL-2.0",

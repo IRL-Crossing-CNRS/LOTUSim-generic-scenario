@@ -211,9 +211,9 @@ reconfigured without reloading the world.
   Contains()` (`BoxShape` / `ConeSegmentShape`, built by `MakeShape()` below
   from the `box`/`cone` fields in §3) — stock WindEffects has no equivalent
   geometric concept at all.
-- **No bridge process.** Stock WindEffects reads gz-transport, so a
-  translator (the old `wind_ros_to_gz_bridge`) used to sit between ROS and
-  it. This plugin embeds its own `rclcpp::Node` (constructed in the
+- **No bridge process.** Stock WindEffects reads gz-transport, so it needs a
+  translator process sitting between ROS and it. This plugin embeds its own
+  `rclcpp::Node` (constructed in the
   constructor, spun on a dedicated `std::thread` via a
   `SingleThreadedExecutor` set up in `Configure()`) and subscribes to
   `/aerialWorld/wind` and `/aerialWorld/wind/regions` directly — one fewer

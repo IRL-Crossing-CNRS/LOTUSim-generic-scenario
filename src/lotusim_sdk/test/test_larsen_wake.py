@@ -2,7 +2,7 @@
 
 The point of this model is that it reproduces CFD-validated numbers, so the
 published benchmark case is locked down here: if a refactor changes it, the
-model is no longer the one the paper validated. Pure numpy — no ROS needed.
+model no longer matches the validated reference. Pure numpy — no ROS needed.
 """
 
 import numpy as np

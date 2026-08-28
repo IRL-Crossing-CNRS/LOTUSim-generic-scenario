@@ -10,7 +10,7 @@
   "agents": [
     {
       "id": "bluerov_station_keeping",
-      "class": "Bluerov2_heavy_pid",
+      "class": "Bluerov2_heavy_current",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": { "x": 0.0, "y": 0.0, "z": -10.0, "yaw": 0.0 },

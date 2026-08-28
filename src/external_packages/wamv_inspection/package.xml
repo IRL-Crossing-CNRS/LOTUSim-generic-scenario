@@ -3,8 +3,8 @@
   <name>wamv_inspection</name>
   <version>0.0.1</version>
   <description>Agent externe WamvInspection avec détection YOLO corrosion/fissures</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
   <license>EPL-2.0</license>
 
   <depend>wamv</depend>

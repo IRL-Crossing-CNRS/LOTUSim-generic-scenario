@@ -10,8 +10,13 @@ scenarios (surface, underwater, aerial) with:
 - **Unity** (optional) for high-fidelity 3D rendering, bridged over `ros_tcp_endpoint`
 
 Agents are **mission-driven**: behaviour comes from a Behaviour Tree described
-in the scenario JSON, not hard-coded per vehicle. See
-[Documentation](#documentation) below for the full picture.
+in the scenario JSON, not hard-coded per vehicle.
+
+**This README is the user guide**: install the workspace, run a scenario,
+read the results. It assumes you want to *use* the simulator, not modify it.
+If you are going to change the code — add a vehicle, write a mission task,
+plug in your own navigation/guidance/control algorithm — start instead at
+[doc/DEVELOPER.md](doc/DEVELOPER.md).
 
 ---
 
@@ -80,6 +85,16 @@ entry looks like:
   "renderer_unity": true
 }
 ```
+
+Waypoints are either inline as above, or in a patrol file:
+
+```json
+"params": { "waypoints_file": "../waypoints/waypoint_windturbine1.json" }
+```
+
+The guidance parameters (`guidance_mode`, `guidance_clock`, `control_rate_hz`,
+`range_tolerance`, the velocity and acceleration limits) are optional and fall
+back to the task defaults.
 
 Launch it:
 
@@ -291,11 +306,12 @@ its flight controls.
 
 | Doc | Covers |
 |---|---|
+| [doc/DEVELOPER.md](doc/DEVELOPER.md) | **Start here to modify the code.** Where everything lives, the four extension points, frame/rebuild conventions, how to verify a change, known gaps |
 | [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) | Repository/package organisation, agent class hierarchy, orchestration flow, global diagrams |
 | [doc/MISSIONS.md](doc/MISSIONS.md) | The Behaviour Tree framework: engine, task lifecycle, built-in tasks, diagrams, references |
 | [doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) | Full scenario JSON reference — every parameter, host vs. remote |
 | [doc/ACCELERATED_SIMULATION.md](doc/ACCELERATED_SIMULATION.md) | Running a world faster than real time (real_time_factor, `guidance_clock`) |
-| [doc/GNC_MODULAR_ARCHITECTURE.md](doc/GNC_MODULAR_ARCHITECTURE.md) | Navigation / Guidance / Control / Allocation as separate ROS2 nodes — topics, message schemas, how to plug in your own algorithm for one block |
+| [doc/GNC_MODULAR_ARCHITECTURE.md](doc/GNC_MODULAR_ARCHITECTURE.md) | Navigation / Guidance / Control / Allocation as separate ROS2 nodes — topics, message schemas, what is implemented today, how to plug in your own algorithm for one block |
 | [src/simulation_run/config/current_examples/](src/simulation_run/config/current_examples/) | BlueROV2 under PID across the four ocean-current models: the scenarios, what each current condition is, and how to run them |
 | [deployment/README.md](deployment/README.md) | Running an agent from a remote machine (no Gazebo installed) |
 

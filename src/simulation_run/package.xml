@@ -4,9 +4,9 @@
   <name>simulation_run</name>
   <version>0.0.1</version>
   <description>This package aims to be the source of every simulation scenario of Lotusim</description>
-  <maintainer email="jgrosset10@gmail.com">juliette</maintainer>
+  <maintainer email="jgrosset10@gmail.com">Juliette Grosset</maintainer>
 
-  <author email="jgrosset10@gmail.com">juliette</author>
+  <author email="jgrosset10@gmail.com">Juliette Grosset</author>
 
   <license>EPL-2.0</license>
 

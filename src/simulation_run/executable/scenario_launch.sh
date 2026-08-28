@@ -260,16 +260,17 @@ fi
 echo -e "${YELLOW}[INFO] Loading config from: $CONFIG_FILE${NC}"
 USE_UNITY=$(jq -r '.renderer_unity // false' "$CONFIG_FILE")
 WORLD_FILE=$(jq -r '.world_file // ""' "$CONFIG_FILE")
-# Ocean-current condition for Bluerov2_heavy_pid agents (see XDYN_CONFIGS
+# Ocean-current condition for Bluerov2_heavy_current agents (see XDYN_CONFIGS
 # below). Lives in the scenario json like everything else here; BLUEROV_CURRENT
 # in the environment is only an escape hatch for a one-off override, not the
 # normal way to select it.
 BLUEROV_CURRENT="${BLUEROV_CURRENT:-$(jq -r '.bluerov_current // "ekman"' "$CONFIG_FILE")}"
 echo -e "${YELLOW}Unity Rendering: $USE_UNITY${NC}"
 echo -e "${YELLOW}World file: $WORLD_FILE${NC}"
-# Whether the aerial world is launched is no longer a config field — it is
-# derived from the scenario's agents (utils.needs_aerial_world) and logged by
-# simulation_runner at startup.
+# The aerial world is not a config field: simulation_runner always launches
+# utils.AERIAL_WORLD_FILE alongside the scenario's own world, whether or not
+# the scenario has an aerial agent. Whether a scenario has wind is decided by
+# whether anything publishes /aerialWorld/wind, not by a flag.
 echo -e "${YELLOW}Bluerov current: $BLUEROV_CURRENT${NC}"
 
 # ============================================================
@@ -303,11 +304,11 @@ fi
 # convention rather than importing it.
 #
 # Exception: agent classes whose model folder isn't their own lowercased name
-# because they reuse another class's physical SDF/mesh (e.g. Bluerov2_heavy_pid
-# is a distinct xdyn/PID wiring around the same assets/models/bluerov2_heavy/
-# as plain Bluerov2_heavy).
+# because they reuse another class's physical SDF/mesh (e.g. Bluerov2_heavy_current
+# is a distinct xdyn wiring around the same assets/models/bluerov2_heavy/ as
+# plain Bluerov2_heavy).
 declare -A AGENT_CLASS_MODEL_DIR_OVERRIDES
-AGENT_CLASS_MODEL_DIR_OVERRIDES["bluerov2_heavy_pid"]="bluerov2_heavy"
+AGENT_CLASS_MODEL_DIR_OVERRIDES["bluerov2_heavy_current"]="bluerov2_heavy"
 if [[ "$(jq -r '.agents | type' "$CONFIG_FILE")" == "array" ]]; then
     AGENT_SDF_PAIRS=$(jq -r '.agents[] | (.class // .type // .id // "") as $c | (.sdf_file // "model.sdf") as $s | select($c | length > 0) | "\($c)|\($s)"' "$CONFIG_FILE")
 else
@@ -349,11 +350,10 @@ XDYN_CONFIGS["Mine"]="$LOTUSIM_PATH/assets/models/mine/mineConfig.yaml 12350"
 XDYN_CONFIGS["Pha"]="$LOTUSIM_PATH/assets/models/pha/phaConfig.yaml 12351"
 XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.yaml 12352"
 
-# Closed-loop PID + ocean-current runs (package
-# src/external_packages/bluerov_gnc). xdyn model distinct from
-# BlueROV2.yml: commands are thrusts in newtons instead of rpm, and the
-# hydrostatics and thruster geometry are corrected. Same port as
-# Bluerov2_heavy, so the two cannot run in the same scenario.
+# Ocean-current runs (package src/external_packages/bluerov_gnc). xdyn
+# model distinct from BlueROV2.yml: commands are thrusts in newtons instead
+# of rpm, and the hydrostatics and thruster geometry are corrected. Same
+# port as Bluerov2_heavy, so the two cannot run in the same scenario.
 #
 # BLUEROV_CURRENT (set above, from the scenario json's "bluerov_current")
 # selects the current condition, by picking the matching model file:
@@ -363,8 +363,12 @@ XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.ya
 #           environment model, so that file declares NO current and the host
 #           plugin injects the process instead, parametrised by the agent's
 #           "gauss_markov_current" block in the scenario json.
+#   "copernicus" replay of a measured Copernicus depth profile. Same story as
+#           "gauss": no xdyn environment model, the file declares NO current,
+#           and the host plugin injects the profile named by the agent's
+#           "copernicus_current" block. Mutually exclusive with "gauss".
 # See src/simulation_run/config/current_examples/README.md.
-XDYN_CONFIGS["Bluerov2_heavy_pid"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12347"
+XDYN_CONFIGS["Bluerov2_heavy_current"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12347"
 
 # ============================================================
 # Agent Types

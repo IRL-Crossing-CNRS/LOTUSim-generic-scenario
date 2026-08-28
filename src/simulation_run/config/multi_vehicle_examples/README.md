@@ -65,7 +65,7 @@ hydrodynamic data in the open literature.
 
 `all_vehicles_current_demo.json` spawns one of every vehicle class at once
 on `bluerov_ekman.world` -- Commando, Fremm, Pha, WAMV, Mine, LRAUV, and two
-`Bluerov2_heavy_pid` -- under a shared ocean current. It checks that every
+`Bluerov2_heavy_current` -- under a shared ocean current. It checks that every
 class still spawns and drifts, rather than demonstrating any one pipeline.
 
 **No dtmb_hull scenarios**: removed (no corresponding Unity asset).

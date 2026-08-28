@@ -51,7 +51,7 @@ flowchart LR
 | `lotusim_sdk` | **The SDK.** Agent class hierarchy, the BT engine, built-in tasks. Ships as a wheel; used identically host- and remote-side. |
 | `lotusim_client` | **Remote launcher.** `run_agent` CLI: instantiates an agent from a JSON config and ticks it against a running host simulation. Ships as a wheel. |
 | `simulation_run` | **Host orchestrator.** Launches Gazebo/Unity, parses scenario JSON, spawns the full agent set, dynamic spawn/despawn service. ROS 2 `ament_python` package, host-only. |
-| `external_packages/*` | **Concrete agent packages** — one per vehicle/demo (`bluerov2_heavy_inspection`, `wamv_inspection`, `x500_inspection`, `lrauv_propeller`, `custom_task_demo`). Each is a standalone ROS 2 package discovered via entry points (§3, §4). |
+| `external_packages/*` | **Concrete agent and GNC packages** — one per vehicle/demo (`bluerov2_heavy_inspection`, `wamv_inspection`, `x500_inspection`, `lrauv_propeller`, `custom_task_demo`) plus the vehicle-specific GNC packages (`bluerov_gnc`, `lrauv_gnc`, `wamv_gnc`, `dtmb_hull_gnc`). Each is a standalone ROS 2 package discovered via entry points (§3, §4). |
 | `gz_ros2_bridge` | C++ package: one standalone bridge executable between `gz-transport` and ROS 2 (§7). |
 | `deployment/` | The remote colcon workspace bundle: build script, `lotusim_msgs` source, wheels output (§6). |
 
@@ -105,9 +105,18 @@ external_packages/
 ├── wamv_inspection/             # Wamv, thin
 ├── x500_inspection/             # X500, thin (optional PX4 SITL flight, §5.1)
 ├── lrauv_propeller/              # Lrauv + standalone propeller RPM cycling logic (dev example, no BT)
-└── custom_task_demo/             # Bluerov2Heavy + a custom TaskAgent wired in code via
-                                   # self._missions.add_task(...) instead of scenario JSON
+├── custom_task_demo/             # Bluerov2Heavy + a custom TaskAgent wired in code via
+│                                  # self._missions.add_task(...) instead of scenario JSON
+├── bluerov_gnc/                  # BlueROV2 Heavy thruster Allocation + Control + metrics recorder
+├── lrauv_gnc/                    # LRAUV Control + single-propeller Allocation
+├── wamv_gnc/                     # WAMV Control (Kinematic only: no thruster model in its xdyn YAML)
+└── dtmb_hull_gnc/                # dtmb_hull Control (Kinematic only)
 ```
+
+The four `*_gnc` packages hold only what is genuinely vehicle-specific.
+Navigation, the five guidance laws and the generic Control/Allocation blocks
+live in `lotusim_sdk/tasks/` and are shared — see
+[GNC_MODULAR_ARCHITECTURE.md](GNC_MODULAR_ARCHITECTURE.md).
 
 `lrauv_propeller` and `custom_task_demo` are intentionally **not** thin: they
 show the two ways to extend an agent beyond "pure JSON mission" — raw
@@ -461,11 +470,9 @@ One standalone executable, linking `gz-transport`/`gz-msgs` and
 `launch/bridge_nodes.launch.py` kills any previous instance, then launches it
 after a short delay. It is a convenience entry point only — no scenario
 launch path uses it; `stats_gz_to_ros_bridge` itself isn't started by any
-scenario launch path either. This package used to also ship
-`wind_ros_to_gz_bridge`, translating the ROS-side wind vector into
-`gz::transport` for stock `gz-sim-wind-effects-system`; it was removed once
-the `wind_regions` Gazebo plugin took over both wind consumption and region
-support by subscribing to ROS directly — see §9's "No bridge process".
+scenario launch path either. Wind needs no bridge of its own: the
+`wind_regions` Gazebo plugin handles both wind consumption and region support
+by subscribing to ROS directly — see §9's "No bridge process".
 
 ---
 
@@ -544,12 +551,11 @@ wrote what is on it, or which shape any given region uses.
   semi-analytical Larsen (2009) wake ported from the IRL Crossing benchmark
   repository [`lotusim-wake-models`](https://github.com/IRL-Crossing-CNRS/lotusim-wake-models)
   (`models/larsen.py` @ 8c18232), where it was validated against OpenFOAM v8 +
-  turbinesFoam actuator-line CFD on the NREL 5MW. It replaced the Jensen and
-  Gaussian models this package used to carry, beating both on every power
-  protocol. It combines wakes by sequential *local* superposition — each
-  upstream deficit applies to the already-reduced speed, in downstream order —
-  rather than by the root-sum-square of freestream deficits the old models
-  used, which is what stops deep rows saturating. Two departures from upstream
+  turbinesFoam actuator-line CFD on the NREL 5MW, where it beats Jensen and
+  FLORIS-Gauss on every power protocol. It combines wakes by sequential
+  *local* superposition — each upstream deficit applies to the already-reduced
+  speed, in downstream order — rather than by the root-sum-square of
+  freestream deficits, which is what stops deep rows saturating. Two departures from upstream
   are marked in the file: the ENU frame (upstream's vertical axis is `y`), and
   yaw derating by the *absolute* projection onto the turbines' facing axis, so
   that a southerly wind produces power instead of zeroing the farm — LOTUSim's
@@ -575,10 +581,10 @@ wrote what is on it, or which shape any given region uses.
   `BlendedWakeModel` is linear in freestream speed, so the threshold crossing
   used to find each segment's radius doesn't depend on it either — so it is
   computed once, at construction, and only rotated/translated for the current
-  wind direction on each update. Segment *count* is now purely a
-  velocity-gradient granularity knob (each segment already tapers smoothly,
-  and chains without a seam into the next), unlike the box stack it replaced
-  where segment count also had to double as a visual-smoothness knob. The
+  wind direction on each update. Segment *count* is purely a
+  velocity-gradient granularity knob: each segment already tapers smoothly and
+  chains without a seam into the next, so count does not also have to serve as
+  a visual-smoothness knob. The
   downstream chain itself is capped by `max_downstream_diameters`, not by
   that same threshold going to zero: the calibrated centreline fit decays so
   slowly (`0.58 * (x/D)^-0.35`) that a 5% deficit is not reached until
@@ -602,10 +608,10 @@ wrote what is on it, or which shape any given region uses.
 
 **No bridge process.** The `wind_regions` Gazebo System plugin (core repo)
 embeds its own `rclcpp::Node` and subscribes to both ROS topics above
-directly — it replaces stock `gz-sim-wind-effects-system` (which only supports
-one uniform global wind and can't express regions) and the
-`wind_ros_to_gz_bridge` translator that used to forward `/aerialWorld/wind`
-into it over gz-transport. For each link tagged wind-enabled
+directly — it replaces stock `gz-sim-wind-effects-system`, which only supports
+one uniform global wind, can't express regions, and reads gz-transport, so it
+needs a translator process to receive `/aerialWorld/wind`. For each link
+tagged wind-enabled
 (`<enable_wind>true</enable_wind>`, same convention stock WindEffects used),
 the plugin resolves a wind vector by testing the link's world X/Y against the
 region list — shape-agnostic, box or cone segment, via each `RegionState`'s
