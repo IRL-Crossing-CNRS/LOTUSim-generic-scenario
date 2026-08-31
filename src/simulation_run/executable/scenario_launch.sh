@@ -96,11 +96,22 @@ UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -s
 # -------------------- Paths --------------------
 # LOTUSIM_* variables come from ~/.bashrc (set by the install script); the
 # fallbacks match that installer's layout. Everything is exported so child
-# processes (xdyn, ROS nodes, the lotusim CLI) always see these paths.
+# processes (xdyn, ROS nodes) always see these paths.
 export LOTUSIM_WS="${LOTUSIM_WS:-$HOME/lotusim_ws}"
 export LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
-export PATH=$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH
-export LD_LIBRARY_PATH=$LOTUSIM_PATH/physics:$LD_LIBRARY_PATH
+# The core ships neither a launcher script nor xdyn binaries: worlds are started
+# through gz sim directly (see simulation_runner.py) and xdyn comes from lxdyn's
+# published image, provided by the core's nix devshell or installed separately.
+# XDYN_PATH points at that directory when xdyn-for-cs is not already on PATH.
+if [ -n "${XDYN_PATH:-}" ]; then
+  export PATH="$XDYN_PATH:$PATH"
+  export LD_LIBRARY_PATH="$XDYN_PATH:${LD_LIBRARY_PATH:-}"
+fi
+if ! command -v xdyn-for-cs >/dev/null 2>&1; then
+  echo -e "${RED}xdyn-for-cs not found on PATH.${NC}" >&2
+  echo "Enter the core's devshell (nix develop) or set XDYN_PATH to the directory holding it." >&2
+  exit 1
+fi
 # Trailing slash required: xdyn joins this to a model YAML's relative
 # "mesh:" path by plain concatenation, so without it lrauv.yml's
 # "lrauv/tethys_hydrostatic_hull.stl" resolves to ".../assets/modelslrauv/..."

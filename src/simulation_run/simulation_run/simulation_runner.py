@@ -99,7 +99,10 @@ def build_launch_command(
     Returns:
         A list of full command strings to execute.
     """
-    base_command = "lotusim"
+    # The core's lotusim CLI is now built by its nix flake; it takes its flags
+    # after the subcommand: "lotusim run [--gui] [--debug] <world>". An option
+    # placed before "run" is forwarded straight to gz sim instead.
+    base_command = "lotusim run"
     debug_flag = "--debug" if debug else ""
     gui_flag = "--gui" if gui else ""
     commands: List[str] = []
@@ -121,7 +124,7 @@ def build_launch_command(
         taskset execs into, so a taskset prefix here doesn't hide the
         process from cleanup.
         """
-        cmd = f"{base_command} {debug_flag} {gui_flag} run {wf}".strip()
+        cmd = " ".join(p for p in (base_command, debug_flag, gui_flag, wf) if p)
         if cpu_affinity:
             cmd = f"taskset -c {cpu_affinity} {cmd}"
         log_dir = os.environ.get("LOG_DIR")
