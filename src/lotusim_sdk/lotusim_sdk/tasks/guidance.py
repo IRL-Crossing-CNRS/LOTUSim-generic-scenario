@@ -28,8 +28,7 @@ from lotusim_msgs.msg import GuidanceSetpoint
 
 from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
-from lotusim_sdk.control import (LineOfSightGuidance, PurePursuitGuidance,
-                                  enu_to_ned_position)
+from lotusim_sdk.control import LineOfSightGuidance, PurePursuitGuidance, enu_to_ned_position
 
 
 def _ned_xy(pose) -> tuple:
@@ -50,10 +49,8 @@ class _GuidanceTaskBase(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            GuidanceSetpoint, f"/{world}/{agent}/guidance", 10)
-        self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+        self._pub = self.host.create_publisher(GuidanceSetpoint, f"/{world}/{agent}/guidance", 10)
+        self._nav_sub = self.host.create_subscription(Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
 
     def on_exit(self, status) -> None:
         if self._nav_sub is not None:
@@ -104,13 +101,17 @@ class HoldGuidanceTask(_GuidanceTaskBase):
                 self._x_sp, self._y_sp = x, y
             self._initialized = True
             self.host.get_logger().info(
-                f"{type(self).__name__}: holding ({self._x_sp:.2f}, "
-                f"{self._y_sp:.2f}) NED, depth {self._z_sp} m")
+                f"{type(self).__name__}: holding ({self._x_sp:.2f}, " f"{self._y_sp:.2f}) NED, depth {self._z_sp} m"
+            )
         self._publish(
             use_position_hold=True,
-            target_x=self._x_sp, target_y=self._y_sp,
-            desired_heading=self._psi_sp, desired_depth=self._z_sp,
-            desired_speed=0.0, cross_track_error=0.0, along_track_distance=0.0,
+            target_x=self._x_sp,
+            target_y=self._y_sp,
+            desired_heading=self._psi_sp,
+            desired_depth=self._z_sp,
+            desired_speed=0.0,
+            cross_track_error=0.0,
+            along_track_distance=0.0,
             arrived=True,
         )
 
@@ -140,18 +141,18 @@ class _PathGuidanceTaskBase(_GuidanceTaskBase):
         self._y_end = float(p.get("y_end_m", 0.0))
         self._u_sp = float(p.get("u_setpoint_ms", 0.5))
         self._lookahead = float(p.get("lookahead_m", 5.0))
-        self._law = None    # built on the first pose: start = current position
+        self._law = None  # built on the first pose: start = current position
 
     def _on_navigation(self, msg: Odometry) -> None:
         x, y = _ned_xy(msg.pose.pose)
         if self._law is None:
             self._law = self._GUIDANCE_CLS(
-                (x, y, self._z_start),
-                (x + self._x_end, y + self._y_end, self._z_end),
-                lookahead=self._lookahead)
+                (x, y, self._z_start), (x + self._x_end, y + self._y_end, self._z_end), lookahead=self._lookahead
+            )
             self.host.get_logger().info(
                 f"{type(self).__name__}: ({x:.1f}, {y:.1f}, {self._law.z1:.1f}) -> "
-                f"({self._law.x2:.1f}, {self._law.y2:.1f}, {self._law.z2:.1f}) NED")
+                f"({self._law.x2:.1f}, {self._law.y2:.1f}, {self._law.z2:.1f}) NED"
+            )
 
         psi_sp, z_sp, cross = self._law.update(x, y)
         along = self._law.along(x, y)
@@ -159,18 +160,26 @@ class _PathGuidanceTaskBase(_GuidanceTaskBase):
         if along >= self._law.length_h:
             self._publish(
                 use_position_hold=True,
-                target_x=self._law.x2, target_y=self._law.y2,
-                desired_heading=self._law.heading, desired_depth=self._law.z2,
-                desired_speed=0.0, cross_track_error=cross,
-                along_track_distance=along, arrived=True,
+                target_x=self._law.x2,
+                target_y=self._law.y2,
+                desired_heading=self._law.heading,
+                desired_depth=self._law.z2,
+                desired_speed=0.0,
+                cross_track_error=cross,
+                along_track_distance=along,
+                arrived=True,
             )
         else:
             self._publish(
                 use_position_hold=False,
-                target_x=0.0, target_y=0.0,
-                desired_heading=psi_sp, desired_depth=z_sp,
-                desired_speed=self._u_sp, cross_track_error=cross,
-                along_track_distance=along, arrived=False,
+                target_x=0.0,
+                target_y=0.0,
+                desired_heading=psi_sp,
+                desired_depth=z_sp,
+                desired_speed=self._u_sp,
+                cross_track_error=cross,
+                along_track_distance=along,
+                arrived=False,
             )
 
 
@@ -227,14 +236,14 @@ class _PolylineGuidanceTaskBase(_GuidanceTaskBase):
         wps = p.get("waypoints") or []
         if not wps:
             raise ValueError(
-                f"{type(self).__name__}: 'waypoints' is required and must be "
-                "a non-empty list of [dx, dy, z]")
+                f"{type(self).__name__}: 'waypoints' is required and must be " "a non-empty list of [dx, dy, z]"
+            )
         self._waypoints = [(float(w[0]), float(w[1]), float(w[2])) for w in wps]
         self._z_start = float(p.get("z_start_m", 3.0))
         self._u_sp = float(p.get("u_setpoint_ms", 0.5))
         self._lookahead = float(p.get("lookahead_m", 5.0))
-        self._laws = None       # built on the first pose: start = current position
-        self._idx = 0           # index of the active segment
+        self._laws = None  # built on the first pose: start = current position
+        self._idx = 0  # index of the active segment
         self._done_length = 0.0  # cumulative length of the completed segments
 
     def _build(self, x: float, y: float) -> None:
@@ -248,19 +257,19 @@ class _PolylineGuidanceTaskBase(_GuidanceTaskBase):
             # ramp instead. Skipping keeps one bad waypoint from killing a run.
             if math.hypot(p2[0] - p1[0], p2[1] - p1[1]) < 1e-6:
                 self.host.get_logger().warn(
-                    f"{type(self).__name__}: skipping zero-length segment at "
-                    f"({p1[0]:.1f}, {p1[1]:.1f})")
+                    f"{type(self).__name__}: skipping zero-length segment at " f"({p1[0]:.1f}, {p1[1]:.1f})"
+                )
                 continue
             self._laws.append(self._GUIDANCE_CLS(p1, p2, lookahead=self._lookahead))
         if not self._laws:
-            raise ValueError(
-                f"{type(self).__name__}: no trackable segment in 'waypoints'")
+            raise ValueError(f"{type(self).__name__}: no trackable segment in 'waypoints'")
         self.host.get_logger().info(
             f"{type(self).__name__}: {len(self._laws)} segment(s), "
             f"({x:.1f}, {y:.1f}, {self._z_start:.1f}) -> "
             f"({self._laws[-1].x2:.1f}, {self._laws[-1].y2:.1f}, "
             f"{self._laws[-1].z2:.1f}) NED, "
-            f"{sum(l.length_h for l in self._laws):.1f} m horizontal")
+            f"{sum(l.length_h for l in self._laws):.1f} m horizontal"
+        )
 
     def _on_navigation(self, msg: Odometry) -> None:
         x, y = _ned_xy(msg.pose.pose)
@@ -286,18 +295,26 @@ class _PolylineGuidanceTaskBase(_GuidanceTaskBase):
         if self._idx == len(self._laws) - 1 and along >= law.length_h:
             self._publish(
                 use_position_hold=True,
-                target_x=law.x2, target_y=law.y2,
-                desired_heading=law.heading, desired_depth=law.z2,
-                desired_speed=0.0, cross_track_error=cross,
-                along_track_distance=cumulative, arrived=True,
+                target_x=law.x2,
+                target_y=law.y2,
+                desired_heading=law.heading,
+                desired_depth=law.z2,
+                desired_speed=0.0,
+                cross_track_error=cross,
+                along_track_distance=cumulative,
+                arrived=True,
             )
         else:
             self._publish(
                 use_position_hold=False,
-                target_x=0.0, target_y=0.0,
-                desired_heading=psi_sp, desired_depth=z_sp,
-                desired_speed=self._u_sp, cross_track_error=cross,
-                along_track_distance=cumulative, arrived=False,
+                target_x=0.0,
+                target_y=0.0,
+                desired_heading=psi_sp,
+                desired_depth=z_sp,
+                desired_speed=self._u_sp,
+                cross_track_error=cross,
+                along_track_distance=cumulative,
+                arrived=False,
             )
 
 

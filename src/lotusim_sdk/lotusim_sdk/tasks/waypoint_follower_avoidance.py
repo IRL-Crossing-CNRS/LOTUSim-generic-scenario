@@ -94,14 +94,17 @@ class WaypointFollowerAvoidanceTask(WaypointFollowerTask):
                 f"(range {self._sonar_range_m:.0f} m) - engaging avoidance"
             )
         else:
-            self.host.get_logger().info(
-                f"{self.host.agent_name}: clear, resuming direct course"
-            )
+            self.host.get_logger().info(f"{self.host.agent_name}: clear, resuming direct course")
         self._in_contact = in_contact
 
     def _effective_goal_vector(
-        self, x: float, y: float, goal_x: float, goal_y: float,
-        dx_true: float, dy_true: float,
+        self,
+        x: float,
+        y: float,
+        goal_x: float,
+        goal_y: float,
+        dx_true: float,
+        dy_true: float,
     ) -> tuple:
         obstacle = self._nearest_obstacle(x, y)
         if obstacle is None:

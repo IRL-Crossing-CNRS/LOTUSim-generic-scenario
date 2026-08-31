@@ -42,17 +42,17 @@ def _ensure_detection_module_loading(logger=None) -> None:
             from lotusim_sdk.tasks.fault_inspection_assets import (
                 yolo_server_corrosion_crack as _loaded,
             )
+
             _det = _loaded
         except Exception as e:  # noqa: BLE001 - surface any load failure, keep serving
             if logger is not None:
-                logger.error(
-                    f"FaultInspectionTask: failed to load detection module: {e}"
-                )
+                logger.error(f"FaultInspectionTask: failed to load detection module: {e}")
         finally:
             with _det_load_lock:
                 _det_loading = False
 
     threading.Thread(target=_load, name="yolo-model-load", daemon=True).start()
+
 
 # run_agent uses MultiThreadedExecutor, so multiple agents' _image_callbacks can
 # fire concurrently.  YOLO inference is not thread-safe — serialize with this lock.
@@ -77,8 +77,8 @@ _IMAGE_QOS = QoSProfile(
 # display thread, which owns every window and pumps waitKey for the whole process
 # (also handles N agents → N windows correctly, one GUI thread for all of them).
 _display_lock = threading.Lock()
-_display_frames: dict = {}      # window title -> latest annotated BGR frame
-_display_closing: set = set()   # window titles pending destruction
+_display_frames: dict = {}  # window title -> latest annotated BGR frame
+_display_closing: set = set()  # window titles pending destruction
 _display_started = False
 
 
@@ -108,9 +108,7 @@ def _ensure_display_thread() -> None:
         if _display_started:
             return
         _display_started = True
-    threading.Thread(
-        target=_display_loop, name="fault-inspection-display", daemon=True
-    ).start()
+    threading.Thread(target=_display_loop, name="fault-inspection-display", daemon=True).start()
 
 
 def _show_frame(title: str, frame) -> None:
@@ -201,9 +199,7 @@ class FaultInspectionTask(TaskAgent):
             self._window_title = f"{agent} - Corrosion + Crack Detection"
             _ensure_display_thread()
 
-        self.host.get_logger().info(
-            f"FaultInspectionTask: listening on /{world}/{agent}/inspection/image"
-        )
+        self.host.get_logger().info(f"FaultInspectionTask: listening on /{world}/{agent}/inspection/image")
 
     def update(self) -> Status:
         return Status.RUNNING
@@ -258,14 +254,19 @@ class FaultInspectionTask(TaskAgent):
                     conf = float(box.conf[0])
                     cls_id = int(box.cls[0])
                     label = _det.yolo_model.names[cls_id]
-                    detections.append({
-                        "label": label,
-                        "confidence": round(conf, 3),
-                        "x": int(x1), "y": int(y1),
-                        "w": int(x2 - x1), "h": int(y2 - y1),
-                        "cx": int((x1 + x2) / 2), "cy": int((y1 + y2) / 2),
-                        "source": "yolo",
-                    })
+                    detections.append(
+                        {
+                            "label": label,
+                            "confidence": round(conf, 3),
+                            "x": int(x1),
+                            "y": int(y1),
+                            "w": int(x2 - x1),
+                            "h": int(y2 - y1),
+                            "cx": int((x1 + x2) / 2),
+                            "cy": int((y1 + y2) / 2),
+                            "source": "yolo",
+                        }
+                    )
 
         self.host.get_logger().debug(
             f"FaultInspectionTask: {len(detections)} detection(s): "

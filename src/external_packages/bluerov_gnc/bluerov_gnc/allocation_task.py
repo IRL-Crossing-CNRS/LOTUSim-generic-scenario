@@ -46,15 +46,13 @@ class BlueRovAllocationTask(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
+        self._pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         # The plugin seeds the command map either from the SDF <thrusters> tag
         # or from <initial_commands>; this package's agent declares
         # THRUSTERS = [], so publish a zero command right away to guarantee
         # the very first xdyn step has all six keys.
         self._publish({i: 0.0 for i in PROPS})
-        self._sub = self.host.create_subscription(
-            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10)
+        self._sub = self.host.create_subscription(WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10)
 
     def on_exit(self, status) -> None:
         if self._sub is not None:
@@ -67,15 +65,14 @@ class BlueRovAllocationTask(TaskAgent):
 
     def _on_control(self, msg: WrenchStamped) -> None:
         thrusts = self._alloc.to_commands(
-            msg.wrench.force.x, msg.wrench.force.y,
-            msg.wrench.force.z, msg.wrench.torque.z)
+            msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.z
+        )
         self._publish(thrusts)
 
     def _publish(self, thrusts) -> None:
         cmd = VesselCmd()
         cmd.vessel_name = self.host.agent_name
-        cmd.cmd_string = json.dumps(
-            {f"{BODY}_prop_{i}(T)": float(thrusts[i]) for i in PROPS})
+        cmd.cmd_string = json.dumps({f"{BODY}_prop_{i}(T)": float(thrusts[i]) for i in PROPS})
         array = VesselCmdArray()
         array.cmds = [cmd]
         self._pub.publish(array)

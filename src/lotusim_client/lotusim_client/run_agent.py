@@ -43,7 +43,6 @@ from rclpy.executors import MultiThreadedExecutor
 
 from lotusim_sdk.agents.entity import send_batch_mas_cmd
 
-
 # ---------------------------------------------------------------------------
 # Geo -> ENU projection
 #
@@ -67,6 +66,7 @@ def _latlon_to_enu_xy(lat: float, lon: float, lat0: float, lon0: float):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_json_file(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
@@ -79,6 +79,7 @@ def _find_agent_class(class_name: str):
     """Discover an agent class from installed packages via the 'lotusim.agents' entry_point group."""
     try:
         from importlib.metadata import entry_points
+
         eps = entry_points(group="lotusim.agents")
         for ep in eps:
             try:
@@ -123,13 +124,10 @@ def _resolve_pose(agent_info: dict, origin, agent_index: int = 0):
     if "lat" in agent_info:
         if origin is not None:
             lat0, lon0 = origin
-            x, y = _latlon_to_enu_xy(
-                float(agent_info["lat"]), float(agent_info["lon"]), lat0, lon0
-            )
+            x, y = _latlon_to_enu_xy(float(agent_info["lat"]), float(agent_info["lon"]), lat0, lon0)
             return [x, y, 0.0, 0.0, 0.0, 0.0]
         print(
-            'WARNING: no world origin provided (--origin or "origin" in config); '
-            "spawning via GeoPoint.",
+            'WARNING: no world origin provided (--origin or "origin" in config); ' "spawning via GeoPoint.",
             file=sys.stderr,
         )
         return [float(agent_info["lat"]), float(agent_info["lon"]), 0.0]
@@ -141,23 +139,25 @@ def _resolve_pose(agent_info: dict, origin, agent_index: int = 0):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run a LOTUSim agent locally — spawns in Gazebo via ROS 2 network."
-    )
+    parser = argparse.ArgumentParser(description="Run a LOTUSim agent locally — spawns in Gazebo via ROS 2 network.")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--config", help="Path to agent JSON config file")
     group.add_argument("--json", dest="json_str", help="Inline JSON agent config")
     parser.add_argument(
-        "--world", required=True,
-        help="Simulation world name, e.g. 'energy' (must match the running scenario)"
+        "--world", required=True, help="Simulation world name, e.g. 'energy' (must match the running scenario)"
     )
     parser.add_argument(
-        "--origin", nargs=2, type=float, metavar=("LAT", "LON"), default=None,
+        "--origin",
+        nargs=2,
+        type=float,
+        metavar=("LAT", "LON"),
+        default=None,
         help="World geographic origin (latitude longitude) used to convert a "
-             "lat/lon spawn into an ENU pose. Read it from "
-             "the world file's <spherical_coordinates> block. Overrides an 'origin' "
-             "key in the config. Without it, the agent spawns via GeoPoint.",
+        "lat/lon spawn into an ENU pose. Read it from "
+        "the world file's <spherical_coordinates> block. Overrides an 'origin' "
+        "key in the config. Without it, the agent spawns via GeoPoint.",
     )
     args = parser.parse_args()
 
@@ -351,7 +351,9 @@ def main():
                 if goal_handle.accepted:
                     print(f"[ACCEPTED] The simulation host ACCEPTED the spawn request for {requested}.")
                 else:
-                    print(f"[REJECTED] The simulation host REJECTED the spawn request for {requested}!", file=sys.stderr)
+                    print(
+                        f"[REJECTED] The simulation host REJECTED the spawn request for {requested}!", file=sys.stderr
+                    )
 
             future.add_done_callback(goal_response_callback)
             pending_agents.append((agent, requested))
@@ -360,9 +362,7 @@ def main():
             # or rejected goal cannot stall the loop.
             accept_deadline = time.time() + 5.0
             while time.time() < accept_deadline:
-                if getattr(agent, "_spawn_goal_accepted", True) or getattr(
-                    agent, "_spawn_confirmed", True
-                ):
+                if getattr(agent, "_spawn_goal_accepted", True) or getattr(agent, "_spawn_confirmed", True):
                     break
                 executor.spin_once(timeout_sec=0.05)
 
@@ -462,6 +462,7 @@ def main():
         except Exception:
             pass
         print("Done.")
+
 
 if __name__ == "__main__":
     main()

@@ -17,8 +17,6 @@ setup(
     description="Example LOTUSim remote agent",
     license="EPL-2.0",
     entry_points={
-        "lotusim.agents": [
-            "MyBluerov = example_agent.my_agent:MyBluerov"
-        ],
+        "lotusim.agents": ["MyBluerov = example_agent.my_agent:MyBluerov"],
     },
 )

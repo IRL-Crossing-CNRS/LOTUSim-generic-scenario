@@ -67,11 +67,9 @@ class KinematicAllocationTask(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
+        self._pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         self._publish(0.0, 0.0, 0.0)
-        self._sub = self.host.create_subscription(
-            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10)
+        self._sub = self.host.create_subscription(WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10)
 
     def on_exit(self, status) -> None:
         if self._sub is not None:

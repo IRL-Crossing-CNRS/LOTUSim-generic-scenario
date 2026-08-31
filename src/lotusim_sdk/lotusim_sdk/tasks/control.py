@@ -25,9 +25,15 @@ from lotusim_msgs.msg import GuidanceSetpoint
 
 from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
-from lotusim_sdk.control import (DepthHoldPID, HeadingHoldPID, PositionHoldPID,
-                                  SurgeSpeedPID, build_feedforward,
-                                  enu_quat_to_ned_euler, enu_to_ned_position)
+from lotusim_sdk.control import (
+    DepthHoldPID,
+    HeadingHoldPID,
+    PositionHoldPID,
+    SurgeSpeedPID,
+    build_feedforward,
+    enu_quat_to_ned_euler,
+    enu_to_ned_position,
+)
 
 
 class ControlTask(TaskAgent):
@@ -74,22 +80,25 @@ class ControlTask(TaskAgent):
         self._dt = 1.0 / self._rate
 
         self._depth = DepthHoldPID(
-            0.0, kp=float(p.get("kp_z", -120.0)), ki=float(p.get("ki_z", -10.0)),
-            kd=float(p.get("kd_z", -60.0)))
+            0.0, kp=float(p.get("kp_z", -120.0)), ki=float(p.get("ki_z", -10.0)), kd=float(p.get("kd_z", -60.0))
+        )
         self._head = HeadingHoldPID(
-            0.0, kp=float(p.get("kp_psi", 4.0)), ki=float(p.get("ki_psi", 0.1)),
-            kd=float(p.get("kd_psi", 2.0)))
+            0.0, kp=float(p.get("kp_psi", 4.0)), ki=float(p.get("ki_psi", 0.1)), kd=float(p.get("kd_psi", 2.0))
+        )
         self._pos = PositionHoldPID(
-            0.0, 0.0, kp=float(p.get("kp_xy", 60.0)), ki=float(p.get("ki_xy", 4.0)),
-            kd=float(p.get("kd_xy", 40.0)))
+            0.0, 0.0, kp=float(p.get("kp_xy", 60.0)), ki=float(p.get("ki_xy", 4.0)), kd=float(p.get("kd_xy", 40.0))
+        )
         self._speed = SurgeSpeedPID(
-            0.0, kp=float(p.get("kp_u", 120.0)), ki=float(p.get("ki_u", 20.0)),
-            kd=float(p.get("kd_u", 0.0)))
+            0.0, kp=float(p.get("kp_u", 120.0)), ki=float(p.get("ki_u", 20.0)), kd=float(p.get("kd_u", 0.0))
+        )
         self._ff = build_feedforward(
             p.get("feedforward"),
-            xu=float(p.get("xu", self.DEFAULT_XU)), xuu=float(p.get("xuu", self.DEFAULT_XUU)),
-            yv=float(p.get("yv", self.DEFAULT_YV)), yvv=float(p.get("yvv", self.DEFAULT_YVV)),
-            gain=float(p.get("ff_gain", 1.0)))
+            xu=float(p.get("xu", self.DEFAULT_XU)),
+            xuu=float(p.get("xuu", self.DEFAULT_XUU)),
+            yv=float(p.get("yv", self.DEFAULT_YV)),
+            yvv=float(p.get("yvv", self.DEFAULT_YVV)),
+            gain=float(p.get("ff_gain", 1.0)),
+        )
 
         self._nav_sub = None
         self._guidance_sub = None
@@ -101,12 +110,11 @@ class ControlTask(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            WrenchStamped, f"/{world}/{agent}/control", 10)
-        self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+        self._pub = self.host.create_publisher(WrenchStamped, f"/{world}/{agent}/control", 10)
+        self._nav_sub = self.host.create_subscription(Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
         self._guidance_sub = self.host.create_subscription(
-            GuidanceSetpoint, f"/{world}/{agent}/guidance", self._on_guidance, 10)
+            GuidanceSetpoint, f"/{world}/{agent}/guidance", self._on_guidance, 10
+        )
         self._timer = self.host.create_timer(self._dt, self._control_step)
 
     def on_exit(self, status) -> None:
@@ -125,18 +133,15 @@ class ControlTask(TaskAgent):
 
     def _control_step(self) -> None:
         if self._latest_nav is None or self._latest_guidance is None:
-            return                          # waiting for both inputs
+            return  # waiting for both inputs
         nav, g = self._latest_nav, self._latest_guidance
 
         pose = nav.pose.pose
-        x, y, z = enu_to_ned_position(
-            pose.position.x, pose.position.y, pose.position.z)
+        x, y, z = enu_to_ned_position(pose.position.x, pose.position.y, pose.position.z)
         _, _, psi = enu_quat_to_ned_euler(
-            pose.orientation.x, pose.orientation.y,
-            pose.orientation.z, pose.orientation.w)
-        vx, vy, _ = enu_to_ned_position(
-            nav.twist.twist.linear.x, nav.twist.twist.linear.y,
-            nav.twist.twist.linear.z)
+            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
+        )
+        vx, vy, _ = enu_to_ned_position(nav.twist.twist.linear.x, nav.twist.twist.linear.y, nav.twist.twist.linear.z)
         u = vx * math.cos(psi) + vy * math.sin(psi)
         v = -vx * math.sin(psi) + vy * math.cos(psi)
 

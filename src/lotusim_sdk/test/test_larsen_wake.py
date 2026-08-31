@@ -11,8 +11,7 @@ import pytest
 from lotusim_sdk.agents.environment.wake.larsen import LarsenWakeModel
 
 # NREL 5MW reference turbine, the machine every upstream protocol was run on.
-NREL_5MW = dict(diameter=126.0, ct=0.75, cp=0.498, air_density=1.225,
-                ambient_ti=0.08, cut_in=3.0, cut_out=25.0)
+NREL_5MW = dict(diameter=126.0, ct=0.75, cp=0.498, air_density=1.225, ambient_ti=0.08, cut_in=3.0, cut_out=25.0)
 HUB = 90.0
 
 # Validation layout A: 3 turbines in line, 7D spacing, wind straight down the
@@ -98,7 +97,7 @@ def test_hub_height_shifts_power_through_shear(model):
     assert low < high
     # Both stay within a few percent of the unsheared cubic — shear corrects
     # the answer, it does not dominate it.
-    unsheared = 0.5 * 1.225 * np.pi * 63.0 ** 2 * 0.498 * 10.0 ** 3
+    unsheared = 0.5 * 1.225 * np.pi * 63.0**2 * 0.498 * 10.0**3
     assert 0.9 < low / unsheared < 1.0
 
 

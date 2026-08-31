@@ -29,12 +29,10 @@ from lotusim_sdk.agents.physical_entity import PhysicalEntity
 class Bluerov2HeavyCurrent(PhysicalEntity):
     MODEL_NAME = "bluerov2_heavy"
     XDYN_PORT = 12347
-    THRUSTERS = []                       # see the docstring
+    THRUSTERS = []  # see the docstring
     DOMAINS = ["Surface", "Underwater"]  # see the docstring
     # The six `maneuvering` force models of BlueROV2_current_*.yml, each
     # declaring a single command `T` in newtons. Seeded at zero so the very
     # first Gazebo step already carries every key xdyn expects, before the
     # Control task has published anything (props 6 and 7 are not in the model).
-    INITIAL_COMMANDS = {
-        f"bluerov2_heavy_prop_{i}(T)": 0.0 for i in (1, 2, 3, 4, 5, 8)
-    }
+    INITIAL_COMMANDS = {f"bluerov2_heavy_prop_{i}(T)": 0.0 for i in (1, 2, 3, 4, 5, 8)}

@@ -40,9 +40,17 @@ from .power import total_power
 #: Time-series columns, in order.
 COLUMNS = (
     ["t", "x", "y", "z", "phi", "theta", "psi", "u", "v", "w"]
-    + ["target_x", "target_y", "desired_depth", "desired_heading",
-       "desired_speed", "cross_track_error", "along_track_distance",
-       "use_position_hold", "arrived"]
+    + [
+        "target_x",
+        "target_y",
+        "desired_depth",
+        "desired_heading",
+        "desired_speed",
+        "cross_track_error",
+        "along_track_distance",
+        "use_position_hold",
+        "arrived",
+    ]
     + ["pos_error", "depth_error", "heading_error"]
     + ["surge_N", "sway_N", "heave_N", "yaw_Nm"]
     + [f"T{i}" for i in PROPS]
@@ -120,20 +128,17 @@ class BlueRovMetricsRecorderTask(TaskAgent):
         self._csv.writerow(COLUMNS)
 
         self._guidance_sub = self.host.create_subscription(
-            GuidanceSetpoint, f"/{world}/{agent}/guidance",
-            lambda m: setattr(self, "_guidance", m), 10)
+            GuidanceSetpoint, f"/{world}/{agent}/guidance", lambda m: setattr(self, "_guidance", m), 10
+        )
         self._control_sub = self.host.create_subscription(
-            WrenchStamped, f"/{world}/{agent}/control",
-            lambda m: setattr(self, "_wrench", m), 10)
-        self._cmd_sub = self.host.create_subscription(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", self._on_cmd, 10)
+            WrenchStamped, f"/{world}/{agent}/control", lambda m: setattr(self, "_wrench", m), 10
+        )
+        self._cmd_sub = self.host.create_subscription(VesselCmdArray, f"/{world}/vessel_cmd_array", self._on_cmd, 10)
         # Subscribed last: every sample is written from a navigation message,
         # so the others are in place before the first one can arrive.
-        self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+        self._nav_sub = self.host.create_subscription(Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
 
-        self.host.get_logger().info(
-            f"{type(self).__name__}: recording to {os.path.abspath(path)}")
+        self.host.get_logger().info(f"{type(self).__name__}: recording to {os.path.abspath(path)}")
 
     def on_exit(self, status) -> None:
         self._finalize()
@@ -171,14 +176,11 @@ class BlueRovMetricsRecorderTask(TaskAgent):
             return
 
         pose = msg.pose.pose
-        x, y, z = enu_to_ned_position(
-            pose.position.x, pose.position.y, pose.position.z)
+        x, y, z = enu_to_ned_position(pose.position.x, pose.position.y, pose.position.z)
         phi, theta, psi = enu_quat_to_ned_euler(
-            pose.orientation.x, pose.orientation.y,
-            pose.orientation.z, pose.orientation.w)
-        vx, vy, vz = enu_to_ned_position(
-            msg.twist.twist.linear.x, msg.twist.twist.linear.y,
-            msg.twist.twist.linear.z)
+            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
+        )
+        vx, vy, vz = enu_to_ned_position(msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z)
         c, s = math.cos(psi), math.sin(psi)
         u = vx * c + vy * s
         v = -vx * s + vy * c
@@ -186,7 +188,7 @@ class BlueRovMetricsRecorderTask(TaskAgent):
 
         g = self._guidance
         if g is None:
-            return                      # nothing to measure the error against
+            return  # nothing to measure the error against
 
         # Position error: distance to the held point when Guidance is holding
         # one, cross-track error otherwise -- in both cases "how far from
@@ -218,20 +220,40 @@ class BlueRovMetricsRecorderTask(TaskAgent):
         if self._t0 is None:
             self._t0 = t
 
-        self._csv.writerow([
-            f"{t:.3f}", f"{x:.4f}", f"{y:.4f}", f"{z:.4f}",
-            f"{phi:.6f}", f"{theta:.6f}", f"{psi:.6f}",
-            f"{u:.4f}", f"{v:.4f}", f"{w:.4f}",
-            f"{g.target_x:.4f}", f"{g.target_y:.4f}",
-            f"{g.desired_depth:.4f}", f"{g.desired_heading:.6f}",
-            f"{g.desired_speed:.4f}", f"{cross:.4f}",
-            f"{g.along_track_distance:.4f}",
-            int(bool(g.use_position_hold)), int(bool(g.arrived)),
-            f"{pos_err:.4f}", f"{depth_err:.4f}", f"{heading_err:.6f}",
-            f"{surge:.3f}", f"{sway:.3f}", f"{heave:.3f}", f"{yaw:.3f}",
-            *[f"{tt:.3f}" for tt in thrusts],
-            f"{thrust_norm:.3f}", f"{power:.2f}", f"{self._energy_j / 3600.0:.5f}",
-        ])
+        self._csv.writerow(
+            [
+                f"{t:.3f}",
+                f"{x:.4f}",
+                f"{y:.4f}",
+                f"{z:.4f}",
+                f"{phi:.6f}",
+                f"{theta:.6f}",
+                f"{psi:.6f}",
+                f"{u:.4f}",
+                f"{v:.4f}",
+                f"{w:.4f}",
+                f"{g.target_x:.4f}",
+                f"{g.target_y:.4f}",
+                f"{g.desired_depth:.4f}",
+                f"{g.desired_heading:.6f}",
+                f"{g.desired_speed:.4f}",
+                f"{cross:.4f}",
+                f"{g.along_track_distance:.4f}",
+                int(bool(g.use_position_hold)),
+                int(bool(g.arrived)),
+                f"{pos_err:.4f}",
+                f"{depth_err:.4f}",
+                f"{heading_err:.6f}",
+                f"{surge:.3f}",
+                f"{sway:.3f}",
+                f"{heave:.3f}",
+                f"{yaw:.3f}",
+                *[f"{tt:.3f}" for tt in thrusts],
+                f"{thrust_norm:.3f}",
+                f"{power:.2f}",
+                f"{self._energy_j / 3600.0:.5f}",
+            ]
+        )
         self._rows += 1
 
         if t - self._t0 < self._settle_s:
@@ -258,8 +280,9 @@ class BlueRovMetricsRecorderTask(TaskAgent):
             "samples_total": self._rows,
             "samples_after_settle": n,
             "settle_s": self._settle_s,
-            "duration_s": round((self._t_prev - self._t0), 3)
-            if self._t0 is not None and self._t_prev is not None else 0.0,
+            "duration_s": (
+                round((self._t_prev - self._t0), 3) if self._t0 is not None and self._t_prev is not None else 0.0
+            ),
             "rms_pos_error_m": round(math.sqrt(self._sum_sq_pos / n), 4) if n else None,
             "max_pos_error_m": round(self._max_pos, 4) if n else None,
             "rms_cross_track_m": round(math.sqrt(self._sum_sq_cross / n), 4) if n else None,
@@ -268,8 +291,7 @@ class BlueRovMetricsRecorderTask(TaskAgent):
             "mean_speed_ms": round(self._sum_speed / n, 4) if n else None,
             # Control effort: RMS of the per-thruster commands, i.e. over all
             # samples AND all six thrusters.
-            "rms_control_effort_N": round(
-                math.sqrt(self._sum_sq_thrust / (n * len(PROPS))), 4) if n else None,
+            "rms_control_effort_N": round(math.sqrt(self._sum_sq_thrust / (n * len(PROPS))), 4) if n else None,
             "saturated_fraction": round(self._saturated / n, 4) if n else None,
             "energy_wh": round(self._energy_j / 3600.0, 5),
         }
@@ -283,4 +305,5 @@ class BlueRovMetricsRecorderTask(TaskAgent):
         self._csv = None
         self.host.get_logger().info(
             f"{type(self).__name__}: {self._rows} samples, "
-            f"energy {summary['energy_wh']} Wh, summary -> {os.path.abspath(path)}")
+            f"energy {summary['energy_wh']} Wh, summary -> {os.path.abspath(path)}"
+        )

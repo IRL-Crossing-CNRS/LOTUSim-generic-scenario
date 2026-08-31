@@ -32,7 +32,6 @@ SPDX-License-Identifier: EPL-2.0
 Copyright (c) 2025 Naval Group
 """
 
-
 import logging
 import os
 import signal
@@ -109,8 +108,10 @@ def main():
 
     # Run simulation
     simulation_runner.run_simulation(
-        world_file, agents,
-        debug_mode=args.debug, gui=args.gui,
+        world_file,
+        agents,
+        debug_mode=args.debug,
+        gui=args.gui,
         config_dir=os.path.dirname(config_path),
         record_csv=config.get("record_csv", False),
         scenario=config,

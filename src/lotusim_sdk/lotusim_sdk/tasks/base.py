@@ -37,9 +37,9 @@ class TaskAgent(BehaviorNode, ABC):
         id: str = "",
     ) -> None:
         super().__init__(id)
-        self.host = host                 # the rclpy.Node — ROS / clock / logging
-        self.params = params or {}       # the "params" block from JSON
-        self.blackboard = blackboard     # shared store (unused by the demo tasks)
+        self.host = host  # the rclpy.Node — ROS / clock / logging
+        self.params = params or {}  # the "params" block from JSON
+        self.blackboard = blackboard  # shared store (unused by the demo tasks)
         self._running = False
 
     @abstractmethod

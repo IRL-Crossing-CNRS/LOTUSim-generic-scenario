@@ -171,7 +171,7 @@ class Px4OffboardPatrolTask(TaskAgent):
         if instance is None:
             logger.error(
                 f"[{self.host.agent_name}] px4_offboard_patrol: host has no "
-                "px4_instance — is this an X500 agent with \"px4\": true, and "
+                'px4_instance — is this an X500 agent with "px4": true, and '
                 "has PX4 SITL finished starting (confirm_spawn already fired)?"
             )
             self._failed = True
@@ -296,7 +296,11 @@ class Px4OffboardPatrolTask(TaskAgent):
         # heartbeat rate; sent on every setpoint tick rather than a second
         # timer, which exceeds that minimum.
         self._master.mav.heartbeat_send(
-            mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0,
+            mavutil.mavlink.MAV_TYPE_GCS,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            0,
         )
 
         # Drain any pending telemetry (non-blocking): a position fix to judge
@@ -338,10 +342,17 @@ class Px4OffboardPatrolTask(TaskAgent):
             self._master.target_component,
             mavutil.mavlink.MAV_FRAME_LOCAL_NED,
             _POSITION_ONLY_TYPE_MASK,
-            north, east, down,
-            0, 0, 0,  # vx, vy, vz — ignored (type_mask)
-            0, 0, 0,  # afx, afy, afz — ignored (type_mask)
-            0, 0,  # yaw, yaw_rate — ignored (type_mask)
+            north,
+            east,
+            down,
+            0,
+            0,
+            0,  # vx, vy, vz — ignored (type_mask)
+            0,
+            0,
+            0,  # afx, afy, afz — ignored (type_mask)
+            0,
+            0,  # yaw, yaw_rate — ignored (type_mask)
         )
         self._setpoints_sent += 1
 
@@ -399,8 +410,11 @@ class Px4OffboardPatrolTask(TaskAgent):
             return
         for name, (value, mav_type) in self._pending_params.items():
             self._master.mav.param_set_send(
-                self._master.target_system, self._master.target_component,
-                name, value, mav_type,
+                self._master.target_system,
+                self._master.target_component,
+                name,
+                value,
+                mav_type,
             )
 
     def _handle_param_value(self, msg) -> None:
@@ -423,10 +437,7 @@ class Px4OffboardPatrolTask(TaskAgent):
             return
         del self._pending_params[name]
         logger = self.host.get_logger()
-        logger.info(
-            f"[{self.host.agent_name}] px4_offboard_patrol: {name.decode()} "
-            f"confirmed = {msg.param_value}"
-        )
+        logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: {name.decode()} " f"confirmed = {msg.param_value}")
         if not self._pending_params:
             self._params_confirmed = True
             logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: all params confirmed.")
@@ -450,10 +461,17 @@ class Px4OffboardPatrolTask(TaskAgent):
                 from pymavlink import mavutil
 
                 self._master.mav.command_long_send(
-                    self._master.target_system, self._master.target_component,
-                    mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+                    self._master.target_system,
+                    self._master.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                    0,
                     mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                    _PX4_CUSTOM_MAIN_MODE_OFFBOARD, 0, 0, 0, 0, 0,
+                    _PX4_CUSTOM_MAIN_MODE_OFFBOARD,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
                 )
                 logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: airborne — requesting OFFBOARD...")
             return
@@ -468,9 +486,17 @@ class Px4OffboardPatrolTask(TaskAgent):
 
         if not self._arm_acked:
             self._master.mav.command_long_send(
-                self._master.target_system, self._master.target_component,
-                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
-                1, 0, 0, 0, 0, 0, 0,
+                self._master.target_system,
+                self._master.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
             )
             logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: requesting ARM...")
         else:
@@ -478,9 +504,17 @@ class Px4OffboardPatrolTask(TaskAgent):
             # on_enter rather than dealing with MAV_CMD_NAV_TAKEOFF's own
             # AMSL-referenced altitude field.
             self._master.mav.command_long_send(
-                self._master.target_system, self._master.target_component,
-                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,
-                0, 0, 0, 0, 0, 0, float("nan"),
+                self._master.target_system,
+                self._master.target_component,
+                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                float("nan"),
             )
             logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: armed — requesting TAKEOFF...")
 

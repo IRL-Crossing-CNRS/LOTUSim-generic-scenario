@@ -71,9 +71,7 @@ class DynamicSpawnService(Node):
         agent_type = next(iter(data))
         agent_info = data[agent_type] if isinstance(data[agent_type], dict) else {}
 
-        agent_name = self._manager.spawn_one_agent(
-            agent_type, agent_info, self._world_name, self._executor
-        )
+        agent_name = self._manager.spawn_one_agent(agent_type, agent_info, self._world_name, self._executor)
 
         if agent_name:
             self._publish_status({"success": True, "agent_name": agent_name})

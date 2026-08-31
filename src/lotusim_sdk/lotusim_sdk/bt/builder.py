@@ -35,10 +35,7 @@ def build_tree(spec: dict, host, blackboard, registry: Dict[str, Type]) -> Behav
     node_type = spec.get("type")
 
     if node_type in _COMPOSITES:
-        children = [
-            build_tree(child, host, blackboard, registry)
-            for child in spec.get("children", [])
-        ]
+        children = [build_tree(child, host, blackboard, registry) for child in spec.get("children", [])]
         kwargs = {}
         if node_type == "parallel":
             kwargs["success_policy"] = spec.get("success_policy", "all")

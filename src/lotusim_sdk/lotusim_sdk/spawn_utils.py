@@ -34,6 +34,7 @@ def extract_spawn_from_missions(agent_info: dict, config_dir: str = None) -> Non
     if not waypoints_file:
         return
     from lotusim_sdk.trajectory_providers import PatrolFileProvider
+
     try:
         waypoints = PatrolFileProvider(waypoints_file, base_dir=config_dir).load()
     except Exception as e:

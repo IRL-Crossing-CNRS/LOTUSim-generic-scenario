@@ -22,26 +22,18 @@ from simulation_run.csv_recorder import CsvRecorder
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Record agent poses (+battery) of a LOTUSim world, one CSV per agent."
-    )
+    parser = argparse.ArgumentParser(description="Record agent poses (+battery) of a LOTUSim world, one CSV per agent.")
     parser.add_argument("--world", required=True, help="World name, e.g. 'energy'")
     parser.add_argument(
         "--outdir",
         default=None,
         help="Output directory (default: csv_logs_<world>_<timestamp> in the current dir)",
     )
-    parser.add_argument(
-        "--prefix", default="", help="Filename prefix for the per-agent CSVs"
-    )
-    parser.add_argument(
-        "--rate", type=float, default=2.0, help="Sampling rate in Hz (default 2.0)"
-    )
+    parser.add_argument("--prefix", default="", help="Filename prefix for the per-agent CSVs")
+    parser.add_argument("--rate", type=float, default=2.0, help="Sampling rate in Hz (default 2.0)")
     args = parser.parse_args()
 
-    outdir = args.outdir or os.path.join(
-        os.getcwd(), f"csv_logs_{args.world}_{time.strftime('%Y-%m-%d_%H-%M-%S')}"
-    )
+    outdir = args.outdir or os.path.join(os.getcwd(), f"csv_logs_{args.world}_{time.strftime('%Y-%m-%d_%H-%M-%S')}")
 
     rclpy.init()
     node = CsvRecorder(args.world, outdir, args.prefix, args.rate)

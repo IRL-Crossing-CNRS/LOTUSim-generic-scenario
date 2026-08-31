@@ -111,9 +111,7 @@ class X500(PhysicalEntity):
         """
         pattern = f"^{re.escape(px4_binary)} -i {instance} -d$"
         try:
-            found = subprocess.run(
-                ["pgrep", "-f", pattern], capture_output=True, text=True, check=False
-            ).stdout.split()
+            found = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, check=False).stdout.split()
         except FileNotFoundError:
             return  # pgrep unavailable; nothing more we can do here
 

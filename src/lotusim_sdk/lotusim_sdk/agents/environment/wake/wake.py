@@ -96,16 +96,19 @@ class Wake(Environment):
             raise ValueError(f"Unknown wake model '{wake_model}'. Choose from: {list(_WAKE_MODELS)}")
 
         base_params = dict(
-            diameter=diameter, ct=ct, air_density=air_density,
-            cp=cp, cut_in=cut_in, cut_out=cut_out,
-            ambient_ti=ambient_ti, shear_exponent=shear_exponent,
+            diameter=diameter,
+            ct=ct,
+            air_density=air_density,
+            cp=cp,
+            cut_in=cut_in,
+            cut_out=cut_out,
+            ambient_ti=ambient_ti,
+            shear_exponent=shear_exponent,
         )
         self._model = model_cls(**base_params, **(model_params or {}))
 
         latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        self._pub = self.create_publisher(
-            WindTurbineArray, f"/{world_name}/wind/turbines", latched_qos
-        )
+        self._pub = self.create_publisher(WindTurbineArray, f"/{world_name}/wind/turbines", latched_qos)
         self._sub = self.create_subscription(WindMsg, WIND_TOPIC, self._on_wind, 10)
 
         self._lcoe_enabled = bool(lcoe)
@@ -143,15 +146,12 @@ class Wake(Environment):
 
         # RPMs come back from the model but go nowhere: WindTurbineState has no
         # field for them, and that message lives in the core repo.
-        turbines_sorted, velocities, _rpms = self._model.wind_speeds_full(
-            self._turbine_positions, [vx, vy]
-        )
+        turbines_sorted, velocities, _rpms = self._model.wind_speeds_full(self._turbine_positions, [vx, vy])
         # Power is averaged over the rotor disk through the shear profile, so
         # each turbine is evaluated at its own hub height rather than at one
         # farm-wide value.
         powers = [
-            self._model.power(velocity, hub_height=z)
-            for (_x, _y, z), velocity in zip(turbines_sorted, velocities)
+            self._model.power(velocity, hub_height=z) for (_x, _y, z), velocity in zip(turbines_sorted, velocities)
         ]
 
         array_msg = WindTurbineArray()
@@ -208,14 +208,14 @@ class Wake(Environment):
         # Same topic and QoS the `Wind` agent uses for its own (static)
         # regions — see the class docstring for why this makes the two
         # mutually exclusive within one scenario.
-        self._regions_pub = self.create_publisher(
-            WindRegionArrayMsg, WIND_REGIONS_TOPIC, latched_qos
-        )
+        self._regions_pub = self.create_publisher(WindRegionArrayMsg, WIND_REGIONS_TOPIC, latched_qos)
 
     def _maybe_publish_wind_regions(self, wind_vector):
         if not wind_changed_enough(
-            self._last_region_wind, wind_vector,
-            self._region_direction_hysteresis_deg, self._region_speed_hysteresis_mps,
+            self._last_region_wind,
+            wind_vector,
+            self._region_direction_hysteresis_deg,
+            self._region_speed_hysteresis_mps,
         ):
             return
         self._last_region_wind = tuple(wind_vector)
@@ -228,9 +228,7 @@ class Wake(Environment):
             region_msg = WindRegionMsg()
             region_msg.id = r["id"]
             region_msg.shape_type = WindRegionMsg.CONE_SEGMENT
-            region_msg.cone.origin = Point(
-                x=r["origin_x"], y=r["origin_y"], z=r["origin_z"]
-            )
+            region_msg.cone.origin = Point(x=r["origin_x"], y=r["origin_y"], z=r["origin_z"])
             region_msg.cone.axis = Vector3(x=r["axis_x"], y=r["axis_y"], z=0.0)
             region_msg.cone.length = r["length"]
             region_msg.cone.r_start = r["r_start"]
@@ -322,8 +320,7 @@ class Wake(Environment):
         with self._robot_lock:
             total_robot_time_h = sum((now - s["start"]) / 3600.0 for s in self._robot.values())
             total_robot_energy_wh = sum(
-                max(0.0, s["initial_charge_ah"] - s["charge_ah"]) * s["voltage_v"]
-                for s in self._robot.values()
+                max(0.0, s["initial_charge_ah"] - s["charge_ah"]) * s["voltage_v"] for s in self._robot.values()
             )
 
         cost_maintenance = self._maintenance_aud_per_h * sim_time_h

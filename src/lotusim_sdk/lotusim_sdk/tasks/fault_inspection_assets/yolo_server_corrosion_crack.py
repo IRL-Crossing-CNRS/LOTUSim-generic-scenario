@@ -19,9 +19,13 @@ import os
 
 # ─── PyTorch 2.6 fix ──────────────────────────────────────────────────────────
 _original_torch_load = torch.load
+
+
 def _patched_torch_load(f, *args, **kwargs):
     kwargs.setdefault("weights_only", False)
     return _original_torch_load(f, *args, **kwargs)
+
+
 torch.load = _patched_torch_load
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -36,14 +40,14 @@ COLOR_DETECTION_ENABLED = True
 
 # Tuned for dark red-brown rust on yellow wind turbine base, underwater blue tint
 # Range 1: dark red-brown (main rust color, low brightness)
-HSV_LOWER_1 = np.array([0,   100,  15])
-HSV_UPPER_1 = np.array([15,  255, 140])
+HSV_LOWER_1 = np.array([0, 100, 15])
+HSV_UPPER_1 = np.array([15, 255, 140])
 # Range 2: red wraps in HSV (165-180)
-HSV_LOWER_2 = np.array([165, 100,  15])
+HSV_LOWER_2 = np.array([165, 100, 15])
 HSV_UPPER_2 = np.array([180, 255, 140])
 # Range 3: brownish-orange darker tones
-HSV_LOWER_3 = np.array([5,   50,  15])
-HSV_UPPER_3 = np.array([25,  220, 130])
+HSV_LOWER_3 = np.array([5, 50, 15])
+HSV_UPPER_3 = np.array([25, 220, 130])
 
 # Minimum area in pixels — increase if too many false positives
 MIN_CONTOUR_AREA = 400
@@ -78,7 +82,7 @@ def detect_corrosion_by_color(pil_image):
 
     # Clean up noise with morphological operations
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)   # remove small dots
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)  # remove small dots
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill small holes
     mask = cv2.dilate(mask, kernel, iterations=1)
 
@@ -95,13 +99,19 @@ def detect_corrosion_by_color(pil_image):
         # Confidence proxy: larger area = higher "confidence"
         conf = min(1.0, area / 5000.0)
 
-        detections.append({
-            "label": "corrosion",
-            "confidence": round(conf, 3),
-            "x": x, "y": y, "w": w, "h": h,
-            "cx": x + w // 2, "cy": y + h // 2,
-            "source": "color"
-        })
+        detections.append(
+            {
+                "label": "corrosion",
+                "confidence": round(conf, 3),
+                "x": x,
+                "y": y,
+                "w": w,
+                "h": h,
+                "cx": x + w // 2,
+                "cy": y + h // 2,
+                "source": "color",
+            }
+        )
 
     return detections, mask
 
@@ -122,7 +132,7 @@ def draw_detections(img_np, detections, mask=None):
         source = det.get("source", "yolo")
 
         if source == "color":
-            color = (0, 200, 255)   # yellow-orange for corrosion
+            color = (0, 200, 255)  # yellow-orange for corrosion
         elif conf > 0.7:
             color = (0, 255, 0)
         elif conf > 0.5:
@@ -132,16 +142,22 @@ def draw_detections(img_np, detections, mask=None):
 
         cv2.rectangle(img_np, (x, y), (x + w, y + h), color, 2)
 
-        #text = f"{label} [{source}] {conf:.0%}"
-        #text = f"{label} {conf:.0%}"
+        # text = f"{label} [{source}] {conf:.0%}"
+        # text = f"{label} {conf:.0%}"
         text = f"{label}"
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         cv2.rectangle(img_np, (x, y - th - 6), (x + tw + 4, y), color, -1)
-        cv2.putText(img_np, text, (x + 2, y - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(img_np, text, (x + 2, y - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     color_count = sum(1 for d in detections if d.get("source") == "color")
-    yolo_count  = sum(1 for d in detections if d.get("source") != "color")
-    cv2.putText(img_np, f"Corrosion: {color_count} | Cracks: {yolo_count}",
-                (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 0), 2)
+    yolo_count = sum(1 for d in detections if d.get("source") != "color")
+    cv2.putText(
+        img_np,
+        f"Corrosion: {color_count} | Cracks: {yolo_count}",
+        (10, 25),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (255, 255, 0),
+        2,
+    )
     return img_np

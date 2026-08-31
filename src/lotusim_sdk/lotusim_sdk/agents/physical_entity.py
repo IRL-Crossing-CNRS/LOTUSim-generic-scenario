@@ -91,8 +91,7 @@ class PhysicalEntity(Entity):
                 """
                     elif self.thrusters:
                         thruster_xml = "".join(
-                            f"\n        <thruster{i}>{t}</thruster{i}>"
-                            for i, t in enumerate(self.thrusters, 1)
+                            f"\n        <thruster{i}>{t}</thruster{i}>" for i, t in enumerate(self.thrusters, 1)
                         )
                         block += f"""
                     <thrusters>{thruster_xml}
@@ -106,9 +105,7 @@ class PhysicalEntity(Entity):
                     # declares.
                     gm = getattr(self, "gauss_markov_current", None)
                     if gm:
-                        gm_xml = "".join(
-                            f"\n        <{k}>{v}</{k}>" for k, v in gm.items()
-                        )
+                        gm_xml = "".join(f"\n        <{k}>{v}</{k}>" for k, v in gm.items())
                         block += f"""
                     <gauss_markov_current>{gm_xml}
                     </gauss_markov_current>
@@ -121,9 +118,7 @@ class PhysicalEntity(Entity):
                     # depth-profile CSV to replay.
                     cop = getattr(self, "copernicus_current", None)
                     if cop:
-                        cop_xml = "".join(
-                            f"\n        <{k}>{v}</{k}>" for k, v in cop.items()
-                        )
+                        cop_xml = "".join(f"\n        <{k}>{v}</{k}>" for k, v in cop.items())
                         block += f"""
                     <copernicus_current>{cop_xml}
                     </copernicus_current>

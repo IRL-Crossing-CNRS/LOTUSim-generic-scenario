@@ -46,8 +46,6 @@ from lotusim_sdk import Environment
 from lotusim_sdk.agents.entity import send_batch_mas_cmd
 
 
-
-
 class AgentsManager:
     """
     Manages the lifecycle of simulation agents within a ROS 2 environment.
@@ -104,8 +102,13 @@ class AgentsManager:
         for agent_type, agent_info in self._iter_agents(agents):
             # Process each agent type individually
             self._process_single_agent_type(
-                agent_type, agent_info, world_name, executor, spawn_queue,
-                world_origin, config_dir,
+                agent_type,
+                agent_info,
+                world_name,
+                executor,
+                spawn_queue,
+                world_origin,
+                config_dir,
             )
 
         # Spawn all agents after registration
@@ -270,8 +273,7 @@ class AgentsManager:
                     copernicus = dict(copernicus)
                     profile = copernicus.get("profile")
                     if profile and not os.path.isabs(profile) and config_dir:
-                        copernicus["profile"] = os.path.normpath(
-                            os.path.join(config_dir, profile))
+                        copernicus["profile"] = os.path.normpath(os.path.join(config_dir, profile))
                     agent_node.copernicus_current = copernicus
 
                 # Behaviour-tree missions (mission system): start the tick timer.
@@ -343,7 +345,8 @@ class AgentsManager:
                 logging.warning(
                     "Agent index %d has no matching patrol file (only %d provided); "
                     "falling back to first trajectory.",
-                    agent_index, len(trajectories),
+                    agent_index,
+                    len(trajectories),
                 )
                 trajectory = trajectories[0]
                 loop = loops[0] if loops else agent_info.get("loop", True)
@@ -445,9 +448,7 @@ class AgentsManager:
             poses = agent_info.get("poses") if agent_info else None
             pose = poses[0] if poses else (agent_info.get("pose") if agent_info else None)
 
-            agent_node = self._create_agent_instance(
-                agent_class, sdf_file, world_name, xdyn_enabled, agent_info
-            )
+            agent_node = self._create_agent_instance(agent_class, sdf_file, world_name, xdyn_enabled, agent_info)
             agent_node.sdf_file = sdf_file
 
             if pose is None:

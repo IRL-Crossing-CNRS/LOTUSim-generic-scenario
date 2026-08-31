@@ -66,8 +66,7 @@ class CheckBatteryStateTask(TaskAgent):
         )
         self._last_cmd = None
         self.host.get_logger().info(
-            f"CheckBatteryStateTask: {agent} LED follows battery "
-            f"(> {self._threshold}% = ON)."
+            f"CheckBatteryStateTask: {agent} LED follows battery " f"(> {self._threshold}% = ON)."
         )
 
     def update(self) -> Status:
@@ -92,6 +91,5 @@ class CheckBatteryStateTask(TaskAgent):
         self._last_cmd = desired_on
         self._light_pub.publish(Bool(data=desired_on))
         self.host.get_logger().info(
-            f"CheckBatteryStateTask: battery {msg.percentage:.1f}% "
-            f"→ LED {'ON' if desired_on else 'OFF'}"
+            f"CheckBatteryStateTask: battery {msg.percentage:.1f}% " f"→ LED {'ON' if desired_on else 'OFF'}"
         )

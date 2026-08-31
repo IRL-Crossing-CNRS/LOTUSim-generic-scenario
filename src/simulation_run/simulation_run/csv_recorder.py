@@ -170,9 +170,15 @@ _STATUS_MAP = {
 _BASE_HEADER = [
     "agent_name",
     "sim_time_s",
-    "pos_x", "pos_y", "pos_z",
-    "lat", "lon",
-    "orient_x", "orient_y", "orient_z", "orient_w",
+    "pos_x",
+    "pos_y",
+    "pos_z",
+    "lat",
+    "lon",
+    "orient_x",
+    "orient_y",
+    "orient_z",
+    "orient_w",
 ]
 # Only for scenarios that declare an ``OceanCurrent`` agent — see
 # _ocean_current_from_scenario. A scenario whose current comes from xdyn
@@ -201,8 +207,10 @@ _MISSION_HEADER = [
     "mission_id",
     "task_type",
     "target_waypoint_idx",
-    "target_x", "target_y",
-    "target_lat", "target_lon",
+    "target_x",
+    "target_y",
+    "target_lat",
+    "target_lon",
     "distance_to_target_m",
     "cross_track_error_m",
     "along_track_progress_pct",
@@ -224,8 +232,8 @@ _SONAR_HEADER = [
 ]
 
 # WGS84 ellipsoid constants (same values gz-math's SphericalCoordinates uses).
-_WGS84_A = 6378137.0            # semi-major axis, m
-_WGS84_E2 = 6.69437999014e-3    # first eccentricity squared
+_WGS84_A = 6378137.0  # semi-major axis, m
+_WGS84_E2 = 6.69437999014e-3  # first eccentricity squared
 
 # Default reference origin: matches energy.world's <spherical_coordinates>.
 _DEFAULT_REF_LAT = 50.32879166666667
@@ -267,9 +275,7 @@ def _world_origin_from_sdf(world_name: str) -> tuple:
                 text = re.sub(r"<!--.*?-->", "", f.read(), flags=re.S)
         except OSError:
             return None
-        block = re.search(
-            r"<spherical_coordinates>(.*?)</spherical_coordinates>", text, re.S
-        )
+        block = re.search(r"<spherical_coordinates>(.*?)</spherical_coordinates>", text, re.S)
         if not block:
             return None
 
@@ -297,8 +303,7 @@ def _world_origin_from_sdf(world_name: str) -> tuple:
     return None
 
 
-def _enu_to_latlon(x: float, y: float, ref_lat_deg: float, ref_lon_deg: float,
-                    ref_alt: float = 0.0) -> tuple:
+def _enu_to_latlon(x: float, y: float, ref_lat_deg: float, ref_lon_deg: float, ref_alt: float = 0.0) -> tuple:
     """Convert a local ENU offset (x=East, y=North, metres) to (lat, lon) in
     degrees, using a WGS84 local tangent-plane approximation about
     (ref_lat_deg, ref_lon_deg, ref_alt).
@@ -314,7 +319,7 @@ def _enu_to_latlon(x: float, y: float, ref_lat_deg: float, ref_lon_deg: float,
     # Prime vertical (east-west) radius of curvature.
     n_radius = _WGS84_A / math.sqrt(denom)
     # Meridian (north-south) radius of curvature.
-    m_radius = _WGS84_A * (1.0 - _WGS84_E2) / (denom ** 1.5)
+    m_radius = _WGS84_A * (1.0 - _WGS84_E2) / (denom**1.5)
 
     dlat = y / (m_radius + ref_alt)
     dlon = x / ((n_radius + ref_alt) * math.cos(lat0))
@@ -324,8 +329,9 @@ def _enu_to_latlon(x: float, y: float, ref_lat_deg: float, ref_lon_deg: float,
     return lat, lon
 
 
-def _latlon_to_enu(lat_deg: float, lon_deg: float, ref_lat_deg: float,
-                    ref_lon_deg: float, ref_alt: float = 0.0) -> tuple:
+def _latlon_to_enu(
+    lat_deg: float, lon_deg: float, ref_lat_deg: float, ref_lon_deg: float, ref_alt: float = 0.0
+) -> tuple:
     """Inverse of :func:`_enu_to_latlon`: (lat, lon) degrees -> local ENU
     (x=East, y=North) metres about the same reference point/approximation.
     """
@@ -334,7 +340,7 @@ def _latlon_to_enu(lat_deg: float, lon_deg: float, ref_lat_deg: float,
     denom = 1.0 - _WGS84_E2 * sin_lat0 * sin_lat0
 
     n_radius = _WGS84_A / math.sqrt(denom)
-    m_radius = _WGS84_A * (1.0 - _WGS84_E2) / (denom ** 1.5)
+    m_radius = _WGS84_A * (1.0 - _WGS84_E2) / (denom**1.5)
 
     dlat = math.radians(lat_deg - ref_lat_deg)
     dlon = math.radians(lon_deg - ref_lon_deg)
@@ -372,8 +378,7 @@ def _leg_geometry(prev_xy: tuple, target_xy: tuple, pos_xy: tuple) -> tuple:
     return distance_to_target, cross_track, progress_pct
 
 
-def _mission_specs_from_scenario(scenario: dict, ref_lat: float, ref_lon: float,
-                                  ref_alt: float) -> dict:
+def _mission_specs_from_scenario(scenario: dict, ref_lat: float, ref_lon: float, ref_alt: float) -> dict:
     """Build the ordered list of mission specs for every agent in a parsed
     scenario JSON dict.
 
@@ -419,9 +424,7 @@ def _mission_specs_from_scenario(scenario: dict, ref_lat: float, ref_lon: float,
                     if "x" in wp and "y" in wp:
                         path.append((float(wp["x"]), float(wp["y"])))
                     else:
-                        path.append(
-                            _latlon_to_enu(wp["lat"], wp["lon"], ref_lat, ref_lon, ref_alt)
-                        )
+                        path.append(_latlon_to_enu(wp["lat"], wp["lon"], ref_lat, ref_lon, ref_alt))
                 entry["path"] = path
                 cursor = path[-1]  # next mission's leg starts where this one ended
             mission_list.append(entry)
@@ -512,31 +515,30 @@ def _agent_capabilities_from_scenario(scenario: dict) -> dict:
         declared_actuators = agent.get("actuators")
 
         has_battery = (
-            "battery" in declared_sensors if declared_sensors is not None
+            "battery" in declared_sensors
+            if declared_sensors is not None
             else "battery" in str(agent.get("sdf_file", "")).lower()
         )
-        has_mission = any(
-            m.get("task", m.get("type", "")) not in _NON_NAVIGATION_TASKS
-            for m in missions
-        )
+        has_mission = any(m.get("task", m.get("type", "")) not in _NON_NAVIGATION_TASKS for m in missions)
         has_sonar = (
-            "sonar" in declared_sensors if declared_sensors is not None
-            else any(
-                float((m.get("params") or {}).get("sonar_range_m", 0.0)) > 0.0
-                for m in missions
-            )
+            "sonar" in declared_sensors
+            if declared_sensors is not None
+            else any(float((m.get("params") or {}).get("sonar_range_m", 0.0)) > 0.0 for m in missions)
         )
         sensors = (
-            list(declared_sensors) if declared_sensors is not None
+            list(declared_sensors)
+            if declared_sensors is not None
             else (["battery"] if has_battery else []) + (["sonar"] if has_sonar else [])
         )
         actuators = (
-            list(declared_actuators) if declared_actuators is not None
-            else (["thrusters"] if has_mission else [])
+            list(declared_actuators) if declared_actuators is not None else (["thrusters"] if has_mission else [])
         )
         entry = {
-            "battery": has_battery, "mission": has_mission, "sonar": has_sonar,
-            "sensors": sensors, "actuators": actuators,
+            "battery": has_battery,
+            "mission": has_mission,
+            "sonar": has_sonar,
+            "sensors": sensors,
+            "actuators": actuators,
         }
         for i in range(int(agent.get("nb_agents", 1))):
             caps[f"{id_base}{i}"] = entry
@@ -585,8 +587,11 @@ class CsvRecorder(Node):
         # not applicable; sonar opt-in only, it's new and needs config).
         self._agent_capabilities = agent_capabilities or {}
         self._default_capabilities = {
-            "battery": True, "mission": True, "sonar": False,
-            "sensors": [], "actuators": [],
+            "battery": True,
+            "mission": True,
+            "sonar": False,
+            "sensors": [],
+            "actuators": [],
         }
         # agent -> indices into _mission_specs[agent] of the missions that can
         # be progress-tracked (those with a waypoint path). Every mission in an
@@ -597,8 +602,7 @@ class CsvRecorder(Node):
         # pointer therefore walks only the trackable missions, which are the
         # ones arrival can advance.
         self._trackable_idx = {
-            v: [i for i, m in enumerate(specs) if m["path"]]
-            for v, specs in self._mission_specs.items()
+            v: [i for i, m in enumerate(specs) if m["path"]] for v, specs in self._mission_specs.items()
         }
         # agent -> index into _trackable_idx[agent] of the mission being tracked
         self._mission_idx = {v: 0 for v in self._mission_specs}
@@ -620,20 +624,17 @@ class CsvRecorder(Node):
         # forever by design — see KinematicAnchorTask) never sets its flag in
         # _mission_columns(), so it must be excluded here too, or the early-
         # stop check below would wait forever for something that can't finish.
-        self._trackable_agents = {
-            v for v, specs in self._mission_specs.items()
-            if any(m["path"] for m in specs)
-        }
+        self._trackable_agents = {v for v, specs in self._mission_specs.items() if any(m["path"] for m in specs)}
         # Once every tracked agent has arrived, recording stops itself (timers
         # cancelled, summary written) even though the rest of the simulation —
         # Gazebo world, other agents, anything launched later — keeps running.
         # This node isn't destroyed, just made inert; destroy_node() re-uses
         # the same finalize path (idempotent) for the ordinary full-shutdown case.
         self._finalized = False
-        self._poses = {}          # agent_name -> Pose (latest)
-        self._battery = {}        # agent_name -> dict (latest reading)
-        self._battery_subs = {}   # topic -> subscription
-        self._files = {}          # agent_name -> (file, csv.writer)
+        self._poses = {}  # agent_name -> Pose (latest)
+        self._battery = {}  # agent_name -> dict (latest reading)
+        self._battery_subs = {}  # topic -> subscription
+        self._files = {}  # agent_name -> (file, csv.writer)
         # agent -> running stats for summary.csv (difficulty indicators etc.),
         # lazily created per agent in _stats_for().
         self._stats = {}
@@ -669,15 +670,11 @@ class CsvRecorder(Node):
                 self._gz_node.subscribe(WorldStatistics, stats_topic, _on_stats)
             self.get_logger().info(f"Sim time source: gz {stats_topic}")
         except Exception as e:  # bindings absent or remote machine
-            self.get_logger().warning(
-                f"gz /stats unavailable ({e}); sim_time_s falls back to wall clock."
-            )
+            self.get_logger().warning(f"gz /stats unavailable ({e}); sim_time_s falls back to wall clock.")
 
         self._rate_hz = rate_hz  # for stats["contact_samples"] -> seconds in summary.csv
 
-        self.create_subscription(
-            VesselPositionArray, f"/{world}/poses", self._on_poses, 10
-        )
+        self.create_subscription(VesselPositionArray, f"/{world}/poses", self._on_poses, 10)
         # Battery topics only appear once their agent is spawned: poll the graph.
         self._battery_timer = self.create_timer(1.0, self._discover_battery_topics)
         self._sample_timer = self.create_timer(1.0 / rate_hz, self._sample)
@@ -711,7 +708,7 @@ class CsvRecorder(Node):
                 continue
             if topic in self._battery_subs:
                 continue
-            agent = topic[len(prefix):].split("/", 1)[0]
+            agent = topic[len(prefix) :].split("/", 1)[0]
             # Match the battery_sensor publisher QoS (TRANSIENT_LOCAL) so the
             # latest reading arrives even if it was published before this
             # subscription was created.
@@ -804,7 +801,8 @@ class CsvRecorder(Node):
             return [
                 _CONCURRENT_SEP.join(m["id"] for m in specs),
                 _CONCURRENT_SEP.join(m["task"] for m in specs),
-                *_BLANK_TRACKING, 0,
+                *_BLANK_TRACKING,
+                0,
             ]
 
         if self._all_missions_complete.get(agent, False):
@@ -822,9 +820,7 @@ class CsvRecorder(Node):
         tolerance = mission["tolerance"]
 
         distance, cross_track, progress_pct = _leg_geometry(prev_xy, target_xy, pos_xy)
-        target_lat, target_lon = _enu_to_latlon(
-            target_xy[0], target_xy[1], self._ref_lat, self._ref_lon, self._ref_alt
-        )
+        target_lat, target_lon = _enu_to_latlon(target_xy[0], target_xy[1], self._ref_lat, self._ref_lon, self._ref_alt)
 
         stats = self._stats_for(agent)
         stats["max_cross_track_m"] = max(stats["max_cross_track_m"], cross_track)
@@ -858,8 +854,7 @@ class CsvRecorder(Node):
                 self._leg_min_distance[agent] = float("inf")
                 nxt = specs[trackable[midx + 1]]
                 self.get_logger().info(
-                    f"'{agent}' finished mission '{mission_id}', "
-                    f"tracking '{nxt['id']}' ({nxt['task']}) next"
+                    f"'{agent}' finished mission '{mission_id}', " f"tracking '{nxt['id']}' ({nxt['task']}) next"
                 )
             else:
                 self._all_missions_complete[agent] = True
@@ -870,10 +865,13 @@ class CsvRecorder(Node):
                 self.get_logger().info(f"'{agent}' all missions complete.")
 
         return [
-            mission_id, task,
+            mission_id,
+            task,
             leg_idx,
-            f"{target_xy[0]:.3f}", f"{target_xy[1]:.3f}",
-            f"{target_lat:.8f}", f"{target_lon:.8f}",
+            f"{target_xy[0]:.3f}",
+            f"{target_xy[1]:.3f}",
+            f"{target_lat:.8f}",
+            f"{target_lon:.8f}",
             f"{distance:.3f}",
             f"{cross_track:.3f}",
             f"{progress_pct:.2f}",
@@ -951,8 +949,11 @@ class CsvRecorder(Node):
             pose = self._poses[agent]
             caps = self._capabilities(agent)
             lat, lon = _enu_to_latlon(
-                pose.position.x, pose.position.y,
-                self._ref_lat, self._ref_lon, self._ref_alt,
+                pose.position.x,
+                pose.position.y,
+                self._ref_lat,
+                self._ref_lon,
+                self._ref_alt,
             )
             row = [
                 agent,
@@ -1020,18 +1021,34 @@ class CsvRecorder(Node):
         """
         path = os.path.join(self._outdir, f"{self._prefix}summary.csv")
         header = [
-            "agent_name", "sensors", "actuators",
-            "start_lat", "start_lon", "final_target_lat", "final_target_lon",
-            "mission_complete", "final_arrival_error_m", "final_arrival_error_pct",
+            "agent_name",
+            "sensors",
+            "actuators",
+            "start_lat",
+            "start_lon",
+            "final_target_lat",
+            "final_target_lon",
+            "mission_complete",
+            "final_arrival_error_m",
+            "final_arrival_error_pct",
             "max_cross_track_error_m",
-            "min_sonar_distance_m", "distinct_obstacles_detected", "time_in_sonar_contact_s",
-            "battery_start_pct", "battery_end_pct",
-            "run_start_sim_time_s", "run_end_sim_time_s", "run_duration_s",
-            "world_ref_lat", "world_ref_lon", "world_ref_alt",
+            "min_sonar_distance_m",
+            "distinct_obstacles_detected",
+            "time_in_sonar_contact_s",
+            "battery_start_pct",
+            "battery_end_pct",
+            "run_start_sim_time_s",
+            "run_end_sim_time_s",
+            "run_duration_s",
+            "world_ref_lat",
+            "world_ref_lon",
+            "world_ref_alt",
         ]
         if self._has_ocean_current:
             header += [
-                "ocean_current_vx_mps", "ocean_current_vy_mps", "ocean_current_vz_mps",
+                "ocean_current_vx_mps",
+                "ocean_current_vy_mps",
+                "ocean_current_vz_mps",
             ]
         try:
             with open(path, "w", newline="") as f:
@@ -1045,9 +1062,7 @@ class CsvRecorder(Node):
                     start_lat = start_lon = final_lat = final_lon = ""
                     if specs:
                         first_path = next((m["path"] for m in specs if m["path"]), None)
-                        last_path = next(
-                            (m["path"] for m in reversed(specs) if m["path"]), None
-                        )
+                        last_path = next((m["path"] for m in reversed(specs) if m["path"]), None)
                         if first_path:
                             start_lat, start_lon = _enu_to_latlon(
                                 *first_path[0], self._ref_lat, self._ref_lon, self._ref_alt
@@ -1063,24 +1078,33 @@ class CsvRecorder(Node):
                     duration = (end_t - start_t) if (start_t is not None and end_t is not None) else ""
                     contact_s = stats["contact_samples"] / self._rate_hz
 
-                    writer.writerow([
-                        agent,
-                        ";".join(caps["sensors"]), ";".join(caps["actuators"]),
-                        start_lat, start_lon, final_lat, final_lon,
-                        stats["final_mission_complete"],
-                        stats["final_arrival_error_m"], stats["final_arrival_error_pct"],
-                        f"{stats['max_cross_track_m']:.3f}",
-                        f"{stats['min_sonar_distance_m']:.3f}" if stats["min_sonar_distance_m"] is not None else "",
-                        len(stats["distinct_obstacles"]),
-                        f"{contact_s:.2f}",
-                        stats["battery_start_pct"] if stats["battery_start_pct"] is not None else "",
-                        stats["battery_end_pct"] if stats["battery_end_pct"] is not None else "",
-                        f"{start_t:.3f}" if start_t is not None else "",
-                        f"{end_t:.3f}" if end_t is not None else "",
-                        f"{duration:.3f}" if duration != "" else "",
-                        f"{self._ref_lat:.8f}", f"{self._ref_lon:.8f}", f"{self._ref_alt:.3f}",
-                    ] + ([self._current_vx, self._current_vy, self._current_vz]
-                         if self._has_ocean_current else []))
+                    writer.writerow(
+                        [
+                            agent,
+                            ";".join(caps["sensors"]),
+                            ";".join(caps["actuators"]),
+                            start_lat,
+                            start_lon,
+                            final_lat,
+                            final_lon,
+                            stats["final_mission_complete"],
+                            stats["final_arrival_error_m"],
+                            stats["final_arrival_error_pct"],
+                            f"{stats['max_cross_track_m']:.3f}",
+                            f"{stats['min_sonar_distance_m']:.3f}" if stats["min_sonar_distance_m"] is not None else "",
+                            len(stats["distinct_obstacles"]),
+                            f"{contact_s:.2f}",
+                            stats["battery_start_pct"] if stats["battery_start_pct"] is not None else "",
+                            stats["battery_end_pct"] if stats["battery_end_pct"] is not None else "",
+                            f"{start_t:.3f}" if start_t is not None else "",
+                            f"{end_t:.3f}" if end_t is not None else "",
+                            f"{duration:.3f}" if duration != "" else "",
+                            f"{self._ref_lat:.8f}",
+                            f"{self._ref_lon:.8f}",
+                            f"{self._ref_alt:.3f}",
+                        ]
+                        + ([self._current_vx, self._current_vy, self._current_vz] if self._has_ocean_current else [])
+                    )
             self.get_logger().info(f"Wrote run summary -> {path}")
         except Exception:
             self.get_logger().exception("Could not write summary.csv")
@@ -1174,9 +1198,7 @@ def recorder_from_config(record_cfg, world_name: str, scenario: dict = None):
     default_outdir = (
         os.path.join(log_dir, "csv")
         if log_dir
-        else os.path.join(
-            os.getcwd(), f"csv_logs_{world_name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}"
-        )
+        else os.path.join(os.getcwd(), f"csv_logs_{world_name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}")
     )
     # Explicit record_csv values win; otherwise take the loaded world's own
     # origin, and only fall back to the constants if it cannot be read.
@@ -1186,14 +1208,9 @@ def recorder_from_config(record_cfg, world_name: str, scenario: dict = None):
     ref_lon = float(cfg.get("ref_lon", fallback[1]))
     ref_alt = float(cfg.get("ref_alt", fallback[2]))
 
-    mission_specs = (
-        _mission_specs_from_scenario(scenario, ref_lat, ref_lon, ref_alt)
-        if scenario else {}
-    )
+    mission_specs = _mission_specs_from_scenario(scenario, ref_lat, ref_lon, ref_alt) if scenario else {}
     obstacle_agents = _obstacle_agents_from_scenario(scenario) if scenario else set()
-    agent_capabilities = (
-        _agent_capabilities_from_scenario(scenario) if scenario else {}
-    )
+    agent_capabilities = _agent_capabilities_from_scenario(scenario) if scenario else {}
     ocean_current = _ocean_current_from_scenario(scenario or {})
 
     return CsvRecorder(

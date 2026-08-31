@@ -26,6 +26,7 @@ class WaypointFollowerConfig:
     linear_pid: tuple[float, float, float] | None = None
     angular_pid: tuple[float, float, float] | None = None
 
+
 _EARTH_RADIUS_M = 6_371_000.0
 
 
@@ -114,25 +115,13 @@ class WaypointFollowerTask(TaskAgent):
         # --- resolved controller parameters (fall back to the C++ defaults) ---
         cfg = self.config
         self._guidance_mode = cfg.guidance_mode or "bang_bang"
-        self._range_tolerance = (
-            cfg.range_tolerance if cfg.range_tolerance is not None else 0.5
-        )
-        self._linear_accel_limit = (
-            cfg.linear_accel_limit if cfg.linear_accel_limit is not None else 0.5
-        )
-        self._angular_accel_limit = (
-            cfg.angular_accel_limit if cfg.angular_accel_limit is not None else 0.5
-        )
+        self._range_tolerance = cfg.range_tolerance if cfg.range_tolerance is not None else 0.5
+        self._linear_accel_limit = cfg.linear_accel_limit if cfg.linear_accel_limit is not None else 0.5
+        self._angular_accel_limit = cfg.angular_accel_limit if cfg.angular_accel_limit is not None else 0.5
         self._v_min, self._v_max = (
-            cfg.linear_velocities_limits
-            if cfg.linear_velocities_limits is not None
-            else (0.0, 5.0)
+            cfg.linear_velocities_limits if cfg.linear_velocities_limits is not None else (0.0, 5.0)
         )
-        self._max_w = (
-            cfg.angular_velocities_limits
-            if cfg.angular_velocities_limits is not None
-            else 1.0
-        )
+        self._max_w = cfg.angular_velocities_limits if cfg.angular_velocities_limits is not None else 1.0
         self._angular_pid = cfg.angular_pid or (0.8, 0.05, 0.4)
 
         # Pure-pursuit lookahead distance (m). Steering aims at a carrot this far
@@ -146,9 +135,7 @@ class WaypointFollowerTask(TaskAgent):
         #   "pose": one control step per /<world>/poses message (one per Gazebo
         #       physics step, 1/max_step_size Hz of sim time), a rate independent
         #       of RTF. control_rate_hz is ignored.
-        self._guidance_clock = str(
-            self.params.get("guidance_clock", "wall")
-        ).lower()
+        self._guidance_clock = str(self.params.get("guidance_clock", "wall")).lower()
         # Non-blocking guard for the pose-driven path: poses run on a
         # ReentrantCallbackGroup, so two can be serviced concurrently. A step
         # skips rather than overlapping another in-progress step.
@@ -193,12 +180,8 @@ class WaypointFollowerTask(TaskAgent):
             range_tolerance=p.get("range_tolerance", d.range_tolerance),
             linear_accel_limit=p.get("linear_accel_limit", d.linear_accel_limit),
             angular_accel_limit=p.get("angular_accel_limit", d.angular_accel_limit),
-            linear_velocities_limits=vec(
-                "linear_velocities_limits", d.linear_velocities_limits
-            ),
-            angular_velocities_limits=p.get(
-                "angular_velocities_limits", d.angular_velocities_limits
-            ),
+            linear_velocities_limits=vec("linear_velocities_limits", d.linear_velocities_limits),
+            angular_velocities_limits=p.get("angular_velocities_limits", d.angular_velocities_limits),
             linear_pid=vec("linear_pid", d.linear_pid),
             angular_pid=vec("angular_pid", d.angular_pid),
         )
@@ -231,15 +214,11 @@ class WaypointFollowerTask(TaskAgent):
         # and reuse its publisher instead of creating a second one.
         self._cancel_stop_burst()
         if not self.trajectory:
-            self.host.get_logger().warning(
-                "WaypointFollowerTask: no waypoints provided, guidance inactive."
-            )
+            self.host.get_logger().warning("WaypointFollowerTask: no waypoints provided, guidance inactive.")
             return
         world = self.host.world_name
         if self._cmd_pub is None:
-            self._cmd_pub = self.host.create_publisher(
-                VesselCmdArray, f"/{world}/vessel_cmd_array", 10
-            )
+            self._cmd_pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         # Dedicated callback group so the guidance loop (or the stop burst) is
         # scheduled on its own and cannot be starved behind this node's other
         # callbacks (1 Hz topic discovery, sensor buffering). Critical when
@@ -300,9 +279,7 @@ class WaypointFollowerTask(TaskAgent):
         self._publish_cmd(0.0, 0.0)
         if self._cmd_pub is not None and self._stop_timer is None:
             self._stop_repeats_left = 5
-            self._stop_timer = self.host.create_timer(
-                1.0, self._stop_burst_step, callback_group=self._control_cb_group
-            )
+            self._stop_timer = self.host.create_timer(1.0, self._stop_burst_step, callback_group=self._control_cb_group)
 
     def _stop_burst_step(self) -> None:
         self._publish_cmd(0.0, 0.0)
@@ -334,9 +311,7 @@ class WaypointFollowerTask(TaskAgent):
         on /<world>/poses. The origin is only required if at least one
         waypoint uses the lat/lon form.
         """
-        needs_origin = any(
-            "x" not in wp or "y" not in wp for wp in self.trajectory
-        )
+        needs_origin = any("x" not in wp or "y" not in wp for wp in self.trajectory)
         lat0 = lon0 = cos_lat0 = None
         if needs_origin:
             world_origin = getattr(self.host, "_world_origin", None)
@@ -346,11 +321,13 @@ class WaypointFollowerTask(TaskAgent):
             cos_lat0 = math.cos(math.radians(lat0))
 
         self._enu_waypoints = [
-            (float(wp["x"]), float(wp["y"]))
-            if "x" in wp and "y" in wp
-            else (
-                math.radians(float(wp["lon"]) - lon0) * cos_lat0 * _EARTH_RADIUS_M,
-                math.radians(float(wp["lat"]) - lat0) * _EARTH_RADIUS_M,
+            (
+                (float(wp["x"]), float(wp["y"]))
+                if "x" in wp and "y" in wp
+                else (
+                    math.radians(float(wp["lon"]) - lon0) * cos_lat0 * _EARTH_RADIUS_M,
+                    math.radians(float(wp["lat"]) - lat0) * _EARTH_RADIUS_M,
+                )
             )
             for wp in self.trajectory
         ]
@@ -410,8 +387,13 @@ class WaypointFollowerTask(TaskAgent):
         return wps[i]
 
     def _effective_goal_vector(
-        self, x: float, y: float, goal_x: float, goal_y: float,
-        dx_true: float, dy_true: float,
+        self,
+        x: float,
+        y: float,
+        goal_x: float,
+        goal_y: float,
+        dx_true: float,
+        dy_true: float,
     ) -> tuple:
         """Hook: the (dx, dy) vector used to compute the STEERING bearing for
         this control step. Base implementation is a no-op (returns the true
@@ -504,13 +486,9 @@ class WaypointFollowerTask(TaskAgent):
         local_y = -sin_y * dx + cos_y * dy
         angle_to_goal = _normalize_angle(math.atan2(local_y, local_x))
 
-        is_last_waypoint = (
-            self._wp_index == len(self._enu_waypoints) - 1
-        ) and not self.loop
+        is_last_waypoint = (self._wp_index == len(self._enu_waypoints) - 1) and not self.loop
 
-        self._update_linear_velocity(
-            distance_to_goal, angle_to_goal, is_last_waypoint, dt
-        )
+        self._update_linear_velocity(distance_to_goal, angle_to_goal, is_last_waypoint, dt)
         self._update_angular_velocity(angle_to_goal, x, y, yaw, dt)
 
         self._publish_cmd(self._u, self._w)
@@ -532,10 +510,7 @@ class WaypointFollowerTask(TaskAgent):
             if prev != self._wp_index:
                 px, py = self._enu_waypoints[prev]
                 legx, legy = goal_x - px, goal_y - py  # incoming leg direction
-                if (
-                    legx * legx + legy * legy > 1e-9
-                    and (x - goal_x) * legx + (y - goal_y) * legy >= 0.0
-                ):
+                if legx * legx + legy * legy > 1e-9 and (x - goal_x) * legx + (y - goal_y) * legy >= 0.0:
                     reached = True
         if reached:
             self._heading_integral = 0.0
@@ -551,15 +526,9 @@ class WaypointFollowerTask(TaskAgent):
             else:
                 self._wp_index += 1
 
-    def _update_linear_velocity(
-        self, distance_to_goal, angle_to_goal, is_last_waypoint, dt
-    ) -> None:
+    def _update_linear_velocity(self, distance_to_goal, angle_to_goal, is_last_waypoint, dt) -> None:
         if self._guidance_mode == "bang_bang":
-            stopping_distance = (
-                self._u ** 2 / 2.0 / self._linear_accel_limit
-                if self._linear_accel_limit > 0
-                else 0.0
-            )
+            stopping_distance = self._u**2 / 2.0 / self._linear_accel_limit if self._linear_accel_limit > 0 else 0.0
             flag = 0
             if stopping_distance >= distance_to_goal:
                 flag = 1 if is_last_waypoint else 0
@@ -573,9 +542,7 @@ class WaypointFollowerTask(TaskAgent):
             # overshoots and settles into a stable orbit around it (the agent
             # "turning in a loop around a point"). At full alignment cos->1 so
             # top speed is unchanged; abeam (cos->0) it drops to v_min.
-            v_ceiling = self._v_min + (self._v_max - self._v_min) * max(
-                0.0, math.cos(angle_to_goal)
-            )
+            v_ceiling = self._v_min + (self._v_max - self._v_min) * max(0.0, math.cos(angle_to_goal))
 
             vel_change = self._linear_accel_limit * dt
             if flag == 1:
@@ -593,25 +560,15 @@ class WaypointFollowerTask(TaskAgent):
             max_integral_contribution = 0.2 * self._v_max
             ki = 0.05
             max_integral = max_integral_contribution / ki
-            self._distance_error_integral = max(
-                -max_integral, min(self._distance_error_integral, max_integral)
-            )
-            distance_error_derivative = (
-                distance_error - self._distance_error_previous
-            ) / dt
+            self._distance_error_integral = max(-max_integral, min(self._distance_error_integral, max_integral))
+            distance_error_derivative = (distance_error - self._distance_error_previous) / dt
             self._distance_error_previous = distance_error
 
             kp, kd = 0.5, 0.1
-            desired_velocity = (
-                kp * distance_error
-                + ki * self._distance_error_integral
-                + kd * distance_error_derivative
-            )
+            desired_velocity = kp * distance_error + ki * self._distance_error_integral + kd * distance_error_derivative
             angle_factor = max(0.0, math.cos(angle_to_goal))
             desired_velocity *= angle_factor
-            desired_velocity = max(
-                self._v_min, min(desired_velocity, self._v_max)
-            )
+            desired_velocity = max(self._v_min, min(desired_velocity, self._v_max))
             if is_last_waypoint and distance_to_goal < 0.1:
                 desired_velocity = 0.0
 
@@ -621,9 +578,7 @@ class WaypointFollowerTask(TaskAgent):
             self._u = self._u + velocity_change
             self._u = max(self._v_min, min(self._u, self._v_max))
 
-    def _update_angular_velocity(
-        self, angle_to_goal, x, y, yaw, dt
-    ) -> None:
+    def _update_angular_velocity(self, angle_to_goal, x, y, yaw, dt) -> None:
         kp, ki, kd = self._angular_pid
         max_w = self._max_w
 
@@ -649,24 +604,16 @@ class WaypointFollowerTask(TaskAgent):
             self._heading_integral += heading_error * dt
             if ki > 1e-6:
                 integral_max = max_integral_contribution / ki
-                self._heading_integral = max(
-                    -integral_max, min(self._heading_integral, integral_max)
-                )
+                self._heading_integral = max(-integral_max, min(self._heading_integral, integral_max))
             yaw_diff = _normalize_angle(yaw - self._prev_yaw)
             current_yaw_rate = yaw_diff / dt
             self._prev_yaw = yaw
             derivative_term = -kd * current_yaw_rate
-            desired_w = (
-                kp * heading_error
-                + ki * self._heading_integral
-                + derivative_term
-            )
+            desired_w = kp * heading_error + ki * self._heading_integral + derivative_term
             unclamped_w = desired_w
             desired_w = max(-max_w, min(desired_w, max_w))
             if ki > 1e-6 and abs(unclamped_w) > max_w:
-                self._heading_integral = (
-                    desired_w - kp * heading_error - derivative_term
-                ) / ki
+                self._heading_integral = (desired_w - kp * heading_error - derivative_term) / ki
             if abs(heading_error) < 0.05:
                 self._heading_integral *= 0.95
 

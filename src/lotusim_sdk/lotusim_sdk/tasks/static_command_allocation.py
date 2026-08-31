@@ -55,8 +55,7 @@ class StaticCommandAllocationTask(TaskAgent):
 
     def on_enter(self) -> None:
         world = self.host.world_name
-        self._pub = self.host.create_publisher(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
+        self._pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         self._publish()
 
     def on_exit(self, status) -> None:

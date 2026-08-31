@@ -39,6 +39,7 @@ The current models here predict a current *field*; they are the same models
 the environment side uses, evaluated on the controller side from the same
 parameters, so no privileged information reaches the controller.
 """
+
 from __future__ import annotations
 
 import math
@@ -98,10 +99,17 @@ class EkmanCurrentModel:
     OMEGA_RAD_S = 7.2921e-5
     RHO_AIR_KG_M3 = 1.225
 
-    def __init__(self, current_velocity_ms: float, current_orientation_deg: float,
-                 top_layer_m: float, bottom_layer_m: float, u10_ms: float,
-                 seabed_depth_m: float = 65.0, latitude_deg: float = 47.0,
-                 wind_orientation_deg: float = 20.0) -> None:
+    def __init__(
+        self,
+        current_velocity_ms: float,
+        current_orientation_deg: float,
+        top_layer_m: float,
+        bottom_layer_m: float,
+        u10_ms: float,
+        seabed_depth_m: float = 65.0,
+        latitude_deg: float = 47.0,
+        wind_orientation_deg: float = 20.0,
+    ) -> None:
         self.current_velocity = float(current_velocity_ms)
         self.top_layer_m = float(top_layer_m)
         self.bottom_layer_m = float(bottom_layer_m)
@@ -125,18 +133,16 @@ class EkmanCurrentModel:
         # the fitted parameters this class consumes are produced by
         # fit_ekman_profile.py, which uses the corrected form, so the two must
         # agree or the feedforward would evaluate the fit at the wrong scale.
-        f_times_rho = (2 * self.OMEGA_RAD_S * math.sin(math.radians(latitude_deg))
-                       * self.RHO_KG_M3)
+        f_times_rho = 2 * self.OMEGA_RAD_S * math.sin(math.radians(latitude_deg)) * self.RHO_KG_M3
         self._sgn_f = 1.0 if f_times_rho >= 0 else -1.0
         self._wind_angle_rad = math.radians(wind_orientation_deg)
 
         u10 = float(u10_ms)
         drag_coefficient = 0.79e-3 + 0.08e-3 * u10 if u10 < 20.2 else 0.002423
-        wind_stress = drag_coefficient * self.RHO_AIR_KG_M3 * u10 ** 2
+        wind_stress = drag_coefficient * self.RHO_AIR_KG_M3 * u10**2
         # V0 is inversely proportional to the top-layer thickness -- keep the
         # coupling as-is rather than approximating it away.
-        self._v0 = (math.sqrt(2) * math.pi * wind_stress
-                    / (self.top_layer_m * f_times_rho))
+        self._v0 = math.sqrt(2) * math.pi * wind_stress / (self.top_layer_m * f_times_rho)
         self._decay = self.top_layer_m / math.pi
 
     def current_at(self, depth_m: float) -> tuple[float, float]:
@@ -186,8 +192,9 @@ class CurrentFeedforward:
     in the model, and defaults to 1.0 (full compensation).
     """
 
-    def __init__(self, model, xu: float, xuu: float, yv: float, yvv: float,
-                 gain: float = 1.0, f_max: float = 100.0) -> None:
+    def __init__(
+        self, model, xu: float, xuu: float, yv: float, yvv: float, gain: float = 1.0, f_max: float = 100.0
+    ) -> None:
         self.model = model
         self.xu, self.xuu = float(xu), float(xuu)
         self.yv, self.yvv = float(yv), float(yvv)
@@ -198,8 +205,7 @@ class CurrentFeedforward:
     def _damping(v: float, lin: float, quad: float) -> float:
         return lin * v + quad * abs(v) * v
 
-    def wrench(self, depth_m: float, psi_rad: float,
-               u: float = 0.0, v: float = 0.0) -> tuple[float, float]:
+    def wrench(self, depth_m: float, psi_rad: float, u: float = 0.0, v: float = 0.0) -> tuple[float, float]:
         """Feedforward (surge, sway) force in the body frame, in newtons.
 
         ``depth_m`` positive down (NED). ``u``/``v`` are the vehicle's own
@@ -215,19 +221,17 @@ class CurrentFeedforward:
         v_c = -c_n * spsi + c_e * cpsi
 
         u_r, v_r = u - u_c, v - v_c
-        surge = (self._damping(u_r, self.xu, self.xuu)
-                 - self._damping(u, self.xu, self.xuu))
-        sway = (self._damping(v_r, self.yv, self.yvv)
-                - self._damping(v, self.yv, self.yvv))
+        surge = self._damping(u_r, self.xu, self.xuu) - self._damping(u, self.xu, self.xuu)
+        sway = self._damping(v_r, self.yv, self.yvv) - self._damping(v, self.yv, self.yvv)
 
         surge = max(-self.f_max, min(self.f_max, self.gain * surge))
         sway = max(-self.f_max, min(self.f_max, self.gain * sway))
         return surge, sway
 
 
-def build_feedforward(spec: dict | None, xu: float, xuu: float,
-                      yv: float, yvv: float, gain: float = 1.0,
-                      f_max: float = 100.0) -> CurrentFeedforward:
+def build_feedforward(
+    spec: dict | None, xu: float, xuu: float, yv: float, yvv: float, gain: float = 1.0, f_max: float = 100.0
+) -> CurrentFeedforward:
     """Build a feedforward from a scenario parameter block.
 
     ``spec`` is the ``feedforward`` params dict: ``{"model": "none"|"uniform"|
@@ -250,7 +254,8 @@ def build_feedforward(spec: dict | None, xu: float, xuu: float,
             spec.get("U10_ms", 0.0),
             seabed_depth_m=spec.get("seabed_depth_m", 65.0),
             latitude_deg=spec.get("latitude_deg", 47.0),
-            wind_orientation_deg=spec.get("wind_orientation_deg", 20.0))
+            wind_orientation_deg=spec.get("wind_orientation_deg", 20.0),
+        )
     else:
         raise ValueError(f"unknown feedforward model {kind!r}")
     return CurrentFeedforward(model, xu, xuu, yv, yvv, gain=gain, f_max=f_max)

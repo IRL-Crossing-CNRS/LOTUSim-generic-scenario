@@ -45,8 +45,7 @@ class NavigationTask(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            Odometry, f"/{world}/{agent}/navigation", 10)
+        self._pub = self.host.create_publisher(Odometry, f"/{world}/{agent}/navigation", 10)
         self._timer = self.host.create_timer(1.0 / self._rate, self._tick)
 
     def on_exit(self, status) -> None:
