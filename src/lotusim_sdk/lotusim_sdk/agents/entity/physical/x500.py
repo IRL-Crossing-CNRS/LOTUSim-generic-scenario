@@ -1,3 +1,4 @@
+import glob
 import os
 import re
 import signal
@@ -207,7 +208,31 @@ class X500(PhysicalEntity):
         self._kill_stale_px4_instance(px4_binary, instance)
 
         env = os.environ.copy()
-        env["GZ_CONFIG_PATH"] = f"/usr/share/gz:{env.get('GZ_CONFIG_PATH', '')}"
+        # PX4 SITL is a system build and stays one: it is not part of the
+        # core's flake. Inside a devshell its gz dependencies would resolve to
+        # the nix packages that come first on the loader path, and those pull
+        # nix's C library into a process that has already loaded the system one
+        # — PX4 then refuses to start on a missing symbol version. Handing it
+        # the system paths lets its own RUNPATH find the gz libraries it was
+        # linked against, and the two builds still meet over gz-transport.
+        nix_prefix = "/nix/store"
+        loader_path = env.get("LD_LIBRARY_PATH", "")
+        if nix_prefix in loader_path:
+            env["LD_LIBRARY_PATH"] = ":".join(d for d in loader_path.split(":") if d and not d.startswith(nix_prefix))
+            ros_distro = env.get("ROS_DISTRO", "jazzy")
+            system_bins = [
+                f"/opt/ros/{ros_distro}/opt/gz_tools_vendor/bin",
+                f"/opt/ros/{ros_distro}/bin",
+            ]
+            kept_bins = [d for d in env.get("PATH", "").split(":") if d and not d.startswith(nix_prefix)]
+            env["PATH"] = ":".join([d for d in system_bins if os.path.isdir(d)] + kept_bins)
+            # gz is a dispatcher: it finds its subcommands through
+            # GZ_CONFIG_PATH, so leaving the devshell's entries there sends
+            # PX4's world check straight back to the nix implementations.
+            system_gz_config = sorted(glob.glob(f"/opt/ros/{ros_distro}/opt/*/share/gz"))
+            kept_config = [d for d in env.get("GZ_CONFIG_PATH", "").split(":") if d and not d.startswith(nix_prefix)]
+            env["GZ_CONFIG_PATH"] = ":".join(system_gz_config + kept_config)
+        env["GZ_CONFIG_PATH"] = f"/usr/share/gz:{env.get('GZ_CONFIG_PATH', '')}".rstrip(":")
         env["PX4_GZ_MODEL_NAME"] = self.agent_name
         env["PX4_GZ_WORLD"] = gz_world
         env["PX4_SIM_MODEL"] = "gz_x500"

@@ -147,6 +147,8 @@ import glob
 import math
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 
@@ -670,7 +672,15 @@ class CsvRecorder(Node):
                 self._gz_node.subscribe(WorldStatistics, stats_topic, _on_stats)
             self.get_logger().info(f"Sim time source: gz {stats_topic}")
         except Exception as e:  # bindings absent or remote machine
-            self.get_logger().warning(f"gz /stats unavailable ({e}); sim_time_s falls back to wall clock.")
+            # The Python bindings are optional in gz-transport and absent from
+            # some builds, the core's nix devshell among them. The gz CLI reads
+            # the same topic, so stream it rather than fall back to wall clock:
+            # a wall-clock column silently misreports every speed derived from
+            # it once the run is not real-time.
+            if self._start_stats_cli(world):
+                self.get_logger().info(f"Sim time source: gz topic CLI, /world/{world}/stats ({e})")
+            else:
+                self.get_logger().warning(f"gz /stats unavailable ({e}); sim_time_s falls back to wall clock.")
 
         self._rate_hz = rate_hz  # for stats["contact_samples"] -> seconds in summary.csv
 
@@ -685,6 +695,51 @@ class CsvRecorder(Node):
             f"mission tracking for: {sorted(self._mission_specs) or 'none'}; "
             f"sonar obstacles: {sorted(self._obstacle_agents) or 'none'}"
         )
+
+    # ------------------------------------------------------------------
+    # Sim time
+    # ------------------------------------------------------------------
+    def _start_stats_cli(self, world: str) -> bool:
+        """Stream ``gz topic -e`` for this world's stats on a daemon thread.
+
+        Returns False when the CLI is not on PATH, leaving the wall-clock
+        fallback in place.
+        """
+        if shutil.which("gz") is None:
+            return False
+
+        def _pump() -> None:
+            try:
+                proc = subprocess.Popen(
+                    ["gz", "topic", "-e", "-t", f"/world/{world}/stats"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                )
+            except OSError:
+                return
+            self._stats_proc = proc
+            in_sim_time = False
+            sec = 0
+            for line in proc.stdout:
+                line = line.strip()
+                # The text protobuf repeats sim_time and real_time blocks, each
+                # with its own sec/nsec, so track which one is open.
+                if line.endswith("{"):
+                    in_sim_time = line.startswith("sim_time")
+                    continue
+                if not in_sim_time:
+                    continue
+                if line.startswith("sec:"):
+                    sec = int(line.split(":", 1)[1])
+                elif line.startswith("nsec:"):
+                    nsec = int(line.split(":", 1)[1])
+                    with self._sim_time_lock:
+                        self._sim_time = sec + nsec * 1e-9
+                    in_sim_time = False
+
+        threading.Thread(target=_pump, daemon=True).start()
+        return True
 
     # ------------------------------------------------------------------
     # Callbacks

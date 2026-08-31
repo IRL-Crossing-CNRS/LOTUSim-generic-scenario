@@ -123,8 +123,12 @@ comparison attributable to the model.
   exactly this reason.
 - **Rebuild, then re-source.** `colcon build && source install/setup.bash`
   after any Python change: the scenario launcher runs the *installed* wheel,
-  not your working tree. The core repo is rebuilt separately with
-  `lotusim clean_build`, never with a bare `colcon build`.
+  not your working tree. The core repo is rebuilt separately, with
+  `mise run build` from inside its `nix develop` shell.
+- **Build both workspaces in the same environment.** The core's flake ships its
+  own ROS 2, with its own Python. A workspace built against a system ROS and one
+  built against the flake produce different message definitions, so their
+  publishers and subscribers never match and nothing is delivered.
 - **Empty `external_packages/*/` directories** left behind by a branch switch
   are invisible to `git status` (git does not track empty directories) but
   visible to `colcon`. Delete them if a build complains about a package with

@@ -29,12 +29,10 @@ chmod +x install_core_and_generic_scenario.sh
 ./install_core_and_generic_scenario.sh
 ```
 
-Checks that you run Ubuntu 24.04 (ROS 2 Jazzy), installs system/Python
-dependencies, clones the LOTUSim core into `~/lotusim_ws`, configures
-`~/.bashrc`, builds the core workspace, and clones/builds this workspace.
-Idempotent — safe to re-run. If ROS 2 is already installed, the ROS 2 apt
-repository and `lotusim install` steps are skipped (force the latter with
-`FORCE_LOTUSIM_INSTALL=1`).
+Installs nix and its caches if absent, clones the LOTUSim core into
+`~/lotusim_ws`, builds it through the core's own mise task inside the flake
+environment, then clones and builds this workspace in that same environment.
+Idempotent — safe to re-run.
 
 ### Option 2 — Manual
 
@@ -48,16 +46,60 @@ git submodule update --init --remote --merge
 
 ### Build & source
 
-```bash
-# Core (at ~/lotusim_ws/src/LOTUSim) — use lotusim clean_build, not colcon build
-source /opt/ros/jazzy/setup.bash
-lotusim clean_build
-source $HOME/lotusim_ws/install/setup.bash
+The core provides its own ROS 2 and Gazebo through a nix flake, and builds with
+mise. Both workspaces must be built inside that environment: a build against a
+system ROS and one against the flake's produce different message definitions,
+and the two never talk to each other.
 
-# This workspace
+```bash
+# Core (at ~/lotusim_ws/src/LOTUSim)
+cd $HOME/lotusim_ws/src/LOTUSim
+nix develop            # ROS 2, Gazebo and xdyn, from the flake
+mise run build
+
+# This workspace, from inside that same shell
+source $HOME/lotusim_ws/src/LOTUSim/install/setup.bash
 cd $HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario/
 colcon build
 source install/setup.bash
+```
+
+Nix itself is installed once per machine:
+
+```bash
+curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install | sh -s -- --daemon
+sudo tee -a /etc/nix/nix.conf <<'EOF'
+experimental-features = nix-command flakes
+extra-substituters = https://ros.cachix.org
+extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+EOF
+sudo systemctl restart nix-daemon
+```
+
+The ROS cache is not optional in practice: without it nix rebuilds the whole
+ROS 2 stack from source.
+
+**PX4 SITL stays a system build**, and the launcher keeps it that way: inside a
+devshell it is handed the system loader, binary and gz configuration paths, so
+its gz dependencies resolve against the ROS 2 install it was linked with. The
+two builds still meet over gz-transport. Build it with the same compiler as
+before (`CC=clang CXX=clang++ make px4_sitl_default`) — the flags PX4 passes are
+clang's.
+
+**Rendering sensors need a GPU bridge** away from NixOS. A camera or gpu_lidar
+is rendered whether or not a window is open, and a nix-built Gazebo cannot reach
+the host driver by itself:
+
+```bash
+nix profile add github:nix-community/nixGL#nixGLIntel
+```
+
+On a hybrid or NVIDIA machine, install the matching NVIDIA wrapper instead and
+name it with `LOTUSIM_GL_WRAPPER`, since the core's detection prefers Intel:
+
+```bash
+NIXPKGS_ALLOW_UNFREE=1 nix profile add --impure github:nix-community/nixGL#nixGLNvidia
+export LOTUSIM_GL_WRAPPER=nixGLNvidia-<driver version>
 ```
 
 ---

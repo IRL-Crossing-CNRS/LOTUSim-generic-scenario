@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import threading
 
-import cv2
 import numpy as np
-from PIL import Image
+
+# cv2 and PIL are pulled in only when a frame is actually handled: importing
+# them at module load makes every scenario depend on the vision stack, which
+# the detection tasks alone need.
 
 from rclpy.qos import (
     DurabilityPolicy,
@@ -83,6 +85,8 @@ _display_started = False
 
 
 def _display_loop() -> None:
+    import cv2
+
     while True:
         with _display_lock:
             frames = dict(_display_frames)
@@ -219,6 +223,9 @@ class FaultInspectionTask(TaskAgent):
     def _image_callback(self, msg: CompressedImage) -> None:
         if _det is None or self._detections_pub is None:
             return
+
+        import cv2
+        from PIL import Image
 
         # Decode JPEG → BGR
         buf = np.frombuffer(msg.data, dtype=np.uint8)

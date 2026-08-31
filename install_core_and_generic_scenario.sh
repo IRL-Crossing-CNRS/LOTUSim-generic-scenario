@@ -359,10 +359,8 @@ git -C LOTUSim merge --ff-only "origin/$CORE_BRANCH" 2>/dev/null \
 success "LOTUSim on branch ${CORE_BRANCH}"
 
 # Sanity-check expected directory structure
-[[ -d "$LOTUSIM_PATH/launch" ]] \
-  || die "Expected $LOTUSIM_PATH/launch not found after clone. Check the repo structure."
-[[ -d "$LOTUSIM_PATH/physics" ]] \
-  || warn "$LOTUSIM_PATH/physics not found -- PATH/LD_LIBRARY_PATH entries will be no-ops until built."
+[[ -f "$LOTUSIM_PATH/flake.nix" && -f "$LOTUSIM_PATH/mise.toml" ]] \
+  || die "Expected $LOTUSIM_PATH/flake.nix and mise.toml not found after clone. Check the repo structure."
 
 # -----------------------------------------------------------------------------
 # ~/.bashrc configuration (idempotent)
@@ -376,27 +374,13 @@ if ! grep -qF "$BASHRC_MARKER" ~/.bashrc; then
   cat >> ~/.bashrc <<BASHRC_BLOCK
 
 # >>> LOTUSim setup >>>
-# Auto-configured for Ubuntu ${UBUNTU_VERSION} / ROS 2 ${ROS_DISTRO}
+# Variables only. ROS 2, Gazebo and xdyn come from the core's nix devshell, and
+# sourcing a second ROS here would put two of each on the path — the launcher
+# picks up whichever environment is active.
 export LOTUSIM_WS="\$HOME/lotusim_ws"
 export LOTUSIM_PATH="\$LOTUSIM_WS/src/LOTUSim"
+# Trailing slash is load-bearing: xdyn concatenates it onto mesh paths.
 export LOTUSIM_MODELS_PATH="\$LOTUSIM_PATH/assets/models/"
-export PATH="\$LOTUSIM_PATH/physics:\$LOTUSIM_PATH/launch:\$PATH"
-export LD_LIBRARY_PATH="\${LD_LIBRARY_PATH:+\${LD_LIBRARY_PATH}:}\$LOTUSIM_PATH/physics"
-
-# ROS 2 ${ROS_DISTRO}
-if [[ -f /opt/ros/${ROS_DISTRO}/setup.bash ]]; then
-  source /opt/ros/${ROS_DISTRO}/setup.bash
-fi
-
-# LOTUSim workspace overlay (available after first build)
-if [[ -f "\$LOTUSIM_WS/install/setup.bash" ]]; then
-  source "\$LOTUSIM_WS/install/setup.bash"
-fi
-
-# Bash completion for lotusim CLI
-if [[ -f "\$LOTUSIM_PATH/launch/bash_completion.sh" ]]; then
-  source "\$LOTUSIM_PATH/launch/bash_completion.sh"
-fi
 # <<< LOTUSim setup <<<
 BASHRC_BLOCK
   success "~/.bashrc updated"
@@ -405,72 +389,67 @@ else
 fi
 
 # Apply exports for the remainder of this session
-export PATH="$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LOTUSIM_PATH/physics"
+export LOTUSIM_MODELS_PATH="$LOTUSIM_PATH/assets/models/"
 
 # -----------------------------------------------------------------------------
 # Make launch scripts executable
 # -----------------------------------------------------------------------------
 info "Setting execute permissions on launch scripts..."
-chmod -R +x "$LOTUSIM_PATH/launch"
+chmod +x "$LOTUSIM_PATH"/scripts/*.sh 2>/dev/null || true
 success "Permissions set"
 
 # -----------------------------------------------------------------------------
-# Run LOTUSim dependency installer — skipped when ROS 2 is already installed
-# (re-run it anyway with:  FORCE_LOTUSIM_INSTALL=1 ./install_core_and_generic_scenario.sh)
-# sudo -E preserves exported vars (LOTUSIM_WS/LOTUSIM_PATH point at the
-# workspace for this script, see Variables section above)
+# Nix — the core provides ROS 2, Gazebo and xdyn through its flake, so this is
+# the only toolchain the installer puts on the machine.
 # -----------------------------------------------------------------------------
-if [[ -f "$ROS_SETUP" && "${FORCE_LOTUSIM_INSTALL:-0}" != "1" ]]; then
-  info "ROS 2 ${ROS_DISTRO^} already installed at /opt/ros/${ROS_DISTRO} -- skipping 'lotusim install'"
-  info "(force it with: FORCE_LOTUSIM_INSTALL=1 $0)"
-
-  # 'lotusim install' is skipped above, so packages it would normally pull in
-  # are checked individually here and installed only if missing.
-  info "Checking packages normally pulled in by 'lotusim install'..."
-  sudo apt-get update -qq
-  for pkg in libwebsocketpp-dev "ros-${ROS_DISTRO}-geographic-msgs" "ros-${ROS_DISTRO}-ros-gz"; do
-    if dpkg -s "$pkg" &>/dev/null; then
-      info "$pkg already installed -- skipping"
-    else
-      info "Installing missing package: $pkg..."
-      sudo apt-get install -y --no-install-recommends "$pkg"
-      success "$pkg installed"
-    fi
-  done
+if command -v nix &>/dev/null; then
+  info "nix already installed -- skipping"
 else
-  info "Running 'lotusim install' for ROS 2 ${ROS_DISTRO^} (this may take a while)..."
-  cd "$LOTUSIM_PATH/launch"
-  sudo -E ./lotusim install
-  success "lotusim install complete"
+  info "Installing nix (multi-user; this asks for your password)..."
+  curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install | sh -s -- --daemon
+  success "nix installed"
+fi
+
+# shellcheck disable=SC1091
+[[ -f /etc/profile.d/nix.sh ]] && ros_source /etc/profile.d/nix.sh
+export PATH="/nix/var/nix/profiles/default/bin:$PATH"
+
+# Flakes are what "nix develop" needs; the ROS cache is what keeps it minutes
+# rather than hours, since without it nix rebuilds ROS 2 from source.
+NIX_CONF=/etc/nix/nix.conf
+if ! grep -q 'experimental-features' "$NIX_CONF" 2>/dev/null; then
+  info "Enabling flakes..."
+  echo 'experimental-features = nix-command flakes' | sudo tee -a "$NIX_CONF" >/dev/null
+  NIX_CONF_CHANGED=1
+fi
+if ! grep -q 'ros.cachix.org' "$NIX_CONF" 2>/dev/null; then
+  info "Adding the ROS binary cache..."
+  sudo tee -a "$NIX_CONF" >/dev/null <<'NIXCONF'
+extra-substituters = https://ros.cachix.org
+extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+NIXCONF
+  NIX_CONF_CHANGED=1
+fi
+if [[ "${NIX_CONF_CHANGED:-0}" == "1" ]]; then
+  sudo systemctl restart nix-daemon || warn "Could not restart nix-daemon; restart it yourself before continuing."
 fi
 
 # -----------------------------------------------------------------------------
-# Source ROS 2 so colcon and other ROS tools are available in this session
+# Build the core, inside its own flake environment. The core builds at its own
+# root, and the scenario packages depend on lotusim_msgs, which only exists
+# after this build. The first entry into the devshell downloads the whole ROS 2
+# and Gazebo closure.
 # -----------------------------------------------------------------------------
-if [[ -f "$ROS_SETUP" ]]; then
-  ros_source "$ROS_SETUP"
+CORE_INSTALL="$LOTUSIM_PATH/install"
+if [[ ! -f "$CORE_INSTALL/setup.bash" ]]; then
+  info "Building the LOTUSim core in its devshell (the first run downloads a lot)..."
+  purge_foreign_colcon_artifacts "$LOTUSIM_PATH"
+  ( cd "$LOTUSIM_PATH" && nix develop --command mise run build ) \
+    || die "Core build failed. Enter it yourself with: cd $LOTUSIM_PATH && nix develop"
+  success "Core built"
 else
-  die "ROS 2 ${ROS_DISTRO^} setup.bash not found at $ROS_SETUP -- did 'lotusim install' succeed?"
+  info "Core already built -- skipping (rebuild with 'nix develop' then 'mise run build')"
 fi
-
-# -----------------------------------------------------------------------------
-# Build the core workspace — the scenario packages (e.g. gz_ros2_bridge)
-# depend on lotusim_msgs, which only exists after this build.
-# LOTUSIM_WS/LOTUSIM_PATH are exported above (see Variables
-# section), so the core CLI builds ~/lotusim_ws.
-# -----------------------------------------------------------------------------
-if [[ ! -f "$LOTUSIM_WS/install/setup.bash" ]]; then
-  info "Building LOTUSim core workspace (this may take a while)..."
-  purge_foreign_colcon_artifacts "$LOTUSIM_WS"
-  "$LOTUSIM_PATH/launch/lotusim" build
-  success "Core workspace built"
-else
-  info "Core workspace already built -- skipping (rebuild with 'lotusim clean_build')"
-fi
-
-# Source the core overlay so the scenario build can find lotusim_msgs
-ros_source "$LOTUSIM_WS/install/setup.bash"
 
 # -----------------------------------------------------------------------------
 # Scenario workspace -- clone & update submodules
@@ -515,12 +494,16 @@ success "LFS content up to date"
 # exist or not a regular file"). Healthy same-machine incremental builds are
 # left untouched.
 # -----------------------------------------------------------------------------
-info "Building LOTUSim generic scenario with colcon..."
+# Built inside the core's devshell, and against the core it just produced: a
+# workspace built against any other ROS 2 gets different message definitions and
+# never exchanges a message with the simulation.
+PWD_SCENARIO="$PWD"
+info "Building LOTUSim generic scenario with colcon, in the core's devshell..."
 purge_foreign_colcon_artifacts "$PWD"
-colcon build --symlink-install
-
-ros_source install/setup.bash
-success "Scenario built and sourced"
+( cd "$LOTUSIM_PATH" && nix develop --command bash -c \
+    "source '$LOTUSIM_PATH/install/setup.bash' && cd '$PWD_SCENARIO' && colcon build --symlink-install" ) \
+  || die "Scenario build failed."
+success "Scenario built"
 
 # -----------------------------------------------------------------------------
 # PX4 SITL (optional — answer 3 / INSTALL_PX4=1)
@@ -739,7 +722,7 @@ echo "  Core branch: ${CORE_BRANCH}  |  Scenario branch: ${SCENARIO_BRANCH}"
 echo ""
 echo "  Core workspace:     ${LOTUSIM_WS}"
 echo "  Scenario workspace: ${SCENARIO_WS}/LOTUSim-generic-scenario"
-echo "  CLI command:        lotusim   (e.g. 'lotusim clean_build')"
+echo "  Core build:         cd \$LOTUSIM_PATH && nix develop && mise run build"
 if [[ "$USAGE_MODE" == "user" ]]; then
 echo "  Deployment folder:  ${HOME}/Documents/workspace/deployment"
 fi
