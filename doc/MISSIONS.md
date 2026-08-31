@@ -387,7 +387,12 @@ the task**, on whichever machine is ticking the mission:
    `PhysicalEntity._lotus_blocks()` turns into a
    `<connection_type>Kinematic</connection_type>` block at spawn time,
    telling the host's Gazebo `KinematicInterface` plugin to integrate that
-   velocity set-point using Gazebo's own simulation time step.
+   velocity set-point using Gazebo's own simulation time step. The block is
+   emitted inside `<physics_engine_interface>`, once per entry of the agent's
+   `domains` list (`<surface>`, `<underwater>`, `<aerial>`), followed by
+   `<init_state>` naming the domain the entity starts in. The host keeps one
+   physics interface per declared domain and switches between them as the
+   entity crosses its surface threshold.
 4. Because the agent only ever *publishes ROS topics* and *reads a pose
    topic*, the exact same task + mission JSON produces identical motion
    whichever machine (host or remote) is ticking it — there is no
