@@ -63,7 +63,7 @@ class PhysicalEntity(Entity):
                     # priority over the Aerial/XDyn paths below so an aerial agent
                     # driven by WaypointFollowerTask uses the kinematic path too.
                     block += """
-                    <connection_type>Kinematic</connection_type>
+                    <interface_type>Kinematic</interface_type>
                 """
                 elif domain == "Aerial":
                     # The host's ROS2 aerial interface mirrors this entity's pose
@@ -72,12 +72,12 @@ class PhysicalEntity(Entity):
                     # in the custom world's AerialEntityManager (<aerial_namespace>),
                     # a mismatch just makes the aerial MAS "not available".
                     block += """
-                    <connection_type>ROS2</connection_type>
+                    <interface_type>ROS2</interface_type>
                     <namespace>aerialWorld</namespace>
                 """
                 elif self.xdyn_ip and self.xdyn_port:
                     block += f"""
-                    <connection_type>XDynWebSocket</connection_type>
+                    <interface_type>XDynWebSocket</interface_type>
                     <uri>ws://{self.xdyn_ip}:{self.xdyn_port}</uri>
                 """
                     # Emit at most one of the two command-seeding tags, and

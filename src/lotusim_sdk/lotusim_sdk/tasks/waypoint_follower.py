@@ -53,7 +53,7 @@ class WaypointFollowerTask(TaskAgent):
     executes on whichever machine ticks the mission.
 
     Requirements:
-        * The agent must be spawned with ``<connection_type>Kinematic</connection_type>``.
+        * The agent must be spawned with ``<interface_type>Kinematic</interface_type>``.
           This task signals that at construction by setting
           ``host._kinematic_guidance = True`` before the SDF is emitted at spawn;
           :class:`PhysicalEntity` then emits the Kinematic block (XDyn disabled).

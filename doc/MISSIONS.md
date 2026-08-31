@@ -385,7 +385,7 @@ the task**, on whichever machine is ticking the mission:
    publishes it as a `VesselCmdArray`.
 3. The task sets `host._kinematic_guidance = True` at construction, which
    `PhysicalEntity._lotus_blocks()` turns into a
-   `<connection_type>Kinematic</connection_type>` block at spawn time,
+   `<interface_type>Kinematic</interface_type>` block at spawn time,
    telling the host's Gazebo `KinematicInterface` plugin to integrate that
    velocity set-point using Gazebo's own simulation time step. The block is
    emitted inside `<physics_engine_interface>`, once per entry of the agent's
