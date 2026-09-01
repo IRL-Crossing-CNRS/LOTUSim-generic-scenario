@@ -498,11 +498,15 @@ success "LFS content up to date"
 # workspace built against any other ROS 2 gets different message definitions and
 # never exchanges a message with the simulation.
 PWD_SCENARIO="$PWD"
-info "Building LOTUSim generic scenario with colcon, in the core's devshell..."
+# This workspace has its own devshell: the core's, plus the Python packages the
+# agents import. Its lotusim input is pointed at the core just cloned, so both
+# are built against one ROS 2 rather than against whatever github holds.
+info "Building LOTUSim generic scenario with colcon, in its devshell..."
 purge_foreign_colcon_artifacts "$PWD"
-( cd "$LOTUSIM_PATH" && nix develop --command bash -c \
-    "source '$LOTUSIM_PATH/install/setup.bash' && cd '$PWD_SCENARIO' && colcon build --symlink-install" ) \
-  || die "Scenario build failed."
+( cd "$PWD_SCENARIO" && nix develop --override-input lotusim "$LOTUSIM_PATH" \
+    --command bash -c \
+    "source '$LOTUSIM_PATH/install/setup.bash' && colcon build --symlink-install" ) \
+  || die "Scenario build failed. Enter the shell yourself with: cd $PWD_SCENARIO && nix develop --override-input lotusim $LOTUSIM_PATH"
 success "Scenario built"
 
 # -----------------------------------------------------------------------------
