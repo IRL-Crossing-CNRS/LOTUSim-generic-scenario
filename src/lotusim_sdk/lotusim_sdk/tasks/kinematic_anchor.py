@@ -8,10 +8,10 @@ class KinematicAnchorTask(TaskAgent):
     """Keeps a thruster-less prop (e.g. a mine) spawned as a Kinematic entity
     without ever commanding it to move.
 
-    ``PhysicalEntity._lotus_blocks()`` only emits ``<connection_type>Kinematic
-    </connection_type>`` when ``host._kinematic_guidance`` was set truthy
+    ``PhysicalEntity._lotus_blocks()`` only emits ``<interface_type>Kinematic
+    </interface_type>`` when ``host._kinematic_guidance`` was set truthy
     before spawn — normally done by ``WaypointFollowerTask``. A prop with no
-    thrusters and no such task gets NO connection_type at all, so the host's
+    thrusters and no such task gets NO interface_type at all, so the host's
     ``KinematicInterface`` never integrates it — including the ocean current
     it applies to every kinematic entity's position update. This task's only
     job is to request that connection type; it never publishes a velocity
