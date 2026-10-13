@@ -357,7 +357,7 @@ that loops).
 |---|---|---|---|
 | `waypoint_follower` | `WaypointFollowerTask` | `RUNNING` until within `range_tolerance` of the last waypoint (`SUCCESS`); `FAILURE` if no waypoints resolved | Runs the guidance/control loop **on the agent node**, not in a Gazebo plugin — see §4.3. |
 | `fault_inspection` | `FaultInspectionTask` | event-driven: always `RUNNING`, detections published as they arrive | HSV corrosion + YOLO crack inference on `/{world}/{agent}/inspection/image`. |
-| `crack_detector` | `CrackDetector` | event-driven: always `RUNNING`, detections published as they arrive | Crack-only variant: CLAHE contrast enhancement (tuned for underwater imagery) then YOLO inference on `/{world}/{agent}/inspection/image`. `model` selects the checkpoint — `"simulation"` (default) or `"real"`. **Requires a CUDA GPU**: inference is pinned to device 0 and does not fall back to CPU. |
+| `crack_detector` | `CrackDetector` | event-driven: always `RUNNING`, detections published as they arrive | Crack-only variant: CLAHE contrast enhancement (tuned for underwater imagery) then YOLO inference on `/{world}/{agent}/inspection/image`. `model` selects the checkpoint — `"simulation"` (default) or `"real"`. Runs on the first CUDA GPU in the `gpu` devshell, on the CPU otherwise (slower). |
 | `check_battery_state` | `CheckBatteryStateTask` | event-driven: always `RUNNING` | Subscribes `/{world}/{agent}/battery/state`, edge-triggers a `Bool` on `/{world}/{agent}/light/cmd` when the percentage crosses `threshold`. |
 
 An **event-driven** task (`fault_inspection`, `crack_detector`,

@@ -14,6 +14,10 @@ def _patched_torch_load(f, *args, **kwargs):
 
 torch.load = _patched_torch_load
 
+# Inference runs on the first CUDA GPU when torch sees one (the "gpu"
+# devshell), on the CPU otherwise (the default devshell's torch).
+device = 0 if torch.cuda.is_available() else "cpu"
+
 MODEL_FILES = {
     "simulation": "finetuned.pt",
     "real": "best.pt",
@@ -31,7 +35,7 @@ def load_yolo_model(model="simulation"):
     model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     print(f"[DETECTION] Loading YOLO model ({model}): {model_path}")
     loaded = YOLO(model_path)
-    print(f"[DETECTION] YOLO ready ({model}).")
+    print(f"[DETECTION] YOLO ready ({model}) on {'cuda:0' if device == 0 else 'cpu'}.")
     return loaded
 
 

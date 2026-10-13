@@ -27,11 +27,16 @@
         ];
 
         # ultralytics (with torch) runs the YOLO crack and corrosion detection
-        # of the fault_inspection and crack_detector tasks, on the GPU. torch
-        # is NVIDIA's CUDA build (torch-bin, unfree), which needs CUDA 13. It
-        # is put on PYTHONPATH rather than in the shell's packages: as a
-        # package, torch's -dev output joins the C++ include path and its
-        # bundled protobuf headers break the gz_ros2_bridge build.
+        # of the fault_inspection and crack_detector tasks. It is put on
+        # PYTHONPATH rather than in the shell's packages: as a package, torch's
+        # -dev output joins the C++ include path and its bundled protobuf
+        # headers break the gz_ros2_bridge build.
+        #
+        # The default devshell carries nixpkgs' CPU torch (about 1 GB). The
+        # "gpu" devshell carries NVIDIA's CUDA build (torch-bin, unfree, CUDA
+        # 13, about 7 GB); the installer asks which one to use.
+        cpuDetectionEnv = pkgs.python3.withPackages (ps: [ ps.ultralytics ]);
+
         # nixpkgs compiles NCCL and NVSHMEM from source, and no binary cache
         # holds them for this nixpkgs: the build takes an hour and its nvcc
         # jobs exhaust 32 GB of RAM. NVIDIA's prebuilt wheels of the same
@@ -99,8 +104,7 @@
             torchvision = super.torchvision-bin;
           };
         };
-        detectionEnv = detectionPython.withPackages (ps: [ ps.ultralytics ]);
-        detectionPythonPath = "${detectionEnv}/${detectionPython.sitePackages}";
+        gpuDetectionEnv = detectionPython.withPackages (ps: [ ps.ultralytics ]);
 
         # torch loads the NVIDIA driver's libcuda from the host. NixOS has it
         # in /run/opengl-driver/lib; elsewhere only the driver's libraries are
@@ -121,15 +125,30 @@
             export LD_LIBRARY_PATH="$host_cuda''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           fi
         '';
-      in {
-        devShells.default = pkgs.mkShell {
+
+        scenarioShell = { detectionEnv, hook ? "", banner }: pkgs.mkShell {
           inputsFrom = [ coreShell ];
-          packages = scenarioPython;
+          # jq: scenario_launch.sh reads the scenario JSON with it.
+          packages = scenarioPython ++ [ pkgs.jq ];
           shellHook = ''
-            export PYTHONPATH="${detectionPythonPath}''${PYTHONPATH:+:$PYTHONPATH}"
-            ${hostCudaHook}
-            echo "LOTUSim generic scenario — core devshell plus the agents' Python packages"
+            export PYTHONPATH="${detectionEnv}/${pkgs.python3.sitePackages}''${PYTHONPATH:+:$PYTHONPATH}"
+            ${hook}
+            echo "${banner}"
           '';
+        };
+      in {
+        devShells = {
+          default = scenarioShell {
+            detectionEnv = cpuDetectionEnv;
+            banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the CPU)";
+          };
+        } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          # CUDA, and NVIDIA's wheels, exist for Linux only.
+          gpu = scenarioShell {
+            detectionEnv = gpuDetectionEnv;
+            hook = hostCudaHook;
+            banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the GPU)";
+          };
         };
       });
 }

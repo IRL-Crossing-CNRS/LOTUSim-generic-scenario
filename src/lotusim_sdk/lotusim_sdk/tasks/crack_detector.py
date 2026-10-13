@@ -223,11 +223,10 @@ class CrackDetector(TaskAgent):
 
         if _det.yolo_model is not None:
             with _yolo_lock:
-                # NOTE: device=0 pins inference to the first CUDA GPU, so this
-                # task REQUIRES a CUDA-capable machine — it raises on a CPU-only
-                # host rather than falling back. imgsz/conf are the values the
+                # The first CUDA GPU when there is one, the CPU otherwise (see
+                # yolo_server_crack.device). imgsz/conf are the values the
                 # checkpoints were tuned against; they are not scenario params.
-                results = _det.yolo_model.predict(source=final_image, imgsz=832, conf=0.42, device=0)
+                results = _det.yolo_model.predict(source=final_image, imgsz=832, conf=0.42, device=_det.device)
 
             for result in results:
                 if result.boxes is None:
