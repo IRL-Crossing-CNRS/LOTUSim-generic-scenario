@@ -4,9 +4,11 @@ import json
 import threading
 import time
 
-import cv2
 import numpy as np
-from PIL import Image
+
+# cv2 and PIL are pulled in only when a frame is actually handled: importing
+# them at module load makes every scenario depend on the vision stack, which
+# the detection tasks alone need.
 
 from rclpy.qos import (
     DurabilityPolicy,
@@ -86,6 +88,8 @@ _display_started = False
 
 
 def _display_loop() -> None:
+    import cv2
+
     while True:
         with _display_lock:
             frames = dict(_display_frames)
@@ -282,6 +286,8 @@ class FaultInspectionTask(TaskAgent):
         # Build this agent's model on the first frame. Idempotent, and it runs
         # on a background thread, so frames are colour-only until it is ready.
         self._start_model_load()
+        import cv2
+        from PIL import Image
 
         # Decode JPEG → BGR
         buf = np.frombuffer(msg.data, dtype=np.uint8)

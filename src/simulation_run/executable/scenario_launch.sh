@@ -103,14 +103,30 @@ UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -s
 # processes (xdyn, ROS nodes) always see these paths.
 export LOTUSIM_WS="${LOTUSIM_WS:-$HOME/lotusim_ws}"
 export LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
-export PATH=$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH
-export LD_LIBRARY_PATH=$LOTUSIM_PATH/physics:$LD_LIBRARY_PATH
+# The core ships neither a launcher script nor xdyn binaries: worlds are started
+# through gz sim directly (see simulation_runner.py) and xdyn comes from lxdyn's
+# published image, provided by the core's nix devshell or installed separately.
+# XDYN_PATH points at that directory when xdyn-for-cs is not already on PATH.
+if [ -n "${XDYN_PATH:-}" ]; then
+  export PATH="$XDYN_PATH:$PATH"
+  export LD_LIBRARY_PATH="$XDYN_PATH:${LD_LIBRARY_PATH:-}"
+fi
+if ! command -v xdyn-for-cs >/dev/null 2>&1; then
+  echo -e "${RED}xdyn-for-cs not found on PATH.${NC}" >&2
+  echo "Enter the core's devshell (nix develop) or set XDYN_PATH to the directory holding it." >&2
+  exit 1
+fi
 # Trailing slash required: xdyn joins this to a model YAML's relative
 # "mesh:" path by plain concatenation, so without it lrauv.yml's
 # "lrauv/tethys_hydrostatic_hull.stl" resolves to ".../assets/modelslrauv/..."
 # and xdyn refuses to simulate the vehicle at all. The installer's own export
 # already carries the slash; this one overrides it.
 export LOTUSIM_MODELS_PATH=$LOTUSIM_PATH/assets/models/
+# lxdyn resolves a model YAML's relative "mesh:" against XDYN_ASSETS_PATH and,
+# when it is unset, against the YAML's own folder, which doubles the model
+# name (".../wamv/wamv/meshes/...") and makes xdyn refuse the vehicle. The
+# core's mise tasks and its lotusim command set it; this launcher must too.
+export XDYN_ASSETS_PATH="${XDYN_ASSETS_PATH:-$LOTUSIM_MODELS_PATH}"
 
 # --- Updated paths for your scenario workspace ---
 LOTUSIM_SCENARIO_WS="${LOTUSIM_SCENARIO_WS:-$HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario}"
@@ -176,9 +192,28 @@ kill_unity_processes() {
 }
 
 # -------------------- Source ROS --------------------
-[[ -f "$ROS_SETUP" ]] || die "ROS 2 setup not found at $ROS_SETUP. Is ROS 2 ${ROS_DISTRO^} installed?"
-source "$ROS_SETUP"
-source "$LOTUSIM_WS/install/setup.bash"
+# An active environment wins: inside the core's nix devshell ROS 2 is already on
+# PATH with its own Python, and sourcing the system tree on top mixes two
+# interpreters. ROS_SOURCE_CMD is reused by the subshells started further down,
+# which inherit this environment.
+if command -v ros2 >/dev/null 2>&1; then
+  ROS_SOURCE_CMD="true"
+  echo -e "${GREEN}[INFO] Using the ROS 2 environment already on PATH${NC}"
+else
+  [[ -f "$ROS_SETUP" ]] || die "ROS 2 setup not found at $ROS_SETUP, and none is active. Install ROS 2 ${ROS_DISTRO^} or enter the core's devshell."
+  ROS_SOURCE_CMD="source \"$ROS_SETUP\""
+  source "$ROS_SETUP"
+fi
+
+# The core builds at its own root; older layouts put the workspace one level up.
+if [[ -f "$LOTUSIM_PATH/install/setup.bash" ]]; then
+  CORE_SETUP="$LOTUSIM_PATH/install/setup.bash"
+elif [[ -f "$LOTUSIM_WS/install/setup.bash" ]]; then
+  CORE_SETUP="$LOTUSIM_WS/install/setup.bash"
+else
+  die "No core build found: looked in $LOTUSIM_PATH/install and $LOTUSIM_WS/install."
+fi
+source "$CORE_SETUP"
 source "$LOTUSIM_SCENARIO_WS/install/setup.bash"
 
 # Force this core workspace to the FRONT of every resolution path.
@@ -194,15 +229,18 @@ source "$LOTUSIM_SCENARIO_WS/install/setup.bash"
 #   * Python (PYTHONPATH/AMENT_PREFIX_PATH): tasks import the other
 #     definition, so their subscription's type hash never matches the
 #     publisher's and no pose is ever delivered.
-if [[ -d "$LOTUSIM_WS/install/lib" ]]; then
-    export LD_LIBRARY_PATH="$LOTUSIM_WS/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+_core_install="$(dirname "$CORE_SETUP")"
+if [[ -d "$_core_install/lib" ]]; then
+    export LD_LIBRARY_PATH="$_core_install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
-_core_pythonpath="$LOTUSIM_WS/install/lib/python${PYTHON_VERSION:-3.12}/site-packages"
+# The interpreter is whichever one is active: the devshell ships its own.
+_py_ver="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo 3.12)"
+_core_pythonpath="$_core_install/lib/python${_py_ver}/site-packages"
 if [[ -d "$_core_pythonpath" ]]; then
     export PYTHONPATH="$_core_pythonpath${PYTHONPATH:+:$PYTHONPATH}"
 fi
-if [[ -d "$LOTUSIM_WS/install" ]]; then
-    export AMENT_PREFIX_PATH="$LOTUSIM_WS/install${AMENT_PREFIX_PATH:+:$AMENT_PREFIX_PATH}"
+if [[ -d "$_core_install" ]]; then
+    export AMENT_PREFIX_PATH="$_core_install${AMENT_PREFIX_PATH:+:$AMENT_PREFIX_PATH}"
 fi
 
 # Apply domain ID globally
@@ -556,8 +594,8 @@ if [[ "$USE_UNITY" == "true" ]]; then
   TCP_LOG_LEVEL="WARN"
   [[ "$DEBUG_MODE" == "true" ]] && TCP_LOG_LEVEL="DEBUG"
   run_helper "$LOG_DIR/ros_tcp_endpoint.log" "
-    source /opt/ros/${ROS_DISTRO}/setup.bash
-    source \"$LOTUSIM_WS/install/setup.bash\"
+    $ROS_SOURCE_CMD
+    source \"$CORE_SETUP\"
     export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
     export ROS_IP=$ROS_IP
     ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level $TCP_LOG_LEVEL
@@ -692,6 +730,15 @@ echo -e "${GREEN}[INFO] Using config: ${NC}$CONFIG_BASENAME"
 DEBUG_ARG=""
 if [[ "$DEBUG_MODE" == "true" ]]; then
     DEBUG_ARG="--debug"
+fi
+
+# A headless run renders its sensors through EGL. Leaving DISPLAY set sends
+# Ogre down the GLX path instead, which needs a usable X connection: from a
+# detached shell, or over a session that grants none, it fails to build the
+# context and every gpu_lidar and camera takes the whole world down with it.
+# The GUI genuinely needs the display, so this only applies without it.
+if [[ "$GZ_GUI" != "true" ]]; then
+  unset DISPLAY WAYLAND_DISPLAY
 fi
 
 # Build argument list

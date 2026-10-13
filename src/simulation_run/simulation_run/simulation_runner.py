@@ -99,7 +99,15 @@ def build_launch_command(
     Returns:
         A list of full command strings to execute.
     """
-    base_command = "lotusim"
+    # Two entry points, and the choice is not cosmetic: the nix-installed
+    # lotusim CLI runs its own hermetic build of the core, so its lotusim_msgs
+    # differs from the one this workspace was built against and the MAS action
+    # servers never match. A clone with mise is therefore preferred — its sim
+    # task runs the in-tree build the scenario packages were compiled with.
+    # Both take their flags after the subcommand.
+    core_path = os.environ.get("LOTUSIM_PATH", "")
+    use_mise = shutil.which("mise") is not None and os.path.isfile(os.path.join(core_path, "mise.toml"))
+    base_command = f"mise run --cd {core_path} sim" if use_mise else "lotusim run"
     debug_flag = "--debug" if debug else ""
     gui_flag = "--gui" if gui else ""
     commands: List[str] = []
@@ -121,7 +129,7 @@ def build_launch_command(
         taskset execs into, so a taskset prefix here doesn't hide the
         process from cleanup.
         """
-        cmd = f"{base_command} {debug_flag} {gui_flag} run {wf}".strip()
+        cmd = " ".join(p for p in (base_command, debug_flag, gui_flag, wf) if p)
         if cpu_affinity:
             cmd = f"taskset -c {cpu_affinity} {cmd}"
         log_dir = os.environ.get("LOG_DIR")
