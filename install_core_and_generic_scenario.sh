@@ -4,6 +4,13 @@
 #  Ubuntu 24.04  →  ROS 2 Jazzy   (also works in WSL2 — see README)
 #  LOTUSim core + LOTUSim-generic-scenario
 #  Optional: PX4 SITL for aerial X500 drones (question 3 / INSTALL_PX4=1)
+#  Optional: YOLO detection on an NVIDIA GPU (question 4 / INSTALL_GPU=1)
+#  Unity player(s) to download (question 5 / INSTALL_UNITY_PLAYER=linux|windows|all)
+#
+#  Installs the LOTUSim core (~/lotusim_ws) and the generic scenario
+#  workspace (~/Documents/workspace/lotusim), built in their nix devshells,
+#  with LOTUSIM_* shell variables and the lotusim_core / lotusim_shell
+#  commands. Naval Group's own 'lotusim' program is left untouched.
 # =============================================================================
 set -euo pipefail
 IFS=$'\n\t'
@@ -106,7 +113,7 @@ esac
 ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
 
 echo "============================================================="
-echo "  LOTUSim full setup (private repositories)"
+echo "  LOTUSim full setup"
 echo "  Ubuntu ${UBUNTU_VERSION}  ->  ROS 2 ${ROS_DISTRO^}"
 echo "============================================================="
 
@@ -117,45 +124,51 @@ LOTUSIM_WS="$HOME/lotusim_ws"
 LOTUSIM_SRC="$LOTUSIM_WS/src"
 LOTUSIM_PATH="$LOTUSIM_SRC/LOTUSim"
 SCENARIO_WS="$HOME/Documents/workspace/lotusim"
-
-CORE_REPO_URL="https://github.com/IRL-Crossing-CNRS/LOTUSim"
-SCENARIO_REPO_URL="https://github.com/IRL-Crossing-CNRS/LOTUSim-generic-scenario"
-
-# Trailing slash required: xdyn joins this to a model YAML's relative "mesh:"
-# path by plain concatenation.
 LOTUSIM_MODELS_PATH="$LOTUSIM_PATH/assets/models/"
+
+# The public repositories, over HTTPS. LOTUSIM_CORE_REPO_URL /
+# LOTUSIM_SCENARIO_REPO_URL override them, e.g. to test the installer against
+# local mirrors.
+CORE_REPO_URL="${LOTUSIM_CORE_REPO_URL:-https://github.com/IRL-Crossing-CNRS/LOTUSim}"
+SCENARIO_REPO_URL="${LOTUSIM_SCENARIO_REPO_URL:-https://github.com/IRL-Crossing-CNRS/LOTUSim-generic-scenario}"
 
 # Export so child processes (e.g. sudo -E) can see them
 export LOTUSIM_WS LOTUSIM_SRC LOTUSIM_PATH SCENARIO_WS LOTUSIM_MODELS_PATH ROS_DISTRO
 
-# Minimal bootstrap — just enough (git, ssh, curl) to check repo access and
-# list branches before asking the user anything. The rest of the system
-# dependencies are installed further down.
+# The only system packages this install needs: git and its LFS (clones), ssh
+# and curl (repository access, nix), jq (scenario_launch.sh reads the scenario
+# JSON with it) and pip (the user mode builds the deployment wheels).
+# ROS 2, Gazebo, colcon and every Python package the simulation imports come
+# from the nix flakes, not from apt or pip.
 # -----------------------------------------------------------------------------
-info "Installing minimal bootstrap dependencies (git, openssh-client, curl)..."
+info "Installing the system packages (git, git-lfs, openssh-client, curl, jq, pip)..."
 
 # Must run BEFORE the first 'apt-get update': a legacy ros2.list sitting next
 # to the deb822 ros2.sources (from the ros2-apt-source package) makes apt
 # abort with "Conflicting values set for option Signed-By".
 remove_conflicting_ros_repo_entries
 
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends git git-lfs openssh-client curl lsb-release
-success "Minimal bootstrap dependencies installed"
+# A third-party repository that fails to refresh (an expired key, a mirror
+# down) makes 'apt-get update' exit non-zero; the packages above all come from
+# Ubuntu, so carry on with the lists already on the machine.
+sudo apt-get update -qq \
+  || warn "apt-get update reported errors (a third-party repository?); continuing with the package lists already on this machine"
+sudo apt-get install -y --no-install-recommends git git-lfs openssh-client curl lsb-release jq python3-pip
+success "System packages installed"
 
 # Must run before any clone: LFS-tracked files otherwise check out as pointer stubs.
 info "Registering git-lfs..."
 git lfs install
 success "git-lfs registered"
 
-# Check both repositories are reachable before doing anything heavy.
+# Check that both repositories are reachable before doing anything heavy.
 # -----------------------------------------------------------------------------
 check_repo_access() {
   local url="$1"
   info "Checking access to ${url}..."
   if ! git ls-remote "$url" HEAD &>/dev/null; then
-    die "Cannot reach ${url}
-   Check your network connection and that the repository still exists."
+    die "Cannot access ${url}
+   Check the internet connection, then: git ls-remote ${url}"
   fi
   success "Access to ${url##*/} confirmed"
 }
@@ -264,60 +277,108 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# ROS 2 apt repository — only configure it if not already present.
+# Question 4 — YOLO detection on the GPU (optional)
+#
+# The crack and corrosion detection tasks run on the CPU by default. On a
+# machine with an NVIDIA GPU and its driver, the scenario workspace's "gpu"
+# devshell runs them with CUDA instead, for about 7 GB more of downloads.
+# The choice is stored in ~/.config/lotusim/devshell ("default" or
+# "gpu"), which lotusim_shell reads; edit it to switch later.
+#
+# Non-interactive override: INSTALL_GPU=1 ./install_core_and_generic_scenario.sh
 # -----------------------------------------------------------------------------
-ROS_KEYRING="/usr/share/keyrings/ros-archive-keyring.gpg"
-ROS_SOURCES="/etc/apt/sources.list.d/ros2.list"
-
-# '-R' (capital, unlike plain '-r') follows symlinks, so an entry installed as
-# /etc/apt/sources.list.d/ros2.sources -> /usr/share/ros-apt-source/ros2.sources
-# is correctly detected as "repository already configured".
-if grep -Rqs "packages.ros.org" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
-  info "ROS 2 apt repository already configured -- skipping GPG key and repo setup"
-  remove_conflicting_ros_repo_entries
+HAS_NVIDIA_GPU=0
+if command -v nvidia-smi &>/dev/null && nvidia-smi -L &>/dev/null; then
+  HAS_NVIDIA_GPU=1
+fi
+if [[ "${INSTALL_GPU:-}" == "1" || "${INSTALL_GPU:-}" == "0" ]]; then
+  INSTALL_GPU_FLAG="${INSTALL_GPU}"
 else
-  info "Pre-installing ROS 2 GPG key before first apt update..."
-  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o "$ROS_KEYRING" \
-    || die "Failed to download ROS 2 GPG key. Check your internet connection."
-
-  # Remove any unsigned/broken ROS repo entry left by a previous failed run
-  sudo rm -f /etc/apt/sources.list.d/ros-latest.list
-
-  # Write the repo entry with signed-by reference (idempotent — overwrites if present)
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=${ROS_KEYRING}] \
-http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
-    | sudo tee "$ROS_SOURCES" > /dev/null
-
-  success "ROS 2 GPG key and signed repo entry configured"
+  echo ""
+  echo "-------------------------------------------------------------"
+  echo "  Run the YOLO detection on an NVIDIA GPU?"
+  echo ""
+  echo "  Downloads NVIDIA's CUDA build of PyTorch (about 7 GB more)."
+  echo "  Without it the crack and corrosion detection runs on the CPU,"
+  echo "  slower but with the same results."
+  if [[ "$HAS_NVIDIA_GPU" == "1" ]]; then
+    echo "  An NVIDIA GPU was found on this machine."
+  else
+    echo "  No NVIDIA GPU (nvidia-smi) was found on this machine."
+  fi
+  echo "-------------------------------------------------------------"
+  if [[ "$HAS_NVIDIA_GPU" == "1" ]]; then GPU_PROMPT="[Y/n]"; GPU_DEFAULT="1"; else GPU_PROMPT="[y/N]"; GPU_DEFAULT="0"; fi
+  INSTALL_GPU_FLAG=""
+  while [[ -z "$INSTALL_GPU_FLAG" ]]; do
+    read -rp "Use the GPU for detection? ${GPU_PROMPT}: " yn
+    case "$yn" in
+      [yY]|[yY][eE][sS])  INSTALL_GPU_FLAG="1" ;;
+      [nN]|[nN][oO])      INSTALL_GPU_FLAG="0" ;;
+      "")                 INSTALL_GPU_FLAG="$GPU_DEFAULT" ;;
+      *) warn "Please answer y or n" ;;
+    esac
+  done
+fi
+if [[ "$INSTALL_GPU_FLAG" == "1" ]]; then
+  SCENARIO_DEVSHELL="gpu"
+  success "Detection: on the GPU"
+else
+  SCENARIO_DEVSHELL="default"
+  info "Detection: on the CPU (re-run with INSTALL_GPU=1 to use the GPU)"
 fi
 
 # -----------------------------------------------------------------------------
-# Remaining system dependencies (bootstrap only — ROS itself is installed by
-# lotusim install)
+# Question 5 — which Unity player to download
+#
+# The scenario repository ships the Unity player built for Linux and for
+# Windows, about 1 GB each, and Git LFS keeps a second copy of what it
+# downloads. Only the player this machine runs is needed: scenario_launch.sh
+# starts the Linux one on Linux and the Windows one under WSL (through
+# interop), so that is the default answer.
+#
+# Non-interactive override: INSTALL_UNITY_PLAYER=linux|windows|all
 # -----------------------------------------------------------------------------
-info "Installing remaining bootstrap system dependencies..."
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
-  jq \
-  python3-pip
-success "Bootstrap dependencies installed"
-
-# colcon lives in the ROS apt repo, which may not exist yet on a fresh system.
-# Try apt first; fall back to pip if the package is unavailable.
-info "Installing colcon..."
-if apt-cache show python3-colcon-common-extensions &>/dev/null 2>&1; then
-  sudo apt-get install -y --no-install-recommends python3-colcon-common-extensions
-  success "colcon installed via apt"
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  DETECTED_UNITY_PLAYER="windows"
 else
-  warn "python3-colcon-common-extensions not found in apt — installing via pip..."
-  pip3 install --break-system-packages colcon-common-extensions
-  success "colcon installed via pip"
+  DETECTED_UNITY_PLAYER="linux"
 fi
+case "${INSTALL_UNITY_PLAYER:-}" in
+  linux|windows|all) UNITY_PLAYER="$INSTALL_UNITY_PLAYER" ;;
+  *)
+    echo ""
+    echo "-------------------------------------------------------------"
+    echo "  Which Unity player should be downloaded?"
+    echo ""
+    echo "  (1) Linux     (2) Windows     (3) both"
+    echo "  This machine runs the ${DETECTED_UNITY_PLAYER} one; each player is about"
+    echo "  1 GB, stored twice by Git LFS."
+    echo "-------------------------------------------------------------"
+    if [[ "$DETECTED_UNITY_PLAYER" == "windows" ]]; then UNITY_DEFAULT_CHOICE="2"; else UNITY_DEFAULT_CHOICE="1"; fi
+    UNITY_PLAYER=""
+    while [[ -z "$UNITY_PLAYER" ]]; do
+      read -rp "Enter your choice [1/2/3, default ${UNITY_DEFAULT_CHOICE}]: " choice
+      case "${choice:-$UNITY_DEFAULT_CHOICE}" in
+        1) UNITY_PLAYER="linux" ;;
+        2) UNITY_PLAYER="windows" ;;
+        3) UNITY_PLAYER="all" ;;
+        *) warn "Please answer 1, 2 or 3" ;;
+      esac
+    done
+    ;;
+esac
+if [[ "$UNITY_PLAYER" != "all" && "$UNITY_PLAYER" != "$DETECTED_UNITY_PLAYER" ]]; then
+  warn "Unity player: ${UNITY_PLAYER}, but scenario_launch.sh will look for the ${DETECTED_UNITY_PLAYER} one on this machine"
+fi
+success "Unity player: ${UNITY_PLAYER}"
 
-info "Installing Python dependencies..."
-pip3 install --break-system-packages pyarrow pandas matplotlib opencv-python
-success "Python dependencies installed (pyarrow, pandas, matplotlib, opencv-python)"
+# git lfs pull and checkouts skip the excluded player, leaving its files as
+# small pointer files.
+case "$UNITY_PLAYER" in
+  linux)   UNITY_LFS_EXCLUDE="lotusim_unity_executables/*_windows/**" ;;
+  windows) UNITY_LFS_EXCLUDE="lotusim_unity_executables/*_linux/**" ;;
+  *)       UNITY_LFS_EXCLUDE="" ;;
+esac
 
 # -----------------------------------------------------------------------------
 # Create workspace and clone LOTUSim core
@@ -359,44 +420,61 @@ git -C LOTUSim merge --ff-only "origin/$CORE_BRANCH" 2>/dev/null \
 success "LOTUSim on branch ${CORE_BRANCH}"
 
 # Sanity-check expected directory structure
-[[ -d "$LOTUSIM_PATH/launch" ]] \
-  || die "Expected $LOTUSIM_PATH/launch not found after clone. Check the repo structure."
-[[ -d "$LOTUSIM_PATH/physics" ]] \
-  || warn "$LOTUSIM_PATH/physics not found -- PATH/LD_LIBRARY_PATH entries will be no-ops until built."
+[[ -f "$LOTUSIM_PATH/flake.nix" && -f "$LOTUSIM_PATH/mise.toml" ]] \
+  || die "Expected $LOTUSIM_PATH/flake.nix and mise.toml not found after clone. Check the repo structure."
 
 # -----------------------------------------------------------------------------
 # ~/.bashrc configuration (idempotent)
 # ROS_DISTRO and UBUNTU_VERSION are embedded literally at write-time.
 # All other variables use escaped $ so they expand at shell startup.
+#
+# The block defines the LOTUSIM_* variables and two commands:
+#   - 'lotusim_core', which runs the core's tasks (build, test, sim <world>,
+#     ...) inside the core's nix devshell
+#   - 'lotusim_shell', which opens the scenario workspace's devshell
+# Neither is called 'lotusim': that is Naval Group's own program. The block
+# sources no ROS 2: ROS 2, Gazebo and xdyn come from the core's devshell.
 # -----------------------------------------------------------------------------
 BASHRC_MARKER="# >>> LOTUSim setup >>>"
+BASHRC_END="# <<< LOTUSim setup <<<"
+
+# A block written by an earlier installer is replaced rather than kept: the
+# apt-based one sources a system ROS 2 and points at directories the core no
+# longer has, and the first nix one always opened the CPU devshell.
+if grep -qF "$BASHRC_MARKER" ~/.bashrc && ! grep -qF ".config/lotusim/devshell" ~/.bashrc; then
+  info "Replacing the previous LOTUSim block in ~/.bashrc (backup: ~/.bashrc.lotusim.bak)..."
+  cp ~/.bashrc ~/.bashrc.lotusim.bak
+  sed -i "/^${BASHRC_MARKER}\$/,/^${BASHRC_END}\$/d" ~/.bashrc
+fi
 
 if ! grep -qF "$BASHRC_MARKER" ~/.bashrc; then
-  info "Adding LOTUSim block to ~/.bashrc (ROS 2 distro: ${ROS_DISTRO})..."
+  info "Adding LOTUSim block to ~/.bashrc..."
   cat >> ~/.bashrc <<BASHRC_BLOCK
 
 # >>> LOTUSim setup >>>
-# Auto-configured for Ubuntu ${UBUNTU_VERSION} / ROS 2 ${ROS_DISTRO}
 export LOTUSIM_WS="\$HOME/lotusim_ws"
 export LOTUSIM_PATH="\$LOTUSIM_WS/src/LOTUSim"
+# Trailing slash is load-bearing: xdyn concatenates it onto mesh paths.
 export LOTUSIM_MODELS_PATH="\$LOTUSIM_PATH/assets/models/"
-export PATH="\$LOTUSIM_PATH/physics:\$LOTUSIM_PATH/launch:\$PATH"
-export LD_LIBRARY_PATH="\${LD_LIBRARY_PATH:+\${LD_LIBRARY_PATH}:}\$LOTUSIM_PATH/physics"
+export LOTUSIM_SCENARIO_WS="\$HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario"
 
-# ROS 2 ${ROS_DISTRO}
-if [[ -f /opt/ros/${ROS_DISTRO}/setup.bash ]]; then
-  source /opt/ros/${ROS_DISTRO}/setup.bash
-fi
+# 'lotusim_core <task> [args]' runs a task of the core in its devshell:
+#   lotusim_core build | test | check | sim [--gui] <world>
+lotusim_core() {
+  ( cd "\$LOTUSIM_PATH" && nix develop --command mise run "\$@" )
+}
 
-# LOTUSim workspace overlay (available after first build)
-if [[ -f "\$LOTUSIM_WS/install/setup.bash" ]]; then
-  source "\$LOTUSIM_WS/install/setup.bash"
-fi
-
-# Bash completion for lotusim CLI
-if [[ -f "\$LOTUSIM_PATH/launch/bash_completion.sh" ]]; then
-  source "\$LOTUSIM_PATH/launch/bash_completion.sh"
-fi
+# 'lotusim_shell' opens the scenario workspace's devshell, built
+# against the core, with both workspaces sourced: scenario_launch.sh is
+# run from there. ~/.config/lotusim/devshell names the devshell:
+# "default" (detection on the CPU) or "gpu".
+lotusim_shell() {
+  local devshell
+  devshell="\$(cat "\$HOME/.config/lotusim/devshell" 2>/dev/null || echo default)"
+  cd "\$LOTUSIM_SCENARIO_WS" && \\
+    nix develop ".#\$devshell" --override-input lotusim "\$LOTUSIM_PATH" \\
+      --command bash --rcfile "\$HOME/.config/lotusim/shellrc"
+}
 # <<< LOTUSim setup <<<
 BASHRC_BLOCK
   success "~/.bashrc updated"
@@ -404,73 +482,90 @@ else
   info "~/.bashrc already contains LOTUSim config -- skipping"
 fi
 
+# The rc file lotusim_shell starts its shell with. It sources the two
+# workspaces only, never ~/.bashrc: an older block there may source a system
+# ROS 2, which must not be mixed with the devshell's.
+mkdir -p "$HOME/.config/lotusim"
+echo "$SCENARIO_DEVSHELL" > "$HOME/.config/lotusim/devshell"
+cat > "$HOME/.config/lotusim/shellrc" <<'SHELLRC'
+PS1="(lotusim_core) $PS1"
+[[ -f "$LOTUSIM_PATH/install/setup.bash" ]] && source "$LOTUSIM_PATH/install/setup.bash"
+[[ -f install/setup.bash ]] && source install/setup.bash
+SHELLRC
+
 # Apply exports for the remainder of this session
-export PATH="$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}$LOTUSIM_PATH/physics"
+export LOTUSIM_MODELS_PATH="$LOTUSIM_PATH/assets/models/"
 
 # -----------------------------------------------------------------------------
 # Make launch scripts executable
 # -----------------------------------------------------------------------------
 info "Setting execute permissions on launch scripts..."
-chmod -R +x "$LOTUSIM_PATH/launch"
+chmod +x "$LOTUSIM_PATH"/scripts/*.sh 2>/dev/null || true
 success "Permissions set"
 
 # -----------------------------------------------------------------------------
-# Run LOTUSim dependency installer — skipped when ROS 2 is already installed
-# (re-run it anyway with:  FORCE_LOTUSIM_INSTALL=1 ./install_core_and_generic_scenario.sh)
-# sudo -E preserves exported vars (LOTUSIM_WS/LOTUSIM_PATH point at the
-# workspace for this script, see Variables section above)
+# Nix — the core provides ROS 2, Gazebo and xdyn through its flake, so this is
+# the only toolchain the installer puts on the machine.
 # -----------------------------------------------------------------------------
-if [[ -f "$ROS_SETUP" && "${FORCE_LOTUSIM_INSTALL:-0}" != "1" ]]; then
-  info "ROS 2 ${ROS_DISTRO^} already installed at /opt/ros/${ROS_DISTRO} -- skipping 'lotusim install'"
-  info "(force it with: FORCE_LOTUSIM_INSTALL=1 $0)"
-
-  # 'lotusim install' is skipped above, so packages it would normally pull in
-  # are checked individually here and installed only if missing.
-  info "Checking packages normally pulled in by 'lotusim install'..."
-  sudo apt-get update -qq
-  for pkg in libwebsocketpp-dev "ros-${ROS_DISTRO}-geographic-msgs" "ros-${ROS_DISTRO}-ros-gz"; do
-    if dpkg -s "$pkg" &>/dev/null; then
-      info "$pkg already installed -- skipping"
-    else
-      info "Installing missing package: $pkg..."
-      sudo apt-get install -y --no-install-recommends "$pkg"
-      success "$pkg installed"
-    fi
-  done
+if command -v nix &>/dev/null; then
+  info "nix already installed -- skipping"
 else
-  info "Running 'lotusim install' for ROS 2 ${ROS_DISTRO^} (this may take a while)..."
-  cd "$LOTUSIM_PATH/launch"
-  sudo -E ./lotusim install
-  success "lotusim install complete"
+  info "Installing nix (multi-user; this asks for your password)..."
+  curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install | sh -s -- --daemon
+  success "nix installed"
+fi
+
+# shellcheck disable=SC1091
+[[ -f /etc/profile.d/nix.sh ]] && ros_source /etc/profile.d/nix.sh
+export PATH="/nix/var/nix/profiles/default/bin:$PATH"
+
+# Flakes are what "nix develop" needs; the binary caches are what keep it
+# minutes rather than hours: ROS 2 and Gazebo come from the ROS cache, xdyn
+# from Naval Group's (the same two caches as the core's README).
+NIX_CONF=/etc/nix/nix.conf
+# A single-user nix, or one installed by hand, may have no /etc/nix at all.
+sudo mkdir -p /etc/nix
+if ! grep -q 'experimental-features' "$NIX_CONF" 2>/dev/null; then
+  info "Enabling flakes..."
+  echo 'experimental-features = nix-command flakes' | sudo tee -a "$NIX_CONF" >/dev/null
+  NIX_CONF_CHANGED=1
+fi
+if ! grep -q 'ros.cachix.org' "$NIX_CONF" 2>/dev/null; then
+  info "Adding the ROS binary cache..."
+  sudo tee -a "$NIX_CONF" >/dev/null <<'NIXCONF'
+extra-substituters = https://ros.cachix.org
+extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+NIXCONF
+  NIX_CONF_CHANGED=1
+fi
+if ! grep -q 'naval-group.cachix.org' "$NIX_CONF" 2>/dev/null; then
+  info "Adding Naval Group's binary cache..."
+  sudo tee -a "$NIX_CONF" >/dev/null <<'NIXCONF'
+extra-substituters = https://naval-group.cachix.org
+extra-trusted-public-keys = naval-group.cachix.org-1:ytTEzFEeuzQrC9IRYLzHGa5OnM65G95M6/sbPd0fy28=
+NIXCONF
+  NIX_CONF_CHANGED=1
+fi
+if [[ "${NIX_CONF_CHANGED:-0}" == "1" ]]; then
+  sudo systemctl restart nix-daemon || warn "Could not restart nix-daemon; restart it yourself before continuing."
 fi
 
 # -----------------------------------------------------------------------------
-# Source ROS 2 so colcon and other ROS tools are available in this session
+# Build the core, inside its own flake environment. The core builds at its own
+# root, and the scenario packages depend on lotusim_msgs, which only exists
+# after this build. The first entry into the devshell downloads the whole ROS 2
+# and Gazebo closure.
 # -----------------------------------------------------------------------------
-if [[ -f "$ROS_SETUP" ]]; then
-  ros_source "$ROS_SETUP"
+CORE_INSTALL="$LOTUSIM_PATH/install"
+if [[ ! -f "$CORE_INSTALL/setup.bash" ]]; then
+  info "Building the LOTUSim core in its devshell (the first run downloads a lot)..."
+  purge_foreign_colcon_artifacts "$LOTUSIM_PATH"
+  ( cd "$LOTUSIM_PATH" && nix develop --command mise run build ) \
+    || die "Core build failed. Enter it yourself with: cd $LOTUSIM_PATH && nix develop"
+  success "Core built"
 else
-  die "ROS 2 ${ROS_DISTRO^} setup.bash not found at $ROS_SETUP -- did 'lotusim install' succeed?"
+  info "Core already built -- skipping (rebuild with 'nix develop' then 'mise run build')"
 fi
-
-# -----------------------------------------------------------------------------
-# Build the core workspace — the scenario packages (e.g. gz_ros2_bridge)
-# depend on lotusim_msgs, which only exists after this build.
-# LOTUSIM_WS/LOTUSIM_PATH are exported above (see Variables
-# section), so the core CLI builds ~/lotusim_ws.
-# -----------------------------------------------------------------------------
-if [[ ! -f "$LOTUSIM_WS/install/setup.bash" ]]; then
-  info "Building LOTUSim core workspace (this may take a while)..."
-  purge_foreign_colcon_artifacts "$LOTUSIM_WS"
-  "$LOTUSIM_PATH/launch/lotusim" build
-  success "Core workspace built"
-else
-  info "Core workspace already built -- skipping (rebuild with 'lotusim clean_build')"
-fi
-
-# Source the core overlay so the scenario build can find lotusim_msgs
-ros_source "$LOTUSIM_WS/install/setup.bash"
 
 # -----------------------------------------------------------------------------
 # Scenario workspace -- clone & update submodules
@@ -481,7 +576,9 @@ cd "$SCENARIO_WS"
 
 if [[ ! -d "LOTUSim-generic-scenario/.git" ]]; then
   info "Cloning LOTUSim-generic-scenario (branch: ${SCENARIO_BRANCH})..."
-  git clone --recurse-submodules -b "$SCENARIO_BRANCH" "$SCENARIO_REPO_URL"
+  # Cloned without its LFS content: the player not chosen above is excluded
+  # before anything is downloaded.
+  GIT_LFS_SKIP_SMUDGE=1 git clone --recurse-submodules -b "$SCENARIO_BRANCH" "$SCENARIO_REPO_URL"
   success "Scenario repo cloned"
 else
   check_existing_remote "LOTUSim-generic-scenario" "$SCENARIO_REPO_URL"
@@ -502,7 +599,12 @@ success "LOTUSim-generic-scenario on branch ${SCENARIO_BRANCH}"
 git submodule update --init --remote --merge
 success "Submodules up to date"
 
-info "Ensuring all LFS content is fetched (Unity executables etc.)..."
+if [[ -n "$UNITY_LFS_EXCLUDE" ]]; then
+  git config lfs.fetchexclude "$UNITY_LFS_EXCLUDE"
+else
+  git config --unset lfs.fetchexclude 2>/dev/null || true
+fi
+info "Ensuring the LFS content is fetched (Unity ${UNITY_PLAYER} player, models)..."
 git lfs pull
 success "LFS content up to date"
 
@@ -515,12 +617,20 @@ success "LFS content up to date"
 # exist or not a regular file"). Healthy same-machine incremental builds are
 # left untouched.
 # -----------------------------------------------------------------------------
-info "Building LOTUSim generic scenario with colcon..."
+# Built inside the core's devshell, and against the core it just produced: a
+# workspace built against any other ROS 2 gets different message definitions and
+# never exchanges a message with the simulation.
+PWD_SCENARIO="$PWD"
+# This workspace has its own devshell: the core's, plus the Python packages the
+# agents import. Its lotusim input is pointed at the core just cloned, so both
+# are built against one ROS 2 rather than against whatever github holds.
+info "Building LOTUSim generic scenario with colcon, in its devshell..."
 purge_foreign_colcon_artifacts "$PWD"
-colcon build --symlink-install
-
-ros_source install/setup.bash
-success "Scenario built and sourced"
+( cd "$PWD_SCENARIO" && nix develop ".#$SCENARIO_DEVSHELL" --override-input lotusim "$LOTUSIM_PATH" \
+    --command bash -c \
+    "source '$LOTUSIM_PATH/install/setup.bash' && colcon build --symlink-install" ) \
+  || die "Scenario build failed. Enter the shell yourself with: cd $PWD_SCENARIO && nix develop --override-input lotusim $LOTUSIM_PATH"
+success "Scenario built"
 
 # -----------------------------------------------------------------------------
 # PX4 SITL (optional — answer 3 / INSTALL_PX4=1)
@@ -537,13 +647,6 @@ success "Scenario built and sourced"
 if [[ "$INSTALL_PX4_FLAG" == "1" ]]; then
   PX4_DIR="$HOME/PX4-Autopilot"
 
-  info "Installing PX4 SITL system dependencies..."
-  sudo apt-get update -qq
-  sudo apt-get install -y --no-install-recommends \
-    ninja-build ccache libopencv-dev \
-    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-  success "PX4 system dependencies installed"
-
   # An interrupted install can leave $PX4_DIR without .git (partial build/
   # tree only). 'git clone' then refuses to clone into it. Wipe such
   # leftovers, but never touch a directory with unexpected content.
@@ -559,31 +662,91 @@ if [[ "$INSTALL_PX4_FLAG" == "1" ]]; then
     rm -rf "$PX4_DIR"
   fi
 
+  # A plain 'git clone --recursive' of PX4-Autopilot costs ~4.4 GB, and a SITL
+  # build uses a fraction of it: the git history, the NuttX board sources and
+  # the three simulators LOTUSim never launches are most of the weight. None of
+  # them is referenced by any target in the generated px4_sitl_default build,
+  # and the version string survives a tagless clone because PX4 generates it
+  # with 'git describe --always' (src/lib/version/px_update_git_header.py).
+  # Net: ~1.1 GB instead of ~4.4 GB, still rebuildable in place.
+  # ---------------------------------------------------------------------------
+  PX4_UNUSED_SUBMODULES=(
+    platforms/nuttx/NuttX/nuttx                          # flight-controller board sources; SITL is a POSIX build
+    platforms/nuttx/NuttX/apps
+    Tools/simulation/gazebo-classic/sitl_gazebo-classic  # simulators LOTUSim never launches; it uses
+    Tools/simulation/jmavsim/jMAVSim                     # Tools/simulation/gz, which stays
+    Tools/simulation/flightgear/flightgear_bridge
+    Tools/simulation/jsbsim/jsbsim_bridge
+  )
+
+  # Every submodule .gitmodules records, minus those. There is no way to tell
+  # 'git submodule update --init' to skip one: --init runs 'submodule init',
+  # which sets submodule.<name>.active=true and overrides a 'false' set
+  # beforehand (checked on git 2.43), and a plain 'deinit' is undone the same
+  # way. Naming the wanted paths explicitly is what actually holds.
+  px4_wanted_submodules() {
+    local skip_list
+    skip_list="$(printf '%s\n' "${PX4_UNUSED_SUBMODULES[@]}")"
+    git -C "$PX4_DIR" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null \
+      | awk '{print $2}' | grep -vxF "$skip_list"
+  }
+
   if [[ ! -d "$PX4_DIR/.git" ]]; then
-    info "Cloning PX4-Autopilot into $PX4_DIR (recursive -- this downloads a lot)..."
-    git clone --recursive https://github.com/PX4/PX4-Autopilot.git "$PX4_DIR" \
+    info "Cloning PX4-Autopilot into $PX4_DIR (shallow, SITL submodules only)..."
+    git clone --depth 1 https://github.com/PX4/PX4-Autopilot.git "$PX4_DIR" \
       || die "Failed to clone PX4-Autopilot. Check your internet connection."
     success "PX4-Autopilot cloned"
   else
     info "PX4-Autopilot already present at $PX4_DIR -- updating submodules..."
-    git -C "$PX4_DIR" submodule update --init --recursive
-    success "PX4-Autopilot submodules up to date"
   fi
 
-  # Self-repair: re-sync submodules ('git clone --recursive' can silently
-  # leave one unpopulated after a flaky fetch, breaking CMake configure) and
-  # clear a stale/foreign build dir. Idempotent, cheap when already healthy.
+  # Self-repair: (re-)populate the submodules the build needs. 'git clone' can
+  # silently leave one empty after a flaky fetch, which breaks CMake configure
+  # with a cascade of 'non-existent target' errors. Idempotent, cheap when
+  # already healthy.
+  # A shallow submodule fetch asks the server for an arbitrary SHA; github.com
+  # serves those, but a mirror or corporate proxy may not -- fall back to full
+  # depth rather than fail the install over disk space we only meant to save.
   # ---------------------------------------------------------------------------
-  info "Repairing/verifying PX4 submodules..."
+  info "Populating/verifying PX4 submodules..."
+  mapfile -t PX4_WANTED_SUBMODULES < <(px4_wanted_submodules)
+  [[ ${#PX4_WANTED_SUBMODULES[@]} -gt 0 ]] \
+    || die "No submodule paths found in $PX4_DIR/.gitmodules -- the clone looks incomplete."
   git -C "$PX4_DIR" submodule sync --recursive || true
-  git -C "$PX4_DIR" submodule update --init --recursive --force \
+  git -C "$PX4_DIR" submodule update --init --recursive --depth 1 --force \
+       -- "${PX4_WANTED_SUBMODULES[@]}" \
+    || git -C "$PX4_DIR" submodule update --init --recursive --force \
+       -- "${PX4_WANTED_SUBMODULES[@]}" \
     || die "PX4 submodules could not be synced (network?). Re-run this script once online."
+  success "PX4-Autopilot submodules up to date"
 
-  BROKEN_SUBS="$(git -C "$PX4_DIR" submodule status --recursive | grep -E '^- ' || true)"
-  if [[ -n "$BROKEN_SUBS" ]]; then
+  # 'submodule status' prefixes an unpopulated submodule with '-' and NO space
+  # before the SHA, so the '^- ' this check used to look for never matched
+  # anything. With '^-' it does -- including the ones we skip on purpose, which
+  # therefore have to come back out before judging what is left.
+  BROKEN_SUBS="$(git -C "$PX4_DIR" submodule status --recursive | grep -E '^-' || true)"
+  for PX4_SKIPPED in "${PX4_UNUSED_SUBMODULES[@]}"; do
+    BROKEN_SUBS="$(printf '%s\n' "$BROKEN_SUBS" | grep -v -F " ${PX4_SKIPPED}" || true)"
+  done
+  if [[ -n "$(printf '%s' "$BROKEN_SUBS" | tr -d '[:space:]')" ]]; then
     warn "These PX4 submodules are STILL empty after repair:"
     echo "$BROKEN_SUBS"
     die "Re-run this script with a stable internet connection to github.com."
+  fi
+
+  # A checkout from before this change still carries the unused submodules.
+  # Deleting ~580 MB someone may be using is not this script's call, so just
+  # point at the command.
+  PX4_PRUNABLE=()
+  for PX4_SKIPPED in "${PX4_UNUSED_SUBMODULES[@]}"; do
+    [[ -n "$(ls -A "$PX4_DIR/$PX4_SKIPPED" 2>/dev/null)" ]] && PX4_PRUNABLE+=("$PX4_SKIPPED")
+  done
+  if [[ ${#PX4_PRUNABLE[@]} -gt 0 ]]; then
+    info "This checkout carries ${#PX4_PRUNABLE[@]} submodule(s) no SITL build uses (~580 MB for the full set)."
+    info "Reclaim the space when you want to, with:"
+    for PX4_SKIPPED in "${PX4_PRUNABLE[@]}"; do
+      info "  git -C $PX4_DIR submodule deinit -f $PX4_SKIPPED"
+    done
   fi
 
   # In-source CMake fossils (CMakeCache.txt/CMakeFiles/cmake_install.cmake in
@@ -622,9 +785,17 @@ if [[ "$INSTALL_PX4_FLAG" == "1" ]]; then
 
   # Python packages required by PX4's build tools. Ubuntu 24.04's PEP 668-managed
   # Python needs --break-system-packages; this only touches the user site dir.
-  info "Installing PX4 Python requirements (Tools/setup/requirements.txt)..."
-  pip3 install --user --break-system-packages -r "$PX4_DIR/Tools/setup/requirements.txt"
-  success "PX4 Python requirements installed"
+  # PX4 is a system build, not a nix one: its own setup script installs what
+  # it builds and runs against -- compilers and build tools, its Python
+  # requirements, and Gazebo Harmonic from packages.osrfoundation.org, whose
+  # gz libraries the launcher hands PX4 at run time. --no-nuttx: SITL only.
+  info "Installing PX4's dependencies (Tools/setup/ubuntu.sh --no-nuttx: build tools, Python requirements, Gazebo Harmonic)..."
+  # The script fetches the Gazebo repository key with wget, which a minimal
+  # Ubuntu lacks, and installs gcc only: the build below is pinned to clang.
+  sudo apt-get install -y --no-install-recommends wget clang
+  ( cd "$PX4_DIR" && bash Tools/setup/ubuntu.sh --no-nuttx ) \
+    || die "PX4's dependency script (Tools/setup/ubuntu.sh) failed; see its output above."
+  success "PX4 dependencies installed"
 
   # Known build issue (clang >= 18): variable-length arrays in C++ are a hard
   # error (-Werror + -Wvla-cxx-extension). Patch once, exactly as the README
@@ -682,7 +853,7 @@ if [[ "$INSTALL_PX4_FLAG" == "1" ]]; then
   fi
 
   # Persist PX4_AUTOPILOT_PATH for future shells. Separate idempotent block,
-  # so adding PX4 later still works even though the main block exists.
+  # so adding PX4 later still works even though the main Draft block exists.
   PX4_MARKER="# >>> LOTUSim PX4 setup >>>"
   if ! grep -qF "$PX4_MARKER" ~/.bashrc; then
     cat >> ~/.bashrc <<PX4_BLOCK
@@ -734,12 +905,12 @@ echo "=================================================================="
 echo "  LOTUSim Setup Completed!"
 echo ""
 echo "  Ubuntu ${UBUNTU_VERSION}  |  ROS 2 ${ROS_DISTRO^}"
-echo "  Usage mode: ${USAGE_MODE}  |  PX4 SITL: $([[ "$INSTALL_PX4_FLAG" == "1" ]] && echo yes || echo no)"
+echo "  Usage mode: ${USAGE_MODE}  |  PX4 SITL: $([[ "$INSTALL_PX4_FLAG" == "1" ]] && echo yes || echo no)  |  Detection: $([[ "$INSTALL_GPU_FLAG" == "1" ]] && echo GPU || echo CPU)  |  Unity player: ${UNITY_PLAYER}"
 echo "  Core branch: ${CORE_BRANCH}  |  Scenario branch: ${SCENARIO_BRANCH}"
 echo ""
 echo "  Core workspace:     ${LOTUSIM_WS}"
 echo "  Scenario workspace: ${SCENARIO_WS}/LOTUSim-generic-scenario"
-echo "  CLI command:        lotusim   (e.g. 'lotusim clean_build')"
+echo "  Core build:         lotusim_core build"
 if [[ "$USAGE_MODE" == "user" ]]; then
 echo "  Deployment folder:  ${HOME}/Documents/workspace/deployment"
 fi
@@ -749,7 +920,7 @@ fi
 echo ""
 echo "  Next steps:"
 echo "    1. Open a new terminal  (or: source ~/.bashrc)"
-echo "    2. cd ${SCENARIO_WS}/LOTUSim-generic-scenario"
+echo "    2. lotusim_shell     (the scenario devshell, on the core)"
 echo "    3. Follow the scenario README to launch the simulation"
 if grep -qi microsoft /proc/version 2>/dev/null; then
 echo ""
