@@ -35,8 +35,8 @@ plain "forward / starboard / down / turn-right" terms.
 """
 
 SQRT2_2 = 0.7071
-SURGE_GAIN = 4.0 * SQRT2_2          # N of X per N of T
-SWAY_GAIN = 4.0 * SQRT2_2           # N of Y per N of T (sign handled below)
+SURGE_GAIN = 4.0 * SQRT2_2  # N of X per N of T
+SWAY_GAIN = 4.0 * SQRT2_2  # N of Y per N of T (sign handled below)
 YAW_GAIN = 4.0 * (0.156 * SQRT2_2 - 0.111 * SQRT2_2)  # N.m of N per N of T
 
 
@@ -52,8 +52,8 @@ class ThrusterAllocator:
     def to_commands(self, surge_N, sway_N, heave_N, yaw_Nm):
         """surge>0 forward, sway>0 starboard, heave>0 downward, yaw>0 to starboard."""
         a = surge_N / SURGE_GAIN
-        b = -sway_N / SWAY_GAIN     # pattern gives -Y, so flip
-        c = -yaw_Nm / YAW_GAIN      # pattern gives -N, so flip
+        b = -sway_N / SWAY_GAIN  # pattern gives -Y, so flip
+        c = -yaw_Nm / YAW_GAIN  # pattern gives -N, so flip
         t1 = self._sat(a + b + c)
         t2 = self._sat(a - b - c)
         t3 = self._sat(-a + b - c)

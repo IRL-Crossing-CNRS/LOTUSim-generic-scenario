@@ -20,6 +20,6 @@ class BlueRovControlTask(ControlTask):
     """
 
     DEFAULT_XU = 13.7
-    DEFAULT_XUU = 141.0     # surge
+    DEFAULT_XUU = 141.0  # surge
     DEFAULT_YV = 0.0
-    DEFAULT_YVV = 217.0     # sway (no linear term in the model)
+    DEFAULT_YVV = 217.0  # sway (no linear term in the model)

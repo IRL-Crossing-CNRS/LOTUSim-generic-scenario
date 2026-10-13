@@ -57,9 +57,7 @@ class BlinkLightTask(TaskAgent):
         )
         self._pub = self.host.create_publisher(Bool, topic, qos)
         self._timer = self.host.create_timer(self._period_s, self._toggle)
-        self.host.get_logger().info(
-            f"BlinkLightTask active on {self.host.agent_name} (period={self._period_s}s)."
-        )
+        self.host.get_logger().info(f"BlinkLightTask active on {self.host.agent_name} (period={self._period_s}s).")
 
     def update(self) -> Status:
         return Status.RUNNING

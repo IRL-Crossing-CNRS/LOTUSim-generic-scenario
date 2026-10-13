@@ -49,9 +49,7 @@ class OceanCurrent(Environment):
         self.create_timer(1.0 / publish_rate_hz, self._publish)
         self._publish()
 
-        self.get_logger().info(
-            f"OceanCurrent ready (initial [{x}, {y}, {z}] m/s) on {self._topic}"
-        )
+        self.get_logger().info(f"OceanCurrent ready (initial [{x}, {y}, {z}] m/s) on {self._topic}")
 
     def set_current(self, x: float = None, y: float = None, z: float = None) -> None:
         """Set the ocean current vector in m/s (ENU). Omitted components keep their value."""

@@ -72,19 +72,16 @@ class MyBluerov(Bluerov2Heavy):
         super().__init__(sdf_string, world_name, xdyn_enabled)
         self.renderer_type_name = "bluerov2_heavy_inspection"
 
-        counter = CountToFiveTask(
-            host=self, params={"target": 5}, blackboard=self._blackboard, id="counter"
-        )
-        hello = HelloRemoteTask(
-            host=self, blackboard=self._blackboard, id="hello"
-        )
-        blink = BlinkLightTask(
-            host=self, blackboard=self._blackboard, id="blink"
-        )
+        counter = CountToFiveTask(host=self, params={"target": 5}, blackboard=self._blackboard, id="counter")
+        hello = HelloRemoteTask(host=self, blackboard=self._blackboard, id="hello")
+        blink = BlinkLightTask(host=self, blackboard=self._blackboard, id="blink")
 
         # count to 5  THEN  (hello & blink running together, forever).
-        mission = Sequence(id="mission", children=[
-            counter,
-            Parallel(id="hello_and_blink", children=[hello, blink]),
-        ])
+        mission = Sequence(
+            id="mission",
+            children=[
+                counter,
+                Parallel(id="hello_and_blink", children=[hello, blink]),
+            ],
+        )
         self._missions.add_task(mission)

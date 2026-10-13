@@ -18,7 +18,6 @@ from std_msgs.msg import String
 
 from lotusim_sdk.agents.agent import Agent
 
-
 # Module-level registry of MASCmd action clients, one per world. Every agent in a
 # process shares the SAME ActionClient for "/{world}/mas_cmd" instead of each
 # creating its own.
@@ -60,7 +59,9 @@ def _get_shared_mas_client(node, world_name: str) -> ActionClient:
         client = _shared_mas_clients.get(world_name)
         if client is None:
             client = ActionClient(
-                node, lotusim_msgs.action.MASCmd, f"/{world_name}/mas_cmd",
+                node,
+                lotusim_msgs.action.MASCmd,
+                f"/{world_name}/mas_cmd",
                 callback_group=_shared_callback_group,
             )
             _shared_mas_clients[world_name] = client
@@ -83,7 +84,9 @@ def _get_shared_mas_array_client(node, world_name: str) -> ActionClient:
         client = _shared_mas_array_clients.get(world_name)
         if client is None:
             client = ActionClient(
-                node, lotusim_msgs.action.MASCmdArray, f"/{world_name}/mas_cmd_array",
+                node,
+                lotusim_msgs.action.MASCmdArray,
+                f"/{world_name}/mas_cmd_array",
                 callback_group=_shared_callback_group,
             )
             _shared_mas_array_clients[world_name] = client
@@ -123,8 +126,7 @@ def send_batch_mas_cmd(entries, server_timeout_sec: float = 30.0) -> bool:
         client = _get_shared_mas_array_client(owner, world)
         if not client.wait_for_server(timeout_sec=server_timeout_sec):
             owner.get_logger().warning(
-                f"MASCmdArray server for world '{world}' unavailable; "
-                "falling back to per-agent spawn."
+                f"MASCmdArray server for world '{world}' unavailable; " "falling back to per-agent spawn."
             )
             return False
         clients[world] = client
@@ -138,9 +140,7 @@ def send_batch_mas_cmd(entries, server_timeout_sec: float = 30.0) -> bool:
             try:
                 goal_handle = gf.result()
             except Exception:
-                entities[0].get_logger().error(
-                    "batch spawn: goal future.result() raised:", exc_info=True
-                )
+                entities[0].get_logger().error("batch spawn: goal future.result() raised:", exc_info=True)
                 return
             if goal_handle is None or not goal_handle.accepted:
                 for e in entities:
@@ -153,9 +153,7 @@ def send_batch_mas_cmd(entries, server_timeout_sec: float = 30.0) -> bool:
                 try:
                     res = rf.result().result
                 except Exception:
-                    entities[0].get_logger().error(
-                        "batch spawn: result future.result() raised:", exc_info=True
-                    )
+                    entities[0].get_logger().error("batch spawn: result future.result() raised:", exc_info=True)
                     return
                 names = list(res.name)
                 for i, e in enumerate(entities):
@@ -234,16 +232,12 @@ def _ensure_shared_pose_subscription(node, world_name: str) -> None:
             return
 
         def _on_poses(msg: VesselPositionArray, _world=world_name):
-            _shared_pose_tables[_world] = {
-                vessel.vessel_name: vessel.pose for vessel in msg.vessels
-            }
+            _shared_pose_tables[_world] = {vessel.vessel_name: vessel.pose for vessel in msg.vessels}
             # Velocity, when the host publishes it (VesselPosition.has_twist).
             # A control loop that needs a speed would otherwise have to
             # differentiate the position: noisy, and one sample late.
             _shared_twist_tables[_world] = {
-                vessel.vessel_name: vessel.twist
-                for vessel in msg.vessels
-                if getattr(vessel, "has_twist", False)
+                vessel.vessel_name: vessel.twist for vessel in msg.vessels if getattr(vessel, "has_twist", False)
             }
             _shared_pose_stamps[_world] = time.time()
             stamp = msg.header.stamp
@@ -257,9 +251,7 @@ def _ensure_shared_pose_subscription(node, world_name: str) -> None:
                 try:
                     cb()
                 except Exception:  # noqa: BLE001
-                    logging.getLogger(__name__).exception(
-                        "pose listener raised for world %s", _world
-                    )
+                    logging.getLogger(__name__).exception("pose listener raised for world %s", _world)
 
         _shared_pose_subscriptions[world_name] = node.create_subscription(
             VesselPositionArray,
@@ -307,7 +299,7 @@ def _shared_discovery_tick(node, world_name: str) -> None:
     for topic_name, types in node.get_topic_names_and_types():
         if not topic_name.startswith(prefix):
             continue
-        agent_name = topic_name[len(prefix):].split("/", 1)[0]
+        agent_name = topic_name[len(prefix) :].split("/", 1)[0]
         with _entity_registry_lock:
             entity = _entity_registry.get(world_name, {}).get(agent_name)
         if entity is None or topic_name in entity._subscribed_topics:
@@ -547,8 +539,7 @@ class Entity(Agent):
             elif len(value) == 6:
                 return self.send_single_mas_cmd_pose(value, server_timeout_sec)
         raise ValueError(
-            "send_single_mas_cmd() requires [lat, lon], [lat, lon, alt], "
-            "or [x, y, z, roll, pitch, yaw]"
+            "send_single_mas_cmd() requires [lat, lon], [lat, lon, alt], " "or [x, y, z, roll, pitch, yaw]"
         )
 
     @staticmethod
@@ -591,8 +582,7 @@ class Entity(Agent):
             cmd.geo_point = geo
         else:
             raise ValueError(
-                "_build_create_cmd() requires [lat, lon], [lat, lon, alt], "
-                "or [x, y, z, roll, pitch, yaw]"
+                "_build_create_cmd() requires [lat, lon], [lat, lon, alt], " "or [x, y, z, roll, pitch, yaw]"
             )
         return cmd
 
@@ -619,9 +609,7 @@ class Entity(Agent):
                 # rather than resend. Bounded by patience_left so a host that
                 # dies after accepting cannot spin the timer forever.
                 if patience_left > 0:
-                    self._arm_spawn_retry_watchdog(
-                        resend_fn, retries_left, timeout_sec, patience_left - 1
-                    )
+                    self._arm_spawn_retry_watchdog(resend_fn, retries_left, timeout_sec, patience_left - 1)
                 return
             self.get_logger().warning(
                 f"{self.agent_name}: spawn goal not accepted after {timeout_sec}s, "
@@ -632,12 +620,9 @@ class Entity(Agent):
             self.send_single_delete_cmd()
             resend_fn()
 
-        timer = self.create_timer(
-            timeout_sec, _check, callback_group=self._entity_cb_group)
+        timer = self.create_timer(timeout_sec, _check, callback_group=self._entity_cb_group)
 
-    def send_single_mas_cmd_geo(
-        self, lat, lon, alt=0.0, server_timeout_sec: float = 30.0, _retries_left: int = 2
-    ):
+    def send_single_mas_cmd_geo(self, lat, lon, alt=0.0, server_timeout_sec: float = 30.0, _retries_left: int = 2):
         goal_msg = lotusim_msgs.action.MASCmd.Goal()
         goal_msg.cmd = self._build_create_cmd([lat, lon, alt])
 
@@ -718,8 +703,7 @@ class Entity(Agent):
             buffer.pop(0)
 
     def start_pause(self, duration: float):
-        self.timer = self.create_timer(
-            duration, self.resume_agent, callback_group=self._entity_cb_group)
+        self.timer = self.create_timer(duration, self.resume_agent, callback_group=self._entity_cb_group)
 
     def resume_agent(self):
         if hasattr(self, "timer") and self.timer:

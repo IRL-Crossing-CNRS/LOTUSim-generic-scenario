@@ -60,12 +60,18 @@ class LarsenWakeModel(WakeModelBase):
         tip_speed_ratio: float = 7.0,
     ):
         super().__init__(
-            diameter, ct, air_density, cp, cut_in, cut_out,
-            ambient_ti=ambient_ti, shear_exponent=shear_exponent,
+            diameter,
+            ct,
+            air_density,
+            cp,
+            cut_in,
+            cut_out,
+            ambient_ti=ambient_ti,
+            shear_exponent=shear_exponent,
         )
         self.tip_speed_ratio = float(tip_speed_ratio)
         self.radius = self.diameter / 2.0
-        self.area = np.pi * self.radius ** 2
+        self.area = np.pi * self.radius**2
 
         # Wake-geometry constants: pure functions of (ct, diameter,
         # ambient_ti), so they are resolved once here rather than on every
@@ -85,10 +91,7 @@ class LarsenWakeModel(WakeModelBase):
         """Empirical wake radius at 9.6 rotor diameters downstream."""
         a1, a2, a3, a4 = 0.435449861, 0.797853685, -0.124807893, 0.136821858
         b1 = 9.5
-        return (
-            a1 * np.exp(a2 * self.ct ** 2 + a3 * self.ct + a4)
-            * (b1 * self.ambient_ti + 1.0) * self.diameter
-        )
+        return a1 * np.exp(a2 * self.ct**2 + a3 * self.ct + a4) * (b1 * self.ambient_ti + 1.0) * self.diameter
 
     def _compute_x0(self) -> float:
         """Virtual wake origin, upstream of the rotor."""
@@ -113,10 +116,9 @@ class LarsenWakeModel(WakeModelBase):
         """Wake radius [m] at ``x_dist`` metres downstream of a rotor."""
         if x_dist <= 0:
             return self.radius
-        return (
-            ((105.0 * self._c1_const ** 2) / (2.0 * np.pi)) ** (1.0 / 5.0)
-            * (self.ct * self.area * (x_dist + self._x0_const)) ** (1.0 / 3.0)
-        )
+        return ((105.0 * self._c1_const**2) / (2.0 * np.pi)) ** (1.0 / 5.0) * (
+            self.ct * self.area * (x_dist + self._x0_const)
+        ) ** (1.0 / 3.0)
 
     def local_ti(self, x_dist: float) -> float:
         """Turbulence intensity in the wake — Crespo & Hernandez (1996)."""
@@ -159,16 +161,12 @@ class LarsenWakeModel(WakeModelBase):
             return ogWind
 
         x_eff = x_dist + self._x0_const
-        rhs = (35.0 / (2.0 * np.pi)) ** (3.0 / 10.0) * (3.0 * self._c1_const ** 2) ** (-1.0 / 5.0)
+        rhs = (35.0 / (2.0 * np.pi)) ** (3.0 / 10.0) * (3.0 * self._c1_const**2) ** (-1.0 / 5.0)
         if r < 1e-6:
             bracket = -rhs
         else:
-            bracket = (
-                r ** 1.5
-                * (3.0 * self._c1_const ** 2 * self.ct * self.area * x_eff) ** (-0.5)
-                - rhs
-            )
-        profile = bracket ** 2 / rhs ** 2
+            bracket = r**1.5 * (3.0 * self._c1_const**2 * self.ct * self.area * x_eff) ** (-0.5) - rhs
+        profile = bracket**2 / rhs**2
 
         x_d = x_dist / self.diameter
         deficit_centreline = ogWind * 0.58 * x_d ** (-0.35)
@@ -199,10 +197,8 @@ class LarsenWakeModel(WakeModelBase):
         # power for the whole farm. Upstream never guards this because its
         # reference turbine (D=126 m, hub 90 m) cannot reach it.
         z_samples = np.maximum(z_samples, 1e-6)
-        weights = np.sqrt(np.maximum(0.0, self.radius ** 2 - (z_samples - hub_height) ** 2))
-        u_samples = np.array([
-            self.shear_adjusted_speed(ogWind, z, hub_height) for z in z_samples
-        ])
+        weights = np.sqrt(np.maximum(0.0, self.radius**2 - (z_samples - hub_height) ** 2))
+        u_samples = np.array([self.shear_adjusted_speed(ogWind, z, hub_height) for z in z_samples])
         if weights.sum() > 0:
             return float(np.average(u_samples, weights=weights))
         return ogWind
@@ -216,7 +212,7 @@ class LarsenWakeModel(WakeModelBase):
         if wind_speed < self.cut_in or wind_speed > self.cut_out:
             return 0.0
         u_rotor = self.rotor_averaged_speed(wind_speed, hub_height)
-        return 0.5 * self.air_density * self.area * self.cp * u_rotor ** 3
+        return 0.5 * self.air_density * self.area * self.cp * u_rotor**3
 
     def rotational_speed_rpm(self, wind_speed: float) -> float:
         """Rotor speed [rpm] at constant tip-speed ratio."""
@@ -290,7 +286,11 @@ class LarsenWakeModel(WakeModelBase):
                 x, y, z = turbines_arr[idx]
                 logger.debug(
                     "Turbine at (x=%.1f, y=%.1f, z=%.1f): yaw=%.3f, v_eff=%.2f m/s",
-                    x, y, z, yaw_factor, v_eff,
+                    x,
+                    y,
+                    z,
+                    yaw_factor,
+                    v_eff,
                 )
 
         return turbines_sorted, velocities, rpms
@@ -304,8 +304,7 @@ class LarsenWakeModel(WakeModelBase):
         target_height = height[turbine_index]
 
         upstream_indices = [
-            j for j in range(len(downstream))
-            if j != turbine_index and downstream[j] < target_down - 1e-9
+            j for j in range(len(downstream)) if j != turbine_index and downstream[j] < target_down - 1e-9
         ]
         upstream_indices.sort(key=lambda j: downstream[j])
 
@@ -316,12 +315,12 @@ class LarsenWakeModel(WakeModelBase):
             dx = target_down - downstream[j]
             dy = target_cross - crosswind[j]
             dh = target_height - height[j]
-            r = np.sqrt(dy ** 2 + dh ** 2)
+            r = np.sqrt(dy**2 + dh**2)
             if abs(r) > self.wake_radius(dx):
                 continue
 
             wake_offset = self.wake_centreline_offset(dx, yaw_angle)
-            effective_r = np.sqrt((dy - wake_offset) ** 2 + dh ** 2)
+            effective_r = np.sqrt((dy - wake_offset) ** 2 + dh**2)
 
             # Wake expansion rate k as a function of turbulence — the deficit
             # is damped by how much faster the wake spreads under the locally

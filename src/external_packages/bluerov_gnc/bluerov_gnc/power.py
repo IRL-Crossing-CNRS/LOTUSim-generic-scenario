@@ -30,8 +30,8 @@ calibration error; absolute figures need K refitted against the official
 curve first.
 """
 
-K_T200 = 0.72      # W / N^1.5
-P_IDLE = 2.0       # W per powered thruster
+K_T200 = 0.72  # W / N^1.5
+P_IDLE = 2.0  # W per powered thruster
 
 
 def thruster_power(thrust_N, k=K_T200, p_idle=P_IDLE):

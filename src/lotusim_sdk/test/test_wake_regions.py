@@ -19,8 +19,7 @@ NREL_5MW = dict(diameter=126.0, ct=0.75, cp=0.498, air_density=1.225, ambient_ti
 @pytest.fixture
 def generator():
     blended = BlendedWakeModel(LarsenWakeModel(**NREL_5MW))
-    return WakeRegionGenerator(blended, cell_diameters=0.5, deficit_threshold=0.05,
-                                max_downstream_diameters=15.0)
+    return WakeRegionGenerator(blended, cell_diameters=0.5, deficit_threshold=0.05, max_downstream_diameters=15.0)
 
 
 def test_template_is_nonempty_and_bounded(generator):
@@ -45,9 +44,7 @@ def test_template_first_slice_starts_at_rotor_radius(generator):
 def test_template_chains_continuously(generator):
     """Consecutive slices should share a boundary radius, so the geometry is
     one continuous tapered cone rather than independently bisected steps."""
-    for (_, _, _, r_end), (_, _, r_start_next, _) in zip(
-        generator._template, generator._template[1:]
-    ):
+    for (_, _, _, r_end), (_, _, r_start_next, _) in zip(generator._template, generator._template[1:]):
         assert r_start_next == pytest.approx(r_end)
 
 
@@ -167,8 +164,13 @@ def test_radial_speed_is_graded_not_a_top_hat():
 def test_turbulence_only_keeps_a_flat_freestream_profile():
     """That cell delivers the wake's turbulence with NO slowdown, so a graded
     profile would reintroduce the deficit it is defined to exclude."""
-    gen = WakeRegionGenerator(BlendedWakeModel(LarsenWakeModel(**NREL_5MW)), cell_diameters=0.5, deficit_threshold=0.05,
-                              turbulence=True, turbulence_only=True)
+    gen = WakeRegionGenerator(
+        BlendedWakeModel(LarsenWakeModel(**NREL_5MW)),
+        cell_diameters=0.5,
+        deficit_threshold=0.05,
+        turbulence=True,
+        turbulence_only=True,
+    )
     regions = gen.regions_for_wind([("t1", 0.0, 0.0, 52.0)], np.array([0.0, 10.0]))
     assert regions
     for r in regions:

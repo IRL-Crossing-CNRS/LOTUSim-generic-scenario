@@ -49,10 +49,8 @@ class NavigationTask(TaskAgent):
         # Kept across re-activations; re-creating it on every on_enter would
         # strand the previous publisher on the node.
         if self._pub is None:
-            self._pub = self.host.create_publisher(
-                Odometry, f"/{world}/{agent}/navigation", 10)
-        self._timer = self.host.create_timer(
-            1.0 / self._rate, self._tick, callback_group=self.callback_group)
+            self._pub = self.host.create_publisher(Odometry, f"/{world}/{agent}/navigation", 10)
+        self._timer = self.host.create_timer(1.0 / self._rate, self._tick, callback_group=self.callback_group)
 
     def on_exit(self, status) -> None:
         # cancel() stops the timer firing but leaves it registered on the node

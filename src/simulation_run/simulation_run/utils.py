@@ -47,8 +47,6 @@ import xml.etree.ElementTree as ET
 from importlib.metadata import entry_points
 from typing import Any, Dict, List, Tuple
 
-
-
 logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
@@ -71,10 +69,8 @@ def get_cli_args() -> argparse.Namespace:
     # each running this entry point with its own --shard index. Shard 0 brings
     # up the world and the scenario-wide observers; the others only host their
     # own agents and talk to that world over ROS/DDS like any remote machine.
-    parser.add_argument("--shards", type=int, default=1,
-                        help="Number of processes the agents are split across")
-    parser.add_argument("--shard", type=int, default=0,
-                        help="Index of this process within --shards")
+    parser.add_argument("--shards", type=int, default=1, help="Number of processes the agents are split across")
+    parser.add_argument("--shard", type=int, default=0, help="Index of this process within --shards")
     args = parser.parse_args()
     if args.shards < 1 or not (0 <= args.shard < args.shards):
         parser.error("--shard must be in [0, --shards)")
@@ -235,6 +231,7 @@ def inject_first_ais_pose(agents, base_dir: str = None) -> None:
     - Legacy (dict) form: reads the ``ais`` config block as before.
     """
     from lotusim_sdk.spawn_utils import extract_spawn_from_missions
+
     if isinstance(agents, list):
         for agent_cfg in agents:
             extract_spawn_from_missions(agent_cfg, config_dir=base_dir)
@@ -242,6 +239,7 @@ def inject_first_ais_pose(agents, base_dir: str = None) -> None:
     if not isinstance(agents, dict):
         return
     from lotusim_sdk.trajectory_providers import PatrolFileProvider, get_trajectory_provider
+
     for agent_name, agent_cfg in agents.items():
         ais_config = agent_cfg.get("ais")
         if not ais_config:
@@ -255,13 +253,18 @@ def inject_first_ais_pose(agents, base_dir: str = None) -> None:
                 logger.warning(
                     "Agent '%s': %d patrol files provided but only %d agent(s) will be spawned; "
                     "extra patrol files will be ignored.",
-                    agent_name, len(patrol_file), nb_agents,
+                    agent_name,
+                    len(patrol_file),
+                    nb_agents,
                 )
             elif len(patrol_file) < nb_agents:
                 logger.warning(
                     "Agent '%s': %d patrol files provided but %d agent(s) requested; "
                     "agents beyond index %d will reuse the first trajectory.",
-                    agent_name, len(patrol_file), nb_agents, len(patrol_file) - 1,
+                    agent_name,
+                    len(patrol_file),
+                    nb_agents,
+                    len(patrol_file) - 1,
                 )
 
             trajectories = []
@@ -288,7 +291,9 @@ def inject_first_ais_pose(agents, base_dir: str = None) -> None:
             if nb_agents > 1:
                 logger.info(
                     "Agent '%s': single patrol file '%s' will be shared across all %d agents.",
-                    agent_name, patrol_file, nb_agents,
+                    agent_name,
+                    patrol_file,
+                    nb_agents,
                 )
             provider = get_trajectory_provider(ais_config, base_dir=base_dir)
             trajectory = provider.load()
@@ -376,5 +381,3 @@ def _extract_world_spherical_coords(world_file_name: str) -> Tuple[float, float]
     if sc is None:
         raise RuntimeError(f"No <spherical_coordinates> block found in {world_file_name}")
     return float(sc.find("latitude_deg").text), float(sc.find("longitude_deg").text)
-
-

@@ -159,9 +159,7 @@ class WakeRegionGenerator:
             origin = np.array([tx, ty])
             for i, (x_start, x_end, r_start, r_end) in enumerate(self._template):
                 centre = origin + 0.5 * (x_start + x_end) * unit_wind
-                speed = self._model.farm_velocity_at_point(
-                    og_speed, wind_vector, centre[0], centre[1], turbines
-                )
+                speed = self._model.farm_velocity_at_point(og_speed, wind_vector, centre[0], centre[1], turbines)
                 if (og_speed - speed) / og_speed < self._threshold:
                     # Compounding from other turbines may have already
                     # recovered this slice even where this turbine's own
@@ -191,12 +189,15 @@ class WakeRegionGenerator:
                     radial_speed = [float(og_speed)] * self._radial_samples
                 else:
                     radial_speed = [
-                        float(self._model.farm_velocity_at_point(
-                            og_speed, wind_vector,
-                            centre[0] + normal[0] * f * r_mid,
-                            centre[1] + normal[1] * f * r_mid,
-                            turbines,
-                        ))
+                        float(
+                            self._model.farm_velocity_at_point(
+                                og_speed,
+                                wind_vector,
+                                centre[0] + normal[0] * f * r_mid,
+                                centre[1] + normal[1] * f * r_mid,
+                                turbines,
+                            )
+                        )
                         for f in np.linspace(0.0, 1.0, self._radial_samples)
                     ]
 
@@ -230,17 +231,24 @@ class WakeRegionGenerator:
                         x_eval = max(x_mid, 3.0 * self._model.diameter)
                         sigma = float(self._model.larsen.local_ti(x_eval) * og_speed)
 
-                regions.append({
-                    "id": f"wake_{name}_{i}",
-                    "origin_x": float(segment_origin[0]), "origin_y": float(segment_origin[1]),
-                    "origin_z": float(tz),
-                    "axis_x": float(unit_wind[0]), "axis_y": float(unit_wind[1]),
-                    "length": float(x_end - x_start),
-                    "r_start": float(r_start), "r_end": float(r_end),
-                    "vx": float(vx), "vy": float(vy), "vz": 0.0,
-                    "sigma": sigma,
-                    "radial_speed": radial_speed,
-                })
+                regions.append(
+                    {
+                        "id": f"wake_{name}_{i}",
+                        "origin_x": float(segment_origin[0]),
+                        "origin_y": float(segment_origin[1]),
+                        "origin_z": float(tz),
+                        "axis_x": float(unit_wind[0]),
+                        "axis_y": float(unit_wind[1]),
+                        "length": float(x_end - x_start),
+                        "r_start": float(r_start),
+                        "r_end": float(r_end),
+                        "vx": float(vx),
+                        "vy": float(vy),
+                        "vz": 0.0,
+                        "sigma": sigma,
+                        "radial_speed": radial_speed,
+                    }
+                )
 
         return regions
 

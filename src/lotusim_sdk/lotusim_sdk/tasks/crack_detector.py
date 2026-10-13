@@ -19,22 +19,19 @@ from std_msgs.msg import String
 from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
 
-
 _det = None
 _det_model = None
 _det_load_lock = threading.Lock()
 _det_loading = False
 
 
-def _ensure_detection_module_loading(logger=None,model="simulation") -> None:
+def _ensure_detection_module_loading(logger=None, model="simulation") -> None:
     """Start loading the YOLO detection module on a background thread (once)."""
     global _det_loading, _det_model
     model = str(model).strip().lower()
     if model not in {"simulation", "real"}:
         if logger is not None:
-            logger.warning(
-                f"CrackDetector: unknown model={model!r}; using 'simulation'."
-            )
+            logger.warning(f"CrackDetector: unknown model={model!r}; using 'simulation'.")
         model = "simulation"
     with _det_load_lock:
         if _det is not None and _det_model == model:
@@ -49,6 +46,7 @@ def _ensure_detection_module_loading(logger=None,model="simulation") -> None:
             from lotusim_sdk.tasks.crack_detector_assets import (
                 yolo_server_crack as _loaded,
             )
+
             _loaded.yolo_model = _loaded.load_yolo_model(model)
             _det = _loaded
             _det_model = model
@@ -56,14 +54,13 @@ def _ensure_detection_module_loading(logger=None,model="simulation") -> None:
                 logger.info(f"CrackDetector: loaded {model!r} YOLO model.")
         except Exception as e:  # noqa: BLE001 - surface any load failure, keep serving
             if logger is not None:
-                logger.error(
-                    f"CrackDetector: failed to load detection module: {e}"
-                )
+                logger.error(f"CrackDetector: failed to load detection module: {e}")
         finally:
             with _det_load_lock:
                 _det_loading = False
 
     threading.Thread(target=_load, name="yolo-model-load", daemon=True).start()
+
 
 # run_agent uses MultiThreadedExecutor, so multiple agents' _image_callbacks can
 # fire concurrently.  YOLO inference is not thread-safe — serialize with this lock.
@@ -88,8 +85,8 @@ _IMAGE_QOS = QoSProfile(
 # display thread, which owns every window and pumps waitKey for the whole process
 # (also handles N agents → N windows correctly, one GUI thread for all of them).
 _display_lock = threading.Lock()
-_display_frames: dict = {}      # window title -> latest annotated BGR frame
-_display_closing: set = set()   # window titles pending destruction
+_display_frames: dict = {}  # window title -> latest annotated BGR frame
+_display_closing: set = set()  # window titles pending destruction
 _display_started = False
 
 
@@ -119,9 +116,7 @@ def _ensure_display_thread() -> None:
         if _display_started:
             return
         _display_started = True
-    threading.Thread(
-        target=_display_loop, name="crack-detector-display", daemon=True
-    ).start()
+    threading.Thread(target=_display_loop, name="crack-detector-display", daemon=True).start()
 
 
 def _show_frame(title: str, frame) -> None:
@@ -135,47 +130,33 @@ def _close_window(title: str) -> None:
         _display_closing.add(title)
 
 
-
 class CrackDetector(TaskAgent):
 
-    
-    def __init__(self,host,params=None,blackboard=None,id: str="") -> None:
-        super().__init__(host,params,blackboard,id)
-
-
-
-
-
-
-
+    def __init__(self, host, params=None, blackboard=None, id: str = "") -> None:
+        super().__init__(host, params, blackboard, id)
 
         self._show_window: bool = bool(self.params.get("show_window", False))
 
         # ``model`` is the public mission parameter; keep ``using_model`` as
         # a compatibility alias for existing scenarios.
-        self.using_model = self.params.get(
-            "model", self.params.get("using_model", "simulation")
-        )
+        self.using_model = self.params.get("model", self.params.get("using_model", "simulation"))
 
         self._window_title: str = ""
-
-        
 
         self._image_sub = None
         self._detections_pub = None
 
-
     def on_enter(self) -> None:
 
-        #on enter we want to ensure that the module is loading
+        # on enter we want to ensure that the module is loading
         # The detection module is loaded on the first frame, not here.
 
-        #set the world name
+        # set the world name
         world = self.host.world_name
-        #set the agent name
+        # set the agent name
         agent = self.host.agent_name
 
-        #create a subscription using self.host to /inspection/image
+        # create a subscription using self.host to /inspection/image
         self._image_sub = self.host.create_subscription(
             CompressedImage,
             f"/{world}/{agent}/inspection/image",
@@ -183,22 +164,19 @@ class CrackDetector(TaskAgent):
             _IMAGE_QOS,
         )
 
-        #we want to publish our detections, so create a publisher to /inspection/detections
+        # we want to publish our detections, so create a publisher to /inspection/detections
         self._detections_pub = self.host.create_publisher(
             String,
             f"{world}/{agent}/inspection/detections",
-            QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+            QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
 
-        #if we want to show window show window
+        # if we want to show window show window
         if self._show_window:
             self._window_title = f"{agent} - Crack Detector - YOLO + CLAHE"
             _ensure_display_thread()
 
-        self.host.get_logger().info(
-            f"Crack Detector (YOLO + CLAHE): listening on/{world}/{agent}/inspection/image"
-        )
-
+        self.host.get_logger().info(f"Crack Detector (YOLO + CLAHE): listening on/{world}/{agent}/inspection/image")
 
     def update(self) -> Status:
         return Status.RUNNING
@@ -206,48 +184,42 @@ class CrackDetector(TaskAgent):
     def on_exit(self, _status: Status) -> None:
 
         if self._image_sub is not None:
-            #destroy sub
+            # destroy sub
             self.host.destroy_subscription(self._image_sub)
             self._image_sub = None
         if self._detections_pub is not None:
-            #destroy publisher
+            # destroy publisher
             self.host.destroy_publisher(self._detections_pub)
             self._detections_pub = None
         if self._window_title:
-            #destroy window
+            # destroy window
             _close_window(self._window_title)
 
-
-
-    def _image_callback(self, msg:CompressedImage) -> None:
+    def _image_callback(self, msg: CompressedImage) -> None:
         if _det is None or _det_model != str(self.using_model).strip().lower():
             _ensure_detection_module_loading(self.host.get_logger(), self.using_model)
         if _det is None or self._detections_pub is None:
             return
 
-
         detections = []
-        compressed_bytes = np.frombuffer(msg.data,dtype=np.uint8)
+        compressed_bytes = np.frombuffer(msg.data, dtype=np.uint8)
 
-        color_image = cv2.imdecode(compressed_bytes,cv2.IMREAD_COLOR)
-        image = cv2.imdecode(compressed_bytes,cv2.IMREAD_GRAYSCALE)
+        color_image = cv2.imdecode(compressed_bytes, cv2.IMREAD_COLOR)
+        image = cv2.imdecode(compressed_bytes, cv2.IMREAD_GRAYSCALE)
         if image is None:
             self.host.get_logger().error("Failed to decode compressed image")
             return
 
-
-        
-        #apply CLAHE to enchance the contrast of the image 
-        #FOR UNDERWATER USE ONLY. HARDCODED FOR NOW. 
+        # apply CLAHE to enchance the contrast of the image
+        # FOR UNDERWATER USE ONLY. HARDCODED FOR NOW.
         # TODO: APPLY THIS ONLY IF THE IMAGE IS UNDERWATER
-        clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(8,8))
+        clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(8, 8))
         clahe_image = clahe.apply(image)
-        blurred_image = cv2.GaussianBlur(clahe_image, (13,13),0)
+        blurred_image = cv2.GaussianBlur(clahe_image, (13, 13), 0)
 
-        final_image = cv2.addWeighted(clahe_image,2,blurred_image,-1,0)
+        final_image = cv2.addWeighted(clahe_image, 2, blurred_image, -1, 0)
 
-        #final_image = image
-
+        # final_image = image
 
         if _det.yolo_model is not None:
             with _yolo_lock:
@@ -255,12 +227,7 @@ class CrackDetector(TaskAgent):
                 # task REQUIRES a CUDA-capable machine — it raises on a CPU-only
                 # host rather than falling back. imgsz/conf are the values the
                 # checkpoints were tuned against; they are not scenario params.
-                results = _det.yolo_model.predict(
-                    source=final_image,
-                    imgsz = 832,
-                    conf = 0.42,
-                    device = 0
-                )
+                results = _det.yolo_model.predict(source=final_image, imgsz=832, conf=0.42, device=0)
 
             for result in results:
                 if result.boxes is None:
@@ -270,15 +237,19 @@ class CrackDetector(TaskAgent):
                     conf = float(box.conf[0])
                     cls_id = int(box.cls[0])
                     label = _det.yolo_model.names[cls_id]
-                    detections.append({
-                        "label": label,
-                        "confidence": round(conf, 3),
-                        "x": int(x1), "y": int(y1),
-                        "w": int(x2 - x1), "h": int(y2 - y1),
-                        "cx": int((x1 + x2) / 2), "cy": int((y1 + y2) / 2),
-                        "source": "yolo",
-                    })
-
+                    detections.append(
+                        {
+                            "label": label,
+                            "confidence": round(conf, 3),
+                            "x": int(x1),
+                            "y": int(y1),
+                            "w": int(x2 - x1),
+                            "h": int(y2 - y1),
+                            "cx": int((x1 + x2) / 2),
+                            "cy": int((y1 + y2) / 2),
+                            "source": "yolo",
+                        }
+                    )
 
         self.host.get_logger().debug(
             f"CrackDetector: {len(detections)} detection(s): "
@@ -289,12 +260,6 @@ class CrackDetector(TaskAgent):
         out.data = json.dumps({"detections": detections, "count": len(detections)})
         self._detections_pub.publish(out)
 
-
         if self._show_window:
-            annotated = _det.draw_detections(color_image.copy(),detections,None)
-            _show_frame(self._window_title,annotated)
-
-        
-
-
-        
+            annotated = _det.draw_detections(color_image.copy(), detections, None)
+            _show_frame(self._window_title, annotated)

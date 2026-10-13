@@ -43,6 +43,4 @@ class MissionWatcher(Node):
             return
         if all(root.status != Status.RUNNING for root in roots):
             self._reported = True
-            self.get_logger().info(
-                f"All missions complete ({len(roots)} tracked) — scenario finished."
-            )
+            self.get_logger().info(f"All missions complete ({len(roots)} tracked) — scenario finished.")

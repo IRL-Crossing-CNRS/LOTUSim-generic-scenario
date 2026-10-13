@@ -78,9 +78,7 @@ class Agent(Node, ABC):
         task a subclass registered in code via ``self._missions.add_task(...)``.
         """
         registry = load_task_registry()
-        self._missions.extend(
-            build_tree(spec, self, self._blackboard, registry) for spec in specs
-        )
+        self._missions.extend(build_tree(spec, self, self._blackboard, registry) for spec in specs)
         self._tick_rate_hz = tick_rate_hz
         self._missions_started = False
         if self._mission_timer is not None:

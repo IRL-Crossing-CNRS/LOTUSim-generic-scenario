@@ -59,6 +59,7 @@ def _px4_cpu_affinity() -> Optional[str]:
         return None
     return f"{cpu_count - 2},{cpu_count - 1}"
 
+
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
@@ -183,8 +184,8 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
             # and letting it through would repeat every world's output in the
             # launcher's own log.
             process = subprocess.Popen(
-                ["bash", "-c", cmd], preexec_fn=os.setsid,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                ["bash", "-c", cmd], preexec_fn=os.setsid, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         processes.append(process)
         time.sleep(1)  # Allow startup
 
@@ -209,7 +210,6 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
 # -------------------------------------------------------------------------
 
 
-
 def wait_for_world(world_name: str, timeout_sec: float = 120.0) -> bool:
     """Block until the world's entity manager answers, for a worker process.
 
@@ -222,16 +222,14 @@ def wait_for_world(world_name: str, timeout_sec: float = 120.0) -> bool:
 
     node = rclpy.create_node(f"shard_world_wait_{os.getpid()}")
     try:
-        client = ActionClient(node, lotusim_msgs.action.MASCmd,
-                              f"/{world_name}/mas_cmd")
+        client = ActionClient(node, lotusim_msgs.action.MASCmd, f"/{world_name}/mas_cmd")
         deadline = time.time() + timeout_sec
         while time.time() < deadline:
             if ros_manager.shutdown_flag:
                 return False
             if client.wait_for_server(timeout_sec=1.0):
                 return True
-        logger.error("World '%s' did not come up within %.0fs.",
-                     world_name, timeout_sec)
+        logger.error("World '%s' did not come up within %.0fs.", world_name, timeout_sec)
         return False
     finally:
         node.destroy_node()
@@ -338,8 +336,13 @@ def run_simulation(
             logger.exception("Could not start the CSV recorder")
 
     agents_manager = ros_manager.initialize_ros_components(
-        executor, agents, world_name, world_file, config_dir,
-        shard=shard, shards=shards,
+        executor,
+        agents,
+        world_name,
+        world_file,
+        config_dir,
+        shard=shard,
+        shards=shards,
     )
 
     if ros_manager.shutdown_flag:
@@ -411,7 +414,7 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
     # session (setsid), so its process group, terminal window included under
     # --terminals, goes with it. Never pkill gnome-terminal: that closes every
     # terminal of the user's desktop.
-    for proc in (process or []):
+    for proc in process or []:
         try:
             if proc.poll() is None:
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)

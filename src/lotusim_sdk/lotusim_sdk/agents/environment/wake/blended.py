@@ -68,8 +68,8 @@ class BlendedWakeModel:
         if x_dist <= 0:
             return ogWind
         sigma = self.calibrated_sigma(x_dist)
-        c_amp = 1 - np.sqrt(max(0.0, 1 - self.ct / (8 * sigma ** 2 / self.diameter ** 2)))
-        deficit = ogWind * c_amp * np.exp(-r ** 2 / (2 * sigma ** 2))
+        c_amp = 1 - np.sqrt(max(0.0, 1 - self.ct / (8 * sigma**2 / self.diameter**2)))
+        deficit = ogWind * c_amp * np.exp(-(r**2) / (2 * sigma**2))
         return max(0.0, ogWind - deficit)
 
     def blend_weight(self, x_dist: float) -> float:
@@ -87,8 +87,7 @@ class BlendedWakeModel:
         u_g = self.gaussian_velocity_at_point(ogWind, x_dist, r)
         return w * u_l + (1 - w) * u_g
 
-    def farm_velocity_at_point(self, ogWind: float, wind_vector, x_query: float,
-                                y_query: float, turbines) -> float:
+    def farm_velocity_at_point(self, ogWind: float, wind_vector, x_query: float, y_query: float, turbines) -> float:
         """Wind speed at an arbitrary ENU (x, y) point via sequential
         superposition of every upstream turbine's wake, for ``wind_vector``.
 
@@ -110,7 +109,7 @@ class BlendedWakeModel:
         query_cross = x_query * perp[0] + y_query * perp[1]
 
         upstream = []
-        for (tx, ty, _tz) in turbines:
+        for tx, ty, _tz in turbines:
             t_down = tx * unit_wind[0] + ty * unit_wind[1]
             if t_down < query_down - 1e-9:
                 t_cross = tx * perp[0] + ty * perp[1]

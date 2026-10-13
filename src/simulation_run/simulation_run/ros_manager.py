@@ -81,8 +81,7 @@ def initialize_ros_components(
     manager.add_agents(agents, world_name, executor, world_file, config_dir)
 
     # Register dynamic spawn/despawn service
-    spawn_service = DynamicSpawnService(
-        manager, executor, world_name, world_file, shard=shard, shards=shards)
+    spawn_service = DynamicSpawnService(manager, executor, world_name, world_file, shard=shard, shards=shards)
     executor.add_node(spawn_service)
 
     return manager
@@ -159,8 +158,8 @@ def run_executor(executor: Any, max_simulation_time: Optional[float] = None) -> 
             # this loop: a 20 Hz control task measured 0.29 Hz.
             if spin_thread is None or not spin_thread.is_alive():
                 spin_thread = threading.Thread(
-                    target=_spin_forever, args=(executor,),
-                    name="executor-spin", daemon=True)
+                    target=_spin_forever, args=(executor,), name="executor-spin", daemon=True
+                )
                 spin_thread.start()
             time.sleep(0.05)
 

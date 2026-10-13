@@ -72,12 +72,11 @@ class KinematicAllocationTask(TaskAgent):
         # down in the same breath can lose it — the host then keeps integrating
         # the last command it did receive and the vessel drifts on forever.
         if self._pub is None:
-            self._pub = self.host.create_publisher(
-                VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
+            self._pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         self._publish(0.0, 0.0, 0.0)
         self._sub = self.host.create_subscription(
-            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10,
-            callback_group=self.callback_group)
+            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10, callback_group=self.callback_group
+        )
 
     def on_exit(self, status) -> None:
         if self._sub is not None:

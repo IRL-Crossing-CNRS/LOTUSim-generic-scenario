@@ -11,6 +11,7 @@ Two interchangeable guidance laws are provided, ``LineOfSightGuidance`` and
 ``PurePursuitGuidance``: same constructor, same ``update()``/``along()``
 signature, different geometry for the desired heading.
 """
+
 import math
 
 
@@ -44,8 +45,8 @@ class _SegmentGuidance:
     def _along_cross(self, x, y):
         dx, dy = x - self.x1, y - self.y1
         ch, sh = math.cos(self.heading), math.sin(self.heading)
-        along = dx * ch + dy * sh          # along-track distance
-        cross = -dx * sh + dy * ch         # signed cross-track (>0 to port)
+        along = dx * ch + dy * sh  # along-track distance
+        cross = -dx * sh + dy * ch  # signed cross-track (>0 to port)
         return along, cross
 
     def _depth_at(self, along):

@@ -34,18 +34,24 @@ from lotusim_msgs.srv import SetWaypoints
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--world", required=True,
-                         help="World name (the plugin's ROS node namespace, e.g. 'lotusim')")
-    parser.add_argument("--model", required=True,
-                         help="Model name the waypoint_follower service is namespaced under")
-    parser.add_argument("--lat", type=float, action="append", required=True,
-                         help="Waypoint latitude (repeat --lat/--lon in pairs, in order)")
-    parser.add_argument("--lon", type=float, action="append", required=True,
-                         help="Waypoint longitude (repeat --lat/--lon in pairs, in order)")
-    parser.add_argument("--alt", type=float, default=0.0,
-                         help="Altitude for every waypoint (default 0)")
-    parser.add_argument("--loop", action="store_true",
-                         help="Loop back to the first waypoint after the last")
+    parser.add_argument("--world", required=True, help="World name (the plugin's ROS node namespace, e.g. 'lotusim')")
+    parser.add_argument("--model", required=True, help="Model name the waypoint_follower service is namespaced under")
+    parser.add_argument(
+        "--lat",
+        type=float,
+        action="append",
+        required=True,
+        help="Waypoint latitude (repeat --lat/--lon in pairs, in order)",
+    )
+    parser.add_argument(
+        "--lon",
+        type=float,
+        action="append",
+        required=True,
+        help="Waypoint longitude (repeat --lat/--lon in pairs, in order)",
+    )
+    parser.add_argument("--alt", type=float, default=0.0, help="Altitude for every waypoint (default 0)")
+    parser.add_argument("--loop", action="store_true", help="Loop back to the first waypoint after the last")
     args = parser.parse_args()
 
     if len(args.lat) != len(args.lon):
@@ -58,18 +64,18 @@ def main():
     service_name = f"/{args.world}/{args.model}/waypoints"
     client = node.create_client(SetWaypoints, service_name)
     if not client.wait_for_service(timeout_sec=5.0):
-        print(f"Service {service_name} not available (is the simulation "
-              f"running, with a {args.model} carrying lotus_param/"
-              f"waypoint_follower?)", file=sys.stderr)
+        print(
+            f"Service {service_name} not available (is the simulation "
+            f"running, with a {args.model} carrying lotus_param/"
+            f"waypoint_follower?)",
+            file=sys.stderr,
+        )
         node.destroy_node()
         rclpy.shutdown()
         sys.exit(1)
 
     request = SetWaypoints.Request()
-    request.path = [
-        GeoPoint(latitude=lat, longitude=lon, altitude=args.alt)
-        for lat, lon in zip(args.lat, args.lon)
-    ]
+    request.path = [GeoPoint(latitude=lat, longitude=lon, altitude=args.alt) for lat, lon in zip(args.lat, args.lon)]
     request.loop = args.loop
 
     future = client.call_async(request)

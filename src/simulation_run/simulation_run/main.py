@@ -32,7 +32,6 @@ SPDX-License-Identifier: EPL-2.0
 Copyright (c) 2025 Naval Group
 """
 
-
 import logging
 import os
 import signal
@@ -112,17 +111,19 @@ def main():
     # the fleet grows. Each shard hosts its share and reaches the same world
     # over ROS/DDS. Shard 0 owns the world and the scenario-wide observers.
     agents = utils.select_shard(agents, args.shard, args.shards)
-    logger.info("Shard %d/%d hosts %d agent entries.",
-                args.shard, args.shards, len(agents))
+    logger.info("Shard %d/%d hosts %d agent entries.", args.shard, args.shards, len(agents))
 
     # Run simulation
     simulation_runner.run_simulation(
-        world_file, agents,
-        debug_mode=args.debug, gui=args.gui,
+        world_file,
+        agents,
+        debug_mode=args.debug,
+        gui=args.gui,
         config_dir=os.path.dirname(config_path),
         record_csv=config.get("record_csv", False) if args.shard == 0 else False,
         scenario=config,
-        shard=args.shard, shards=args.shards,
+        shard=args.shard,
+        shards=args.shards,
     )
 
 

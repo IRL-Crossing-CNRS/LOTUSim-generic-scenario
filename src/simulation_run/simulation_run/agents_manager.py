@@ -51,8 +51,6 @@ SPAWN_CONFIRM_TIMEOUT_S = 15.0
 SPAWN_CONFIRM_ATTEMPTS = 3
 
 
-
-
 class AgentsManager:
     """
     Manages the lifecycle of simulation agents within a ROS 2 environment.
@@ -109,8 +107,13 @@ class AgentsManager:
         for agent_type, agent_info in self._iter_agents(agents):
             # Process each agent type individually
             self._process_single_agent_type(
-                agent_type, agent_info, world_name, executor, spawn_queue,
-                world_origin, config_dir,
+                agent_type,
+                agent_info,
+                world_name,
+                executor,
+                spawn_queue,
+                world_origin,
+                config_dir,
             )
 
         # Spawn all agents after registration
@@ -275,8 +278,7 @@ class AgentsManager:
                     copernicus = dict(copernicus)
                     profile = copernicus.get("profile")
                     if profile and not os.path.isabs(profile) and config_dir:
-                        copernicus["profile"] = os.path.normpath(
-                            os.path.join(config_dir, profile))
+                        copernicus["profile"] = os.path.normpath(os.path.join(config_dir, profile))
                     agent_node.copernicus_current = copernicus
 
                 # Behaviour-tree missions (mission system): start the tick timer.
@@ -348,7 +350,8 @@ class AgentsManager:
                 logging.warning(
                     "Agent index %d has no matching patrol file (only %d provided); "
                     "falling back to first trajectory.",
-                    agent_index, len(trajectories),
+                    agent_index,
+                    len(trajectories),
                 )
                 trajectory = trajectories[0]
                 loop = loops[0] if loops else agent_info.get("loop", True)
@@ -356,8 +359,7 @@ class AgentsManager:
             trajectory = agent_info.get("trajectory")
             loop = agent_info.get("loop", True)
         if trajectory is not None:
-            node = agent_class(agent_sdf, world_name, xdyn_enabled,
-                               trajectory=trajectory, loop=loop, **px4_kwargs)
+            node = agent_class(agent_sdf, world_name, xdyn_enabled, trajectory=trajectory, loop=loop, **px4_kwargs)
         else:
             node = agent_class(agent_sdf, world_name, xdyn_enabled, **px4_kwargs)
 
@@ -430,21 +432,17 @@ class AgentsManager:
                     return
                 executor.spin_once(timeout_sec=0.1)
 
-            pending = [(node, pose) for node, pose in spawn_queue
-                       if not getattr(node, "_spawn_confirmed", True)]
+            pending = [(node, pose) for node, pose in spawn_queue if not getattr(node, "_spawn_confirmed", True)]
             if not pending or attempt == SPAWN_CONFIRM_ATTEMPTS - 1:
                 break
-            logging.warning(
-                "Spawn unconfirmed for %s — resending.",
-                ", ".join(n.agent_name for n, _ in pending))
+            logging.warning("Spawn unconfirmed for %s — resending.", ", ".join(n.agent_name for n, _ in pending))
             for agent_node, pose in pending:
                 try:
                     agent_node.send_single_mas_cmd(pose)
                 except Exception as e:
                     logging.error(f"Failed to resend mission command for {agent_node.agent_name}: {e}")
 
-        pending = [n.agent_name for n, _ in spawn_queue
-                   if not getattr(n, "_spawn_confirmed", True)]
+        pending = [n.agent_name for n, _ in spawn_queue if not getattr(n, "_spawn_confirmed", True)]
         if pending:
             logging.error("Never spawned: %s", ", ".join(pending))
 
@@ -488,9 +486,7 @@ class AgentsManager:
             poses = agent_info.get("poses") if agent_info else None
             pose = poses[0] if poses else (agent_info.get("pose") if agent_info else None)
 
-            agent_node = self._create_agent_instance(
-                agent_class, sdf_file, world_name, xdyn_enabled, agent_info
-            )
+            agent_node = self._create_agent_instance(agent_class, sdf_file, world_name, xdyn_enabled, agent_info)
             agent_node.sdf_file = sdf_file
 
             if pose is None:

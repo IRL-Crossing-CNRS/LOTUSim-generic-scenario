@@ -115,17 +115,16 @@ class LrauvAllocationTask(TaskAgent):
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
+        self._pub = self.host.create_publisher(VesselCmdArray, f"/{world}/vessel_cmd_array", 10)
         # xdyn fails every step until it has a complete command set; publish
         # a resting one right away (same reasoning as BlueROV's allocator).
         # Must be rpm_min, not 0: see module docstring, 0 rpm crashes the
         # simulation outright rather than just producing zero thrust.
         self._publish(self._rpm_min)
-        self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+        self._nav_sub = self.host.create_subscription(Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
         self._control_sub = self.host.create_subscription(
-            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10)
+            WrenchStamped, f"/{world}/{agent}/control", self._on_control, 10
+        )
 
     def on_exit(self, status) -> None:
         if self._control_sub is not None:
@@ -142,11 +141,9 @@ class LrauvAllocationTask(TaskAgent):
     def _on_navigation(self, msg: Odometry) -> None:
         pose = msg.pose.pose
         _, _, psi = enu_quat_to_ned_euler(
-            pose.orientation.x, pose.orientation.y,
-            pose.orientation.z, pose.orientation.w)
-        vx, vy, _ = enu_to_ned_position(
-            msg.twist.twist.linear.x, msg.twist.twist.linear.y,
-            msg.twist.twist.linear.z)
+            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
+        )
+        vx, vy, _ = enu_to_ned_position(msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z)
         self._u_measured = vx * math.cos(psi) + vy * math.sin(psi)
 
     def _on_control(self, msg: WrenchStamped) -> None:
@@ -165,7 +162,8 @@ class LrauvAllocationTask(TaskAgent):
         # j_safe leaves real margin below the table's actual 1.5 limit.
         rpm_floor_dynamic = max(
             self._rpm_min,
-            (1.0 - _WAKE_FRACTION) * abs(self._u_measured) / (self._j_safe * _PROPELLER_DIAMETER_M) * 60.0)
+            (1.0 - _WAKE_FRACTION) * abs(self._u_measured) / (self._j_safe * _PROPELLER_DIAMETER_M) * 60.0,
+        )
 
         rpm = max(target, rpm_floor_dynamic)
         step = max(-self._rpm_slew_max, min(self._rpm_slew_max, rpm - self._last_rpm))
@@ -175,12 +173,14 @@ class LrauvAllocationTask(TaskAgent):
         self._last_rpm = rpm
         cmd = VesselCmd()
         cmd.vessel_name = self.host.agent_name
-        cmd.cmd_string = json.dumps({
-            # xdyn expects rad/s here despite the "(rpm)" key name -- see
-            # module docstring. rpm (this class's own unit) -> rad/s.
-            "propeller(rpm)": rpm * _RPM_TO_RAD_S,
-            "propeller(P/D)": self._pitch_ratio,
-        })
+        cmd.cmd_string = json.dumps(
+            {
+                # xdyn expects rad/s here despite the "(rpm)" key name -- see
+                # module docstring. rpm (this class's own unit) -> rad/s.
+                "propeller(rpm)": rpm * _RPM_TO_RAD_S,
+                "propeller(P/D)": self._pitch_ratio,
+            }
+        )
         array = VesselCmdArray()
         array.cmds = [cmd]
         self._pub.publish(array)

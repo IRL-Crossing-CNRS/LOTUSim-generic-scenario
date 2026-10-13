@@ -54,8 +54,9 @@ class DynamicSpawnService(Node):
     request, whatever the shards' views of each other.
     """
 
-    def __init__(self, agents_manager, executor, world_name: str, world_file: str = "",
-                 shard: int = 0, shards: int = 1) -> None:
+    def __init__(
+        self, agents_manager, executor, world_name: str, world_file: str = "", shard: int = 0, shards: int = 1
+    ) -> None:
         super().__init__(f"dynamic_spawn_service_{shard}")
         self._manager = agents_manager
         self._executor = executor
@@ -77,10 +78,7 @@ class DynamicSpawnService(Node):
         self.create_subscription(String, "/despawn_cmd", self._on_despawn, 10)
 
         if shard == 0:
-            self._routes = {
-                i: self.create_publisher(String, self._inbox(i), 10)
-                for i in range(shards)
-            }
+            self._routes = {i: self.create_publisher(String, self._inbox(i), 10) for i in range(shards)}
             self.create_subscription(String, "/spawn_cmd", self._on_spawn_request, 10)
             self.create_service(Trigger, "/list_agents", self._on_list_agents)
             self.get_logger().info("DynamicSpawnService ready on /spawn_cmd and /despawn_cmd")
@@ -95,8 +93,7 @@ class DynamicSpawnService(Node):
 
     def _publish_shard_status(self) -> None:
         msg = String()
-        msg.data = json.dumps(
-            {"shard": self._shard, "agents": list(self._manager.agents.keys())})
+        msg.data = json.dumps({"shard": self._shard, "agents": list(self._manager.agents.keys())})
         self._shard_pub.publish(msg)
 
     def _on_shard_status(self, msg: String) -> None:
@@ -153,14 +150,11 @@ class DynamicSpawnService(Node):
         agent_type = next(iter(data))
         agent_info = data[agent_type] if isinstance(data[agent_type], dict) else {}
 
-        agent_name = self._manager.spawn_one_agent(
-            agent_type, agent_info, self._world_name, self._executor
-        )
+        agent_name = self._manager.spawn_one_agent(agent_type, agent_info, self._world_name, self._executor)
 
         if agent_name:
             self._publish_shard_status()
-            self._publish_status({"success": True, "agent_name": agent_name,
-                                  "shard": self._shard})
+            self._publish_status({"success": True, "agent_name": agent_name, "shard": self._shard})
         else:
             self._publish_status({"success": False, "error": f"Could not spawn agent of type '{agent_type}'"})
 
@@ -187,9 +181,7 @@ class DynamicSpawnService(Node):
 
     def _peer_hosts(self, agent_name: str) -> bool:
         now = time.monotonic()
-        return any(agent_name in agents
-                   for seen, agents in self._peers.values()
-                   if now - seen <= SHARD_STATUS_TTL_S)
+        return any(agent_name in agents for seen, agents in self._peers.values() if now - seen <= SHARD_STATUS_TTL_S)
 
     def _on_list_agents(self, _request, response) -> Trigger.Response:
         now = time.monotonic()

@@ -118,8 +118,7 @@ class PatrolFileProvider(TrajectoryProvider):
         if not waypoints:
             raise ValueError(f"Patrol file '{self._file}' contains no waypoints.")
         trajectory = [
-            {"timestamp": wp["timestamp"], "lat": float(wp["lat"]), "lon": float(wp["lon"])}
-            for wp in waypoints
+            {"timestamp": wp["timestamp"], "lat": float(wp["lat"]), "lon": float(wp["lon"])} for wp in waypoints
         ]
         logger.debug("PatrolFileProvider: loaded %d waypoints from '%s'", len(trajectory), self._file)
         return trajectory
@@ -135,9 +134,7 @@ class PatrolFileProvider(TrajectoryProvider):
         for path in candidates:
             if os.path.exists(path):
                 return path
-        raise FileNotFoundError(
-            f"Patrol file '{filename}' not found. Searched in: {', '.join(candidates)}"
-        )
+        raise FileNotFoundError(f"Patrol file '{filename}' not found. Searched in: {', '.join(candidates)}")
 
 
 class WaypointListProvider(TrajectoryProvider):
