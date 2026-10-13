@@ -12,52 +12,26 @@ scenarios (surface, underwater, aerial) with:
 Agents are **mission-driven**: behaviour comes from a Behaviour Tree described
 in the scenario JSON, not hard-coded per vehicle.
 
-**This README is the user guide**: install the workspace, run a scenario,
-read the results. It assumes you want to *use* the simulator, not modify it.
+**This README is the user guide**: run a scenario and read the results
+(installing is covered by [How_To_Install_LOTUSim](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim)). It assumes you want to *use* the simulator, not modify it.
 If you are going to change the code — add a vehicle, write a mission task,
 plug in your own navigation/guidance/control algorithm — start instead at
 [doc/DEVELOPER.md](doc/DEVELOPER.md).
 
 ---
 
-## Installation
+## Before you start
 
-### Option 1 — Automated (recommended)
+Install first: everything about installing — nix, the two workspaces, the CPU
+or GPU detection, PX4, the graphics bridge — is in
+[How_To_Install_LOTUSim](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim). Its script clones and builds both
+workspaces; this guide starts once it has run.
 
-```bash
-chmod +x install_core_and_generic_scenario.sh
-./install_core_and_generic_scenario.sh
-```
-
-Checks that you run Ubuntu 24.04 (ROS 2 Jazzy), installs system/Python
-dependencies, clones the LOTUSim core into `~/lotusim_ws`, configures
-`~/.bashrc`, builds the core workspace, and clones/builds this workspace.
-Idempotent — safe to re-run. If ROS 2 is already installed, the ROS 2 apt
-repository and `lotusim install` steps are skipped (force the latter with
-`FORCE_LOTUSIM_INSTALL=1`).
-
-### Option 2 — Manual
+After changing code in this workspace, rebuild it from its devshell:
 
 ```bash
-mkdir -p ~/Documents/workspace/lotusim && cd ~/Documents/workspace/lotusim
-sudo apt update && sudo apt install -y jq
-git clone --recurse-submodules https://github.com/IRL-Crossing-CNRS/LOTUSim-generic-scenario
-cd LOTUSim-generic-scenario
-git submodule update --init --remote --merge
-```
-
-### Build & source
-
-```bash
-# Core (at ~/lotusim_ws/src/LOTUSim) — use lotusim clean_build, not colcon build
-source /opt/ros/jazzy/setup.bash
-lotusim clean_build
-source $HOME/lotusim_ws/install/setup.bash
-
-# This workspace
-cd $HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario/
-colcon build
-source install/setup.bash
+lotusim_shell
+colcon build --symlink-install
 ```
 
 ---
@@ -104,7 +78,28 @@ Launch it:
 
 `ROS_IP` is auto-detected (override by exporting it yourself before running,
 e.g. `export ROS_IP=192.168.1.42`, if Unity needs a specific interface).
-Add `--debug` for verbose output, `--gui` to show the Gazebo GUI.
+Add `--debug` for verbose output and `--gui` to show the Gazebo GUI. The
+helper processes run detached and write to their log file; `--terminals`
+gives each one its own window instead. `--close-terminals` closes every GNOME terminal
+window at the end of the run, your own included.
+
+Agents are hosted by several processes, sized from the fleet. Every agent is
+a Python node and one process is capped at a single core by the GIL, so a
+large scenario in one process starves its own control loops — a 20 Hz loop
+measured at 0.4 Hz with 59 agents, enough to make the vehicles oscillate
+along their paths. `--shards N` pins the number of processes instead of
+letting the launcher choose; `--shards 1` keeps everything in one, as before.
+The processes share one world over ROS/DDS and spawn into it exactly like a
+remote machine would, so nothing about a scenario changes with the count.
+
+Budget about **0.07 core per agent**: measured at 300 agents, the hosting
+processes together drew 22 cores. The launcher caps itself at `nproc / 3`
+processes to leave the world, the xdyn servers and PX4 their cores, and warns
+when a fleet wants more than that — past the cap the world still runs in real
+time but the control loops drop below their configured rate. Splitting such a
+fleet over several machines is the way out, and the pieces are all in place
+(each shard is an ordinary ROS 2 process), but the launcher only starts them
+on the local host today.
 
 **For the full JSON schema (every key, every built-in BT task and its
 parameters, host vs. remote differences) see
@@ -157,55 +152,11 @@ Gazebo sensors / writes its motor commands directly
 (see [doc/ARCHITECTURE.md §5.1](doc/ARCHITECTURE.md)). PX4 itself is not part
 of this repo: it's a separate checkout you build once.
 
-### 1. Clone and build PX4-Autopilot
+### 1. Install PX4-Autopilot
 
-```bash
-git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot
-cd ~/PX4-Autopilot
-```
-
-System packages needed beyond a base Ubuntu 24.04 dev machine (all via
-`sudo apt install`, no PPAs needed):
-
-```bash
-sudo apt install -y ninja-build ccache libopencv-dev \
-    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-```
-
-Python packages (PX4's `Tools/setup/requirements.txt`; `--break-system-packages`
-is required on Ubuntu 24.04's PEP 668-managed Python, and this only touches
-your user site-packages, not the system Python):
-
-```bash
-pip3 install --user --break-system-packages -r Tools/setup/requirements.txt
-```
-
-**Known build issue (clang 18+):** a few PX4 source files use
-variable-length arrays in C++, which clang 18 treats as a hard error
-(`-Werror` + `-Wvla-cxx-extension`) even though older clang only warned.
-If `make` fails with `variable length arrays in C++ are a Clang extension`,
-add one line to `cmake/px4_add_common_flags.cmake` in the clang branch
-(next to the existing `-Wno-c99-designator` etc.):
-
-```cmake
--Wno-error=vla-cxx-extension
-```
-
-Then build the Gazebo x500 target:
-
-```bash
-make px4_sitl gz_x500
-```
-
-This command builds PX4 and then launches it in an interactive `pxh>` shell
-attached to whatever Gazebo world and model it finds. With no matching Gazebo
-instance running, PX4 attaches to nothing and the `pxh>` prompt redraws in a
-loop indefinitely. If the run is backgrounded or redirected to a log file,
-that file grows without bound (several GB within minutes) until the disk
-fills. After the first build, check for a leftover process with
-`ps aux | grep bin/px4`, kill it, and delete the log. Later scenario launches
-are unaffected: LOTUSim starts its own PX4 instance with `-d` (daemon mode,
-no `pxh>` prompt).
+The installer builds it when you answer yes to its PX4 question; the manual
+build, and how much disk it takes, are in
+[How_To_Install_LOTUSim — PX4 SITL](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim#optional-px4-sitl-aerial-drones).
 
 ### 2. Point LOTUSim at your PX4 checkout
 
@@ -284,17 +235,9 @@ vehicle. Keep the two consistent, as setting `"manual"` while attaching
 
 #### QGroundControl
 
-QGroundControl is not in Ubuntu's apt repositories. Download the official
-AppImage:
-
-```bash
-curl -L -o ~/Applications/QGroundControl-x86_64.AppImage \
-  "$(curl -s https://api.github.com/repos/mavlink/qgroundcontrol/releases/latest \
-     | grep browser_download_url | grep x86_64.AppImage | cut -d'"' -f4)"
-chmod +x ~/Applications/QGroundControl-x86_64.AppImage
-~/Applications/QGroundControl-x86_64.AppImage
-```
-
+Install it as described in
+[How_To_Install_LOTUSim — QGroundControl](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim#qgroundcontrol),
+then start it (`~/Applications/QGroundControl-x86_64.AppImage`).
 QGroundControl connects automatically to any PX4 SITL instance listening on
 `localhost:14550`. With the scenario running it detects the vehicle within a
 few seconds and shows live telemetry. Arm and command takeoff or goto from
@@ -334,9 +277,8 @@ above, no `missions` needed):
 
 ### Manual control via ROS topic
 
-With the scenario running, open a second terminal, source the workspaces
-(`/opt/ros/<distro>/setup.bash`, `~/lotusim_ws/install/setup.bash`, this
-workspace's `install/setup.bash`), then:
+With the scenario running, open a second terminal and enter the workspaces'
+environment with `lotusim_shell`, then:
 
 ```bash
 # Start the propeller RPM sequence
