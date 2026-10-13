@@ -290,6 +290,9 @@ GZ_GUI="false"
 # gnome-terminal window, which is useful to watch one of them live but takes
 # the keyboard focus every time a window opens.
 USE_TERMINALS="false"
+# --close-terminals closes every GNOME terminal window at the end of the run,
+# the user's own included, as the launcher used to. Off by default.
+CLOSE_TERMINALS="false"
 # Agents are Python nodes, so one process is capped at a single core by the
 # GIL and every control loop slows down as the fleet grows. --shards splits
 # them across that many processes sharing one world over ROS/DDS. "auto"
@@ -301,6 +304,7 @@ while [[ $# -gt 0 ]]; do
         --debug) DEBUG_MODE="true"; shift ;;
         --gui) GZ_GUI="true"; shift ;;
         --terminals) USE_TERMINALS="true"; shift ;;
+        --close-terminals) CLOSE_TERMINALS="true"; shift ;;
         --shards) AGENT_SHARDS="$2"; shift 2 ;;
         *) echo -e "${YELLOW}[WARN] Unknown argument: $1${NC}"; shift ;;
     esac
@@ -309,9 +313,10 @@ done
 # simulation_runner launches the Gazebo worlds itself, in its own process:
 # it reads this to place them the same way as the helpers above.
 export LOTUSIM_USE_TERMINALS="$USE_TERMINALS"
+export LOTUSIM_CLOSE_TERMINALS="$CLOSE_TERMINALS"
 
 if [[ -z "$CONFIG_FILE" ]]; then
-    die "Missing --config argument. Usage: $0 --config path/to/config.json [--terminals] [--shards N|auto] [--debug] [--gui]"
+    die "Missing --config argument. Usage: $0 --config path/to/config.json [--terminals] [--close-terminals] [--shards N|auto] [--debug] [--gui]"
 fi
 
 # Resolve relative path

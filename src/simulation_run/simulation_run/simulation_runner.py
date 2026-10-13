@@ -428,6 +428,15 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
     process = None
     time.sleep(1)
 
+    # Opt-in (--close-terminals): close every GNOME terminal, the user's own
+    # windows included, the way the launcher always did before.
+    if os.environ.get("LOTUSIM_CLOSE_TERMINALS", "false") == "true":
+        try:
+            subprocess.run(["pkill", "-f", "gnome-terminal"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logger.info("Terminated GNOME terminal processes (--close-terminals).")
+        except Exception:
+            logger.warning("Error killing GNOME terminals", exc_info=True)
+
     # Kill bridge and Gazebo simulation processes
     for target in ["ros_gz_bridge/parameter_bridge", "gz sim"]:
         try:
