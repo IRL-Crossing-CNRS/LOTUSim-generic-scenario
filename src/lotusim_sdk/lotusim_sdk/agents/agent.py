@@ -1,5 +1,6 @@
 from abc import ABC
 
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
@@ -54,8 +55,17 @@ class Agent(Node, ABC):
         self._blackboard = Blackboard()
         self._tick_rate_hz = DEFAULT_TICK_RATE_HZ
         self._missions_started = False
+        # Dedicated group: without it the timer lands in the node's default
+        # MutuallyExclusiveCallbackGroup, shared with every subscription a task
+        # creates on the host (fault_inspection's camera callback, which runs
+        # YOLO inference). One thread at a time services such a group, so a long
+        # callback holds off the tick — and since a missed timer deadline is
+        # dropped rather than queued, the tick rate silently halves.
+        self._mission_cb_group = MutuallyExclusiveCallbackGroup()
         self._mission_timer = self.create_timer(
-            1.0 / self._tick_rate_hz, self._tick_missions
+            1.0 / self._tick_rate_hz,
+            self._tick_missions,
+            callback_group=self._mission_cb_group,
         )
 
     # ------------------------------------------------------------------
@@ -75,7 +85,12 @@ class Agent(Node, ABC):
         self._missions_started = False
         if self._mission_timer is not None:
             self._mission_timer.cancel()
-        self._mission_timer = self.create_timer(1.0 / tick_rate_hz, self._tick_missions)
+            self.destroy_timer(self._mission_timer)
+        self._mission_timer = self.create_timer(
+            1.0 / tick_rate_hz,
+            self._tick_missions,
+            callback_group=self._mission_cb_group,
+        )
 
     def missions_ready(self) -> bool:
         """Gate for the first tick. Base agents are always ready; entities with a

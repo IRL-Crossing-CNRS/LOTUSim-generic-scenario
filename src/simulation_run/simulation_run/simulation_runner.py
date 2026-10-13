@@ -144,7 +144,7 @@ def build_launch_command(
 
 def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
     """
-    Starts Lotusim processes in separate GNOME terminals.
+    Starts the Lotusim worlds, detached by default.
 
     Args:
         commands: List of Lotusim launch commands.
@@ -154,15 +154,29 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
 
     Side effects:
         - Populates global `lotusim_pids` with tracked process IDs.
-        - Launches GNOME terminal windows running the simulation.
+        - Launches the simulation, in its own terminal window per world when
+          LOTUSIM_USE_TERMINALS is "true" (scenario_launch.sh --terminals).
+          A window per world steals the keyboard focus from the shell the run
+          was started in, and the output it carries is already teed to
+          scenario_logs by build_launch_command._with_log.
     """
 
     global lotusim_pids
     processes: List[subprocess.Popen] = []
 
+    use_terminals = os.environ.get("LOTUSIM_USE_TERMINALS", "false") == "true"
+
     for cmd in commands:
-        full_cmd = f'gnome-terminal -- bash -c "{cmd}; exec bash"'
-        process = subprocess.Popen(full_cmd, shell=True, preexec_fn=os.setsid)
+        if use_terminals:
+            full_cmd = f'gnome-terminal -- bash -c "{cmd}; exec bash"'
+            process = subprocess.Popen(full_cmd, shell=True, preexec_fn=os.setsid)
+        else:
+            # stdout goes nowhere: _with_log already tees it into scenario_logs,
+            # and letting it through would repeat every world's output in the
+            # launcher's own log.
+            process = subprocess.Popen(
+                ["bash", "-c", cmd], preexec_fn=os.setsid,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         processes.append(process)
         time.sleep(1)  # Allow startup
 
@@ -188,6 +202,33 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
 
 
 
+def wait_for_world(world_name: str, timeout_sec: float = 120.0) -> bool:
+    """Block until the world's entity manager answers, for a worker process.
+
+    A worker spawns its agents into a world another process launches, so it
+    has nothing of its own to wait on. The MASCmd action server is what every
+    spawn goes through, which makes its availability the readiness signal.
+    """
+    from rclpy.action import ActionClient
+    import lotusim_msgs.action
+
+    node = rclpy.create_node(f"shard_world_wait_{os.getpid()}")
+    try:
+        client = ActionClient(node, lotusim_msgs.action.MASCmd,
+                              f"/{world_name}/mas_cmd")
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            if ros_manager.shutdown_flag:
+                return False
+            if client.wait_for_server(timeout_sec=1.0):
+                return True
+        logger.error("World '%s' did not come up within %.0fs.",
+                     world_name, timeout_sec)
+        return False
+    finally:
+        node.destroy_node()
+
+
 def run_simulation(
     world_file: str,
     agents: Dict[str, Any],
@@ -197,6 +238,8 @@ def run_simulation(
     config_dir: Optional[str] = None,
     record_csv: Any = False,
     scenario: Optional[Dict[str, Any]] = None,
+    shard: int = 0,
+    shards: int = 1,
 ) -> Any:
     """
     Orchestrates the full simulation lifecycle.
@@ -222,10 +265,17 @@ def run_simulation(
         scenario: The whole parsed scenario JSON dict (top-level ``"agents"``
             list included), forwarded to the CSV recorder so it can rebuild
             each agent's intended path and track mission/waypoint progress.
+        shard, shards: this process's index among the agent-hosting processes
+            and how many there are. Shard 0 owns what the scenario has once —
+            the Gazebo reset and launch, the CSV recorder, the mission watcher
+            and the public spawn topic; the others only host their agents and
+            join the world shard 0 runs.
     """
 
     global process
     global executor
+
+    worker = shard != 0
 
     if not rclpy.ok():
         rclpy.init()
@@ -238,8 +288,9 @@ def run_simulation(
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Debug mode enabled — verbose logging active.")
 
-    # Reset Gazebo and prepare launch command
-    reset_gazebo_state()
+    if not worker:
+        # Reset Gazebo and prepare launch command
+        reset_gazebo_state()
 
     if ros_manager.shutdown_flag:
         stop_simulation(executor)
@@ -247,11 +298,16 @@ def run_simulation(
 
     world_name = utils.get_world_name(world_file)
 
-    launch_commands = build_launch_command(world_file, debug=debug_mode, gui=gui)
+    if worker and not wait_for_world(world_name):
+        stop_simulation(executor)
+        return
 
-    # Start simulation process
-    process = start_simulation_process(launch_commands)
-    time.sleep(1)
+    if not worker:
+        launch_commands = build_launch_command(world_file, debug=debug_mode, gui=gui)
+
+        # Start simulation process
+        process = start_simulation_process(launch_commands)
+        time.sleep(1)
 
     if ros_manager.shutdown_flag:
         stop_simulation(executor)
@@ -274,7 +330,8 @@ def run_simulation(
             logger.exception("Could not start the CSV recorder")
 
     agents_manager = ros_manager.initialize_ros_components(
-        executor, agents, world_name, world_file, config_dir
+        executor, agents, world_name, world_file, config_dir,
+        shard=shard, shards=shards,
     )
 
     if ros_manager.shutdown_flag:
@@ -286,13 +343,14 @@ def run_simulation(
     # mission completion (see lotusim_sdk.agents.agent.Agent._tick_missions),
     # this watches across all of them via the shared AgentsManager registry.
     mission_watcher = None
-    try:
-        from simulation_run.mission_watcher import MissionWatcher
+    if not worker:
+        try:
+            from simulation_run.mission_watcher import MissionWatcher
 
-        mission_watcher = MissionWatcher(agents_manager, world_name)
-        executor.add_node(mission_watcher)
-    except Exception:
-        logger.exception("Could not start the mission watcher")
+            mission_watcher = MissionWatcher(agents_manager, world_name)
+            executor.add_node(mission_watcher)
+        except Exception:
+            logger.exception("Could not start the mission watcher")
 
     try:
         # Run main execution loop

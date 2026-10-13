@@ -2,6 +2,8 @@
 
 import math
 
+import numpy as np
+
 import pytest
 
 from lotusim_sdk.agents.environment.wake.blended import BlendedWakeModel
@@ -125,3 +127,49 @@ class TestWindChangedEnough:
 
     def test_wind_dying_to_calm_is_true(self):
         assert wind_changed_enough([0.0, 3.0], [0.0, 0.0], 5.0, 0.5) is True
+
+
+# ----------------------------------------------------------------------
+# Radial profile. The bug these cover: the generator sampled the model only
+# on the wake axis and published that one value for the whole cross-section,
+# so a vehicle anywhere inside a segment was handed the CENTRELINE deficit
+# out to the radius where the true deficit had already decayed to the 5%
+# cut-off -- roughly 2.1x the model's area-integrated deficit, and a top-hat
+# where the model predicts a graded profile.
+# ----------------------------------------------------------------------
+def test_radial_speed_matches_the_model_across_the_radius():
+    model = BlendedWakeModel(LarsenWakeModel(**NREL_5MW))
+    gen = WakeRegionGenerator(model, cell_diameters=0.5, deficit_threshold=0.05)
+    regions = gen.regions_for_wind([("t1", 0.0, 0.0, 52.0)], np.array([0.0, 10.0]))
+    assert regions
+    for r in regions:
+        prof = r["radial_speed"]
+        assert len(prof) == 9
+        x_mid = math.hypot(r["origin_x"], r["origin_y"]) + 0.5 * r["length"]
+        r_mid = 0.5 * (r["r_start"] + r["r_end"])
+        for f, got in zip(np.linspace(0.0, 1.0, len(prof)), prof):
+            want = model.velocity_at_point(10.0, x_mid, f * r_mid)
+            assert got == pytest.approx(want, rel=1e-6)
+
+
+def test_radial_speed_is_graded_not_a_top_hat():
+    """The axis is slower than the boundary: the whole point of the field."""
+    gen = WakeRegionGenerator(BlendedWakeModel(LarsenWakeModel(**NREL_5MW)), cell_diameters=0.5, deficit_threshold=0.05)
+    regions = gen.regions_for_wind([("t1", 0.0, 0.0, 52.0)], np.array([0.0, 10.0]))
+    for r in regions:
+        prof = r["radial_speed"]
+        assert prof[0] < prof[-1], "profile must recover towards the boundary"
+        assert all(a <= b + 1e-9 for a, b in zip(prof, prof[1:])), "monotonic in r"
+        # And the old behaviour would have been flat at the centreline value.
+        assert prof[-1] - prof[0] > 0.1, "a top-hat would differ by ~0"
+
+
+def test_turbulence_only_keeps_a_flat_freestream_profile():
+    """That cell delivers the wake's turbulence with NO slowdown, so a graded
+    profile would reintroduce the deficit it is defined to exclude."""
+    gen = WakeRegionGenerator(BlendedWakeModel(LarsenWakeModel(**NREL_5MW)), cell_diameters=0.5, deficit_threshold=0.05,
+                              turbulence=True, turbulence_only=True)
+    regions = gen.regions_for_wind([("t1", 0.0, 0.0, 52.0)], np.array([0.0, 10.0]))
+    assert regions
+    for r in regions:
+        assert r["radial_speed"] == pytest.approx([10.0] * 9)

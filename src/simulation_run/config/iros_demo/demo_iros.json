@@ -1,0 +1,4051 @@
+{
+  "_comment": [
+    "IROS demo: a full fleet working a 16-turbine farm.",
+    "",
+    "wind + wake            the farm itself: Larsen wake, regions streamed to",
+    "                       Unity with the radial profile and turbulence, LCOE.",
+    "bluerov_orbit_*        octagons around a monopile, 50 m radius, 12 m deep,",
+    "bluerov_inspect_*      58 m and 22 m deep with YOLO fault inspection. Both",
+    "                       run the full GNC loop under xdyn and Ekman.",
+    "lrauv_orbit_*          octagons at 66 m, 32 m deep, waypoint_follower.",
+    "lrauv_tour_*           cross a turbine row at 40 m deep, generic GNC loop.",
+    "wamv_aisle_*           run the aisle between two rows or two columns.",
+    "wamv_fig8_*            figure of eight around a group of four turbines.",
+    "x500_orbit_*           hexagons around a mast, 12 m radius, 30 m up.",
+    "wamv_drift_*           drift with the Ekman current, navigation only.",
+    "lrauv_drift_*          same, with the propeller held at a resting command.",
+    "bluerov_crack          static underwater crack detection, window shown.",
+    "x500_crack_inspection  static aerial crack detection, window shown.",
+    "",
+    "Orbit polygons have 6 to 8 vertices so each leg is long enough for the",
+    "guidance to settle, and their tolerance is a third of a leg.",
+    "",
+    "The turbine foundation reaches 38 m from the mast axis. The orbit radii",
+    "keep every controlled vehicle outside it.",
+    "",
+    "One xdyn process is started per agent class, from the first agent of that",
+    "class in this list: a class mixing xdyn and Kinematic agents must list an",
+    "xdyn one first.",
+    "",
+    "world_file stays energy.world although bluerov_current is ekman:",
+    "bluerov_ekman.world carries the 47 deg latitude and 0.05 s step the model",
+    "was validated with, but its geographic origin is 370 km away and the patrol",
+    "files are lat/lon.",
+    "",
+    "crack_detector needs a CUDA GPU."
+  ],
+  "world_file": "energy.world",
+  "bluerov_current": "ekman",
+  "renderer_unity": true,
+  "record_csv": {
+    "rate": 10.0
+  },
+  "agents": [
+    {
+      "id": "wind",
+      "class": "Wind",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "publish_rate_hz": 10.0,
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "steady_wind",
+          "type": "action",
+          "task": "set_wind",
+          "params": {
+            "x": 8.0,
+            "y": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "maintenance_cost": 100000.0,
+      "lcoe": {
+        "alpha_r_aud_per_hour": 50.0,
+        "alpha_e_aud_per_kwh": 0.5,
+        "publish_rate_hz": 1.0
+      },
+      "turbines": [
+        {
+          "name": "wind_turbine_1",
+          "x": -496.0,
+          "z": 52,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_2",
+          "x": -92.0,
+          "z": 52,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_3",
+          "x": 328.0,
+          "z": 52,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_4",
+          "x": 748.0,
+          "z": 52,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_5",
+          "x": -496.0,
+          "z": 52,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_6",
+          "x": -92.0,
+          "z": 52,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_7",
+          "x": 328.0,
+          "z": 52,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_8",
+          "x": 748.0,
+          "z": 52,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_9",
+          "x": -512.0,
+          "z": 52,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_10",
+          "x": -92.0,
+          "z": 52,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_11",
+          "x": 328.0,
+          "z": 52,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_12",
+          "x": 748.0,
+          "z": 52,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_13",
+          "x": -512.0,
+          "z": 52,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_14",
+          "x": -92.0,
+          "z": 52,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_15",
+          "x": 328.0,
+          "z": 52,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_16",
+          "x": 748.0,
+          "z": 52,
+          "y": 854.0
+        }
+      ],
+      "wind_regions": {
+        "direction_hysteresis_deg": 5.0,
+        "turbulence": true
+      }
+    },
+    {
+      "id": "bluerov_gnc_ekman",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12360,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "guidance_wt1",
+          "type": "action",
+          "task": "bluerov_guidance_los",
+          "params": {
+            "z_start_m": 10.0,
+            "z_end_m": 10.0,
+            "x_end_m": 30.0,
+            "y_end_m": 30.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_ekman",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12374,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_crack",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -467.2281,
+        "y": -792.3778,
+        "z": -13.7137,
+        "yaw": 1.5708
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "crack_inspection",
+          "type": "action",
+          "task": "crack_detector",
+          "params": {
+            "show_window": true,
+            "model": "simulation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_crack_inspection",
+      "class": "X500_inspection",
+      "sdf_file": "model-battery.sdf",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -491.4567,
+        "y": -771.3045,
+        "z": 29.9252,
+        "yaw": 2.4608
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "x500_crack_inspection",
+          "type": "action",
+          "task": "crack_detector",
+          "params": {
+            "show_window": true,
+            "model": "simulation"
+          }
+        },
+        {
+          "id": "x500_hold_position",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": false,
+            "guidance_clock": "pose",
+            "range_tolerance": 0.5,
+            "waypoints": [
+              {
+                "x": -491.4567,
+                "y": -771.3045
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt02",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12361,
+      "spawn": {
+        "x": -42.0,
+        "y": -766.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt03",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12362,
+      "spawn": {
+        "x": 378.0,
+        "y": -766.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt04",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12363,
+      "spawn": {
+        "x": 798.0,
+        "y": -766.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt05",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12364,
+      "spawn": {
+        "x": -446.0,
+        "y": -226.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt06",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12365,
+      "spawn": {
+        "x": -42.0,
+        "y": -226.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt07",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12366,
+      "spawn": {
+        "x": 378.0,
+        "y": -226.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt08",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12367,
+      "spawn": {
+        "x": 798.0,
+        "y": -226.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt10",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12368,
+      "spawn": {
+        "x": -42.0,
+        "y": 314.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_orbit_wt11",
+      "class": "Bluerov2_heavy_current",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12369,
+      "spawn": {
+        "x": 378.0,
+        "y": 314.0,
+        "z": -12.0,
+        "yaw": 1.9633
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 12.0,
+            "waypoints": [
+              [
+                35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                0.0,
+                -100.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -85.36,
+                12.0
+              ],
+              [
+                -50.0,
+                -50.0,
+                12.0
+              ],
+              [
+                -35.36,
+                -14.64,
+                12.0
+              ],
+              [
+                0.0,
+                0.0,
+                12.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 12.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "bluerov_inspect_wt01",
+      "class": "Bluerov2_heavy_current_inspection",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12370,
+      "spawn": {
+        "x": -554.0,
+        "y": -766.0,
+        "z": -22.0,
+        "yaw": -1.178
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 22.0,
+            "waypoints": [
+              [
+                -41.01,
+                16.99,
+                22.0
+              ],
+              [
+                -58.0,
+                58.0,
+                22.0
+              ],
+              [
+                -41.01,
+                99.01,
+                22.0
+              ],
+              [
+                0.0,
+                116.0,
+                22.0
+              ],
+              [
+                41.01,
+                99.01,
+                22.0
+              ],
+              [
+                58.0,
+                58.0,
+                22.0
+              ],
+              [
+                41.01,
+                16.99,
+                22.0
+              ],
+              [
+                0.0,
+                0.0,
+                22.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 14.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_inspect_wt09",
+      "class": "Bluerov2_heavy_current_inspection",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12371,
+      "spawn": {
+        "x": -570.0,
+        "y": 314.0,
+        "z": -22.0,
+        "yaw": -1.178
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 22.0,
+            "waypoints": [
+              [
+                -41.01,
+                16.99,
+                22.0
+              ],
+              [
+                -58.0,
+                58.0,
+                22.0
+              ],
+              [
+                -41.01,
+                99.01,
+                22.0
+              ],
+              [
+                0.0,
+                116.0,
+                22.0
+              ],
+              [
+                41.01,
+                99.01,
+                22.0
+              ],
+              [
+                58.0,
+                58.0,
+                22.0
+              ],
+              [
+                41.01,
+                16.99,
+                22.0
+              ],
+              [
+                0.0,
+                0.0,
+                22.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 14.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_inspect_wt12",
+      "class": "Bluerov2_heavy_current_inspection",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12372,
+      "spawn": {
+        "x": 690.0,
+        "y": 314.0,
+        "z": -22.0,
+        "yaw": -1.178
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 22.0,
+            "waypoints": [
+              [
+                -41.01,
+                16.99,
+                22.0
+              ],
+              [
+                -58.0,
+                58.0,
+                22.0
+              ],
+              [
+                -41.01,
+                99.01,
+                22.0
+              ],
+              [
+                0.0,
+                116.0,
+                22.0
+              ],
+              [
+                41.01,
+                99.01,
+                22.0
+              ],
+              [
+                58.0,
+                58.0,
+                22.0
+              ],
+              [
+                41.01,
+                16.99,
+                22.0
+              ],
+              [
+                0.0,
+                0.0,
+                22.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 14.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "bluerov_inspect_wt13",
+      "class": "Bluerov2_heavy_current_inspection",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12373,
+      "spawn": {
+        "x": -570.0,
+        "y": 854.0,
+        "z": -22.0,
+        "yaw": -1.178
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "bluerov_navigation",
+          "params": {}
+        },
+        {
+          "id": "orbit",
+          "type": "action",
+          "task": "bluerov_guidance_los_polyline",
+          "params": {
+            "z_start_m": 22.0,
+            "waypoints": [
+              [
+                -41.01,
+                16.99,
+                22.0
+              ],
+              [
+                -58.0,
+                58.0,
+                22.0
+              ],
+              [
+                -41.01,
+                99.01,
+                22.0
+              ],
+              [
+                0.0,
+                116.0,
+                22.0
+              ],
+              [
+                41.01,
+                99.01,
+                22.0
+              ],
+              [
+                58.0,
+                58.0,
+                22.0
+              ],
+              [
+                41.01,
+                16.99,
+                22.0
+              ],
+              [
+                0.0,
+                0.0,
+                22.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 14.8
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "bluerov_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "bluerov_allocation",
+          "params": {}
+        },
+        {
+          "id": "inspect",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_01",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12375,
+      "spawn": {
+        "x": -366.0,
+        "y": -636.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_02",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12376,
+      "spawn": {
+        "x": 878.0,
+        "y": -636.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_03",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12377,
+      "spawn": {
+        "x": 38.0,
+        "y": -96.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_04",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12378,
+      "spawn": {
+        "x": 458.0,
+        "y": 444.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_05",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12379,
+      "spawn": {
+        "x": 38.0,
+        "y": 984.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_drift_06",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12380,
+      "spawn": {
+        "x": 878.0,
+        "y": 984.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_row12",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -534.0,
+        "y": -728.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": -534.0,
+                "y": -728.0
+              },
+              {
+                "x": 786.0,
+                "y": -728.0
+              },
+              {
+                "x": 874.78,
+                "y": -710.34
+              },
+              {
+                "x": 950.05,
+                "y": -660.05
+              },
+              {
+                "x": 1000.34,
+                "y": -584.78
+              },
+              {
+                "x": 1018.0,
+                "y": -496.0
+              },
+              {
+                "x": 1000.34,
+                "y": -407.22
+              },
+              {
+                "x": 950.05,
+                "y": -331.95
+              },
+              {
+                "x": 874.78,
+                "y": -281.66
+              },
+              {
+                "x": 786.0,
+                "y": -264.0
+              },
+              {
+                "x": -534.0,
+                "y": -264.0
+              },
+              {
+                "x": -622.78,
+                "y": -281.66
+              },
+              {
+                "x": -698.05,
+                "y": -331.95
+              },
+              {
+                "x": -748.34,
+                "y": -407.22
+              },
+              {
+                "x": -766.0,
+                "y": -496.0
+              },
+              {
+                "x": -748.34,
+                "y": -584.78
+              },
+              {
+                "x": -698.05,
+                "y": -660.05
+              },
+              {
+                "x": -622.78,
+                "y": -710.34
+              },
+              {
+                "x": -534.0,
+                "y": -728.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_row23",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -550.0,
+        "y": -188.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": -550.0,
+                "y": -188.0
+              },
+              {
+                "x": 786.0,
+                "y": -188.0
+              },
+              {
+                "x": 874.78,
+                "y": -170.34
+              },
+              {
+                "x": 950.05,
+                "y": -120.05
+              },
+              {
+                "x": 1000.34,
+                "y": -44.78
+              },
+              {
+                "x": 1018.0,
+                "y": 44.0
+              },
+              {
+                "x": 1000.34,
+                "y": 132.78
+              },
+              {
+                "x": 950.05,
+                "y": 208.05
+              },
+              {
+                "x": 874.78,
+                "y": 258.34
+              },
+              {
+                "x": 786.0,
+                "y": 276.0
+              },
+              {
+                "x": -550.0,
+                "y": 276.0
+              },
+              {
+                "x": -638.78,
+                "y": 258.34
+              },
+              {
+                "x": -714.05,
+                "y": 208.05
+              },
+              {
+                "x": -764.34,
+                "y": 132.78
+              },
+              {
+                "x": -782.0,
+                "y": 44.0
+              },
+              {
+                "x": -764.34,
+                "y": -44.78
+              },
+              {
+                "x": -714.05,
+                "y": -120.05
+              },
+              {
+                "x": -638.78,
+                "y": -170.34
+              },
+              {
+                "x": -550.0,
+                "y": -188.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_row34",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -550.0,
+        "y": 352.0,
+        "z": 0.096,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": -550.0,
+                "y": 352.0
+              },
+              {
+                "x": 786.0,
+                "y": 352.0
+              },
+              {
+                "x": 874.78,
+                "y": 369.66
+              },
+              {
+                "x": 950.05,
+                "y": 419.95
+              },
+              {
+                "x": 1000.34,
+                "y": 495.22
+              },
+              {
+                "x": 1018.0,
+                "y": 584.0
+              },
+              {
+                "x": 1000.34,
+                "y": 672.78
+              },
+              {
+                "x": 950.05,
+                "y": 748.05
+              },
+              {
+                "x": 874.78,
+                "y": 798.34
+              },
+              {
+                "x": 786.0,
+                "y": 816.0
+              },
+              {
+                "x": -550.0,
+                "y": 816.0
+              },
+              {
+                "x": -638.78,
+                "y": 798.34
+              },
+              {
+                "x": -714.05,
+                "y": 748.05
+              },
+              {
+                "x": -764.34,
+                "y": 672.78
+              },
+              {
+                "x": -782.0,
+                "y": 584.0
+              },
+              {
+                "x": -764.34,
+                "y": 495.22
+              },
+              {
+                "x": -714.05,
+                "y": 419.95
+              },
+              {
+                "x": -638.78,
+                "y": 369.66
+              },
+              {
+                "x": -550.0,
+                "y": 352.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_col12",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -425.0,
+        "y": -804.0,
+        "z": 0.096,
+        "yaw": 1.5708
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": -425.0,
+                "y": -804.0
+              },
+              {
+                "x": -425.0,
+                "y": 892.0
+              },
+              {
+                "x": -425.21,
+                "y": 956.29
+              },
+              {
+                "x": -416.79,
+                "y": 1010.79
+              },
+              {
+                "x": -362.29,
+                "y": 1047.21
+              },
+              {
+                "x": -298.0,
+                "y": 1060.0
+              },
+              {
+                "x": -233.71,
+                "y": 1047.21
+              },
+              {
+                "x": -179.21,
+                "y": 1010.79
+              },
+              {
+                "x": -142.79,
+                "y": 956.29
+              },
+              {
+                "x": -130.0,
+                "y": 892.0
+              },
+              {
+                "x": -130.0,
+                "y": -804.0
+              },
+              {
+                "x": -142.79,
+                "y": -868.29
+              },
+              {
+                "x": -179.21,
+                "y": -922.79
+              },
+              {
+                "x": -233.71,
+                "y": -959.21
+              },
+              {
+                "x": -298.0,
+                "y": -972.0
+              },
+              {
+                "x": -362.29,
+                "y": -959.21
+              },
+              {
+                "x": -416.79,
+                "y": -922.79
+              },
+              {
+                "x": -424.21,
+                "y": -868.29
+              },
+              {
+                "x": -425.0,
+                "y": -804.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_col23",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -54.0,
+        "y": -804.0,
+        "z": 0.096,
+        "yaw": 1.5708
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": -54.0,
+                "y": -804.0
+              },
+              {
+                "x": -54.0,
+                "y": 892.0
+              },
+              {
+                "x": -40.91,
+                "y": 957.82
+              },
+              {
+                "x": -3.62,
+                "y": 1013.62
+              },
+              {
+                "x": 52.18,
+                "y": 1050.91
+              },
+              {
+                "x": 118.0,
+                "y": 1064.0
+              },
+              {
+                "x": 183.82,
+                "y": 1050.91
+              },
+              {
+                "x": 239.62,
+                "y": 1013.62
+              },
+              {
+                "x": 276.91,
+                "y": 957.82
+              },
+              {
+                "x": 290.0,
+                "y": 892.0
+              },
+              {
+                "x": 290.0,
+                "y": -804.0
+              },
+              {
+                "x": 276.91,
+                "y": -869.82
+              },
+              {
+                "x": 239.62,
+                "y": -925.62
+              },
+              {
+                "x": 183.82,
+                "y": -962.91
+              },
+              {
+                "x": 118.0,
+                "y": -976.0
+              },
+              {
+                "x": 52.18,
+                "y": -962.91
+              },
+              {
+                "x": -3.62,
+                "y": -925.62
+              },
+              {
+                "x": -40.91,
+                "y": -869.82
+              },
+              {
+                "x": -54.0,
+                "y": -804.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_aisle_col34",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 366.0,
+        "y": -804.0,
+        "z": 0.096,
+        "yaw": 1.5708
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "aisle_patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": 366.0,
+                "y": -804.0
+              },
+              {
+                "x": 366.0,
+                "y": 892.0
+              },
+              {
+                "x": 379.09,
+                "y": 957.82
+              },
+              {
+                "x": 416.38,
+                "y": 1013.62
+              },
+              {
+                "x": 472.18,
+                "y": 1050.91
+              },
+              {
+                "x": 538.0,
+                "y": 1064.0
+              },
+              {
+                "x": 603.82,
+                "y": 1050.91
+              },
+              {
+                "x": 659.62,
+                "y": 1013.62
+              },
+              {
+                "x": 696.91,
+                "y": 957.82
+              },
+              {
+                "x": 710.0,
+                "y": 892.0
+              },
+              {
+                "x": 710.0,
+                "y": -804.0
+              },
+              {
+                "x": 696.91,
+                "y": -869.82
+              },
+              {
+                "x": 659.62,
+                "y": -925.62
+              },
+              {
+                "x": 603.82,
+                "y": -962.91
+              },
+              {
+                "x": 538.0,
+                "y": -976.0
+              },
+              {
+                "x": 472.18,
+                "y": -962.91
+              },
+              {
+                "x": 416.38,
+                "y": -925.62
+              },
+              {
+                "x": 379.09,
+                "y": -869.82
+              },
+              {
+                "x": 366.0,
+                "y": -804.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_fig8_wt1_4",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 792.0,
+        "y": -766.0,
+        "z": 0.096,
+        "yaw": 2.3271
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "figure_eight",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": 792.0,
+                "y": -766.0
+              },
+              {
+                "x": 741.3,
+                "y": -712.26
+              },
+              {
+                "x": 596.93,
+                "y": -690.0
+              },
+              {
+                "x": 380.87,
+                "y": -712.26
+              },
+              {
+                "x": 126.0,
+                "y": -766.0
+              },
+              {
+                "x": -128.87,
+                "y": -819.74
+              },
+              {
+                "x": -344.93,
+                "y": -842.0
+              },
+              {
+                "x": -489.3,
+                "y": -819.74
+              },
+              {
+                "x": -540.0,
+                "y": -766.0
+              },
+              {
+                "x": -489.3,
+                "y": -712.26
+              },
+              {
+                "x": -344.93,
+                "y": -690.0
+              },
+              {
+                "x": -128.87,
+                "y": -712.26
+              },
+              {
+                "x": 126.0,
+                "y": -766.0
+              },
+              {
+                "x": 380.87,
+                "y": -819.74
+              },
+              {
+                "x": 596.93,
+                "y": -842.0
+              },
+              {
+                "x": 741.3,
+                "y": -819.74
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_fig8_wt5_8",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 792.0,
+        "y": -226.0,
+        "z": 0.096,
+        "yaw": 2.3271
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "figure_eight",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": 792.0,
+                "y": -226.0
+              },
+              {
+                "x": 741.3,
+                "y": -172.26
+              },
+              {
+                "x": 596.93,
+                "y": -150.0
+              },
+              {
+                "x": 380.87,
+                "y": -172.26
+              },
+              {
+                "x": 126.0,
+                "y": -226.0
+              },
+              {
+                "x": -128.87,
+                "y": -279.74
+              },
+              {
+                "x": -344.93,
+                "y": -302.0
+              },
+              {
+                "x": -489.3,
+                "y": -279.74
+              },
+              {
+                "x": -540.0,
+                "y": -226.0
+              },
+              {
+                "x": -489.3,
+                "y": -172.26
+              },
+              {
+                "x": -344.93,
+                "y": -150.0
+              },
+              {
+                "x": -128.87,
+                "y": -172.26
+              },
+              {
+                "x": 126.0,
+                "y": -226.0
+              },
+              {
+                "x": 380.87,
+                "y": -279.74
+              },
+              {
+                "x": 596.93,
+                "y": -302.0
+              },
+              {
+                "x": 741.3,
+                "y": -279.74
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_fig8_wt9_12",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 792.0,
+        "y": 314.0,
+        "z": 0.096,
+        "yaw": 2.3331
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "figure_eight",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": 792.0,
+                "y": 314.0
+              },
+              {
+                "x": 740.69,
+                "y": 367.74
+              },
+              {
+                "x": 594.59,
+                "y": 390.0
+              },
+              {
+                "x": 375.93,
+                "y": 367.74
+              },
+              {
+                "x": 118.0,
+                "y": 314.0
+              },
+              {
+                "x": -139.93,
+                "y": 260.26
+              },
+              {
+                "x": -358.59,
+                "y": 238.0
+              },
+              {
+                "x": -504.69,
+                "y": 260.26
+              },
+              {
+                "x": -556.0,
+                "y": 314.0
+              },
+              {
+                "x": -504.69,
+                "y": 367.74
+              },
+              {
+                "x": -358.59,
+                "y": 390.0
+              },
+              {
+                "x": -139.93,
+                "y": 367.74
+              },
+              {
+                "x": 118.0,
+                "y": 314.0
+              },
+              {
+                "x": 375.93,
+                "y": 260.26
+              },
+              {
+                "x": 594.59,
+                "y": 238.0
+              },
+              {
+                "x": 740.69,
+                "y": 260.26
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wamv_fig8_wt13_16",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 792.0,
+        "y": 854.0,
+        "z": 0.096,
+        "yaw": 2.3331
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "figure_eight",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.2
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 2.0,
+            "waypoints": [
+              {
+                "x": 792.0,
+                "y": 854.0
+              },
+              {
+                "x": 740.69,
+                "y": 907.74
+              },
+              {
+                "x": 594.59,
+                "y": 930.0
+              },
+              {
+                "x": 375.93,
+                "y": 907.74
+              },
+              {
+                "x": 118.0,
+                "y": 854.0
+              },
+              {
+                "x": -139.93,
+                "y": 800.26
+              },
+              {
+                "x": -358.59,
+                "y": 778.0
+              },
+              {
+                "x": -504.69,
+                "y": 800.26
+              },
+              {
+                "x": -556.0,
+                "y": 854.0
+              },
+              {
+                "x": -504.69,
+                "y": 907.74
+              },
+              {
+                "x": -358.59,
+                "y": 930.0
+              },
+              {
+                "x": -139.93,
+                "y": 907.74
+              },
+              {
+                "x": 118.0,
+                "y": 854.0
+              },
+              {
+                "x": 375.93,
+                "y": 800.26
+              },
+              {
+                "x": 594.59,
+                "y": 778.0
+              },
+              {
+                "x": 740.69,
+                "y": 800.26
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_03",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 340.0,
+        "y": -766.0,
+        "z": 30.0,
+        "yaw": 2.0945
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 340.0,
+                "y": -766.0
+              },
+              {
+                "x": 334.0,
+                "y": -755.61
+              },
+              {
+                "x": 322.0,
+                "y": -755.61
+              },
+              {
+                "x": 316.0,
+                "y": -766.0
+              },
+              {
+                "x": 322.0,
+                "y": -776.39
+              },
+              {
+                "x": 334.0,
+                "y": -776.39
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_04",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 756.49,
+        "y": -757.51,
+        "z": 30.0,
+        "yaw": 2.8805
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 756.49,
+                "y": -757.51
+              },
+              {
+                "x": 744.89,
+                "y": -754.41
+              },
+              {
+                "x": 736.41,
+                "y": -762.89
+              },
+              {
+                "x": 739.51,
+                "y": -774.49
+              },
+              {
+                "x": 751.11,
+                "y": -777.59
+              },
+              {
+                "x": 759.59,
+                "y": -769.11
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_06",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -92.0,
+        "y": -214.0,
+        "z": 30.0,
+        "yaw": -2.6179
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -92.0,
+                "y": -214.0
+              },
+              {
+                "x": -102.39,
+                "y": -220.0
+              },
+              {
+                "x": -102.39,
+                "y": -232.0
+              },
+              {
+                "x": -92.0,
+                "y": -238.0
+              },
+              {
+                "x": -81.61,
+                "y": -232.0
+              },
+              {
+                "x": -81.61,
+                "y": -220.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_07",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 319.51,
+        "y": -217.51,
+        "z": 30.0,
+        "yaw": -1.8319
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 319.51,
+                "y": -217.51
+              },
+              {
+                "x": 316.41,
+                "y": -229.11
+              },
+              {
+                "x": 324.89,
+                "y": -237.59
+              },
+              {
+                "x": 336.49,
+                "y": -234.49
+              },
+              {
+                "x": 339.59,
+                "y": -222.89
+              },
+              {
+                "x": 331.11,
+                "y": -214.41
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_08",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 760.0,
+        "y": -226.0,
+        "z": 30.0,
+        "yaw": 2.0945
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 760.0,
+                "y": -226.0
+              },
+              {
+                "x": 754.0,
+                "y": -215.61
+              },
+              {
+                "x": 742.0,
+                "y": -215.61
+              },
+              {
+                "x": 736.0,
+                "y": -226.0
+              },
+              {
+                "x": 742.0,
+                "y": -236.39
+              },
+              {
+                "x": 754.0,
+                "y": -236.39
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_10",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -83.51,
+        "y": 322.49,
+        "z": 30.0,
+        "yaw": 2.8805
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -83.51,
+                "y": 322.49
+              },
+              {
+                "x": -95.11,
+                "y": 325.59
+              },
+              {
+                "x": -103.59,
+                "y": 317.11
+              },
+              {
+                "x": -100.49,
+                "y": 305.51
+              },
+              {
+                "x": -88.89,
+                "y": 302.41
+              },
+              {
+                "x": -80.41,
+                "y": 310.89
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_11",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 328.0,
+        "y": 326.0,
+        "z": 30.0,
+        "yaw": -2.6179
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 328.0,
+                "y": 326.0
+              },
+              {
+                "x": 317.61,
+                "y": 320.0
+              },
+              {
+                "x": 317.61,
+                "y": 308.0
+              },
+              {
+                "x": 328.0,
+                "y": 302.0
+              },
+              {
+                "x": 338.39,
+                "y": 308.0
+              },
+              {
+                "x": 338.39,
+                "y": 320.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_12",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 739.51,
+        "y": 322.49,
+        "z": 30.0,
+        "yaw": -1.8319
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 739.51,
+                "y": 322.49
+              },
+              {
+                "x": 736.41,
+                "y": 310.89
+              },
+              {
+                "x": 744.89,
+                "y": 302.41
+              },
+              {
+                "x": 756.49,
+                "y": 305.51
+              },
+              {
+                "x": 759.59,
+                "y": 317.11
+              },
+              {
+                "x": 751.11,
+                "y": 325.59
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_13",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -500.0,
+        "y": 854.0,
+        "z": 30.0,
+        "yaw": 2.0945
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -500.0,
+                "y": 854.0
+              },
+              {
+                "x": -506.0,
+                "y": 864.39
+              },
+              {
+                "x": -518.0,
+                "y": 864.39
+              },
+              {
+                "x": -524.0,
+                "y": 854.0
+              },
+              {
+                "x": -518.0,
+                "y": 843.61
+              },
+              {
+                "x": -506.0,
+                "y": 843.61
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_15",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": 336.49,
+        "y": 862.49,
+        "z": 30.0,
+        "yaw": 2.8805
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": 336.49,
+                "y": 862.49
+              },
+              {
+                "x": 324.89,
+                "y": 865.59
+              },
+              {
+                "x": 316.41,
+                "y": 857.11
+              },
+              {
+                "x": 319.51,
+                "y": 845.51
+              },
+              {
+                "x": 331.11,
+                "y": 842.41
+              },
+              {
+                "x": 339.59,
+                "y": 850.89
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_drift_01",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12381,
+      "spawn": {
+        "x": -232.0,
+        "y": -626.0,
+        "z": -14.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "static_command_allocation",
+          "params": {
+            "commands": {
+              "propeller(rpm)": 1.5708,
+              "propeller(P/D)": 0.88
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_drift_02",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12382,
+      "spawn": {
+        "x": 188.0,
+        "y": -86.0,
+        "z": -14.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "static_command_allocation",
+          "params": {
+            "commands": {
+              "propeller(rpm)": 1.5708,
+              "propeller(P/D)": 0.88
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_drift_03",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "xdyn_port": 12383,
+      "spawn": {
+        "x": 608.0,
+        "y": 454.0,
+        "z": -14.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "static_command_allocation",
+          "params": {
+            "commands": {
+              "propeller(rpm)": 1.5708,
+              "propeller(P/D)": 0.88
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_tour_01",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 748.0,
+        "y": -726.0,
+        "z": -40.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "tour",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "z_start_m": 40.0,
+            "waypoints": [
+              [
+                0,
+                -420,
+                40.0
+              ],
+              [
+                0,
+                -840,
+                40.0
+              ],
+              [
+                0,
+                -1244,
+                40.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "lrauv_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "kinematic_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "lrauv_tour_02",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 748.0,
+        "y": -186.0,
+        "z": -40.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "tour",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "z_start_m": 40.0,
+            "waypoints": [
+              [
+                0,
+                -420,
+                40.0
+              ],
+              [
+                0,
+                -840,
+                40.0
+              ],
+              [
+                0,
+                -1244,
+                40.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "lrauv_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "kinematic_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "lrauv_tour_03",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 748.0,
+        "y": 354.0,
+        "z": -40.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "tour",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "z_start_m": 40.0,
+            "waypoints": [
+              [
+                0,
+                -420,
+                40.0
+              ],
+              [
+                0,
+                -840,
+                40.0
+              ],
+              [
+                0,
+                -1260,
+                40.0
+              ]
+            ],
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 5.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "lrauv_control",
+          "params": {}
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "kinematic_allocation",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "lrauv_orbit_wt13",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -465.33,
+        "y": 900.67,
+        "z": -32.0,
+        "yaw": 2.7489
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              0.8
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 16.8,
+            "waypoints": [
+              {
+                "x": -465.33,
+                "y": 900.67
+              },
+              {
+                "x": -512.0,
+                "y": 920.0
+              },
+              {
+                "x": -558.67,
+                "y": 900.67
+              },
+              {
+                "x": -578.0,
+                "y": 854.0
+              },
+              {
+                "x": -558.67,
+                "y": 807.33
+              },
+              {
+                "x": -512.0,
+                "y": 788.0
+              },
+              {
+                "x": -465.33,
+                "y": 807.33
+              },
+              {
+                "x": -446.0,
+                "y": 854.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_orbit_wt14",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -45.33,
+        "y": 900.67,
+        "z": -32.0,
+        "yaw": 2.7489
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              0.8
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 16.8,
+            "waypoints": [
+              {
+                "x": -45.33,
+                "y": 900.67
+              },
+              {
+                "x": -92.0,
+                "y": 920.0
+              },
+              {
+                "x": -138.67,
+                "y": 900.67
+              },
+              {
+                "x": -158.0,
+                "y": 854.0
+              },
+              {
+                "x": -138.67,
+                "y": 807.33
+              },
+              {
+                "x": -92.0,
+                "y": 788.0
+              },
+              {
+                "x": -45.33,
+                "y": 807.33
+              },
+              {
+                "x": -26.0,
+                "y": 854.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_orbit_wt15",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 374.67,
+        "y": 900.67,
+        "z": -32.0,
+        "yaw": 2.7489
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              0.8
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 16.8,
+            "waypoints": [
+              {
+                "x": 374.67,
+                "y": 900.67
+              },
+              {
+                "x": 328.0,
+                "y": 920.0
+              },
+              {
+                "x": 281.33,
+                "y": 900.67
+              },
+              {
+                "x": 262.0,
+                "y": 854.0
+              },
+              {
+                "x": 281.33,
+                "y": 807.33
+              },
+              {
+                "x": 328.0,
+                "y": 788.0
+              },
+              {
+                "x": 374.67,
+                "y": 807.33
+              },
+              {
+                "x": 394.0,
+                "y": 854.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lrauv_orbit_wt16",
+      "class": "Lrauv",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": 794.67,
+        "y": 900.67,
+        "z": -32.0,
+        "yaw": 2.7489
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              0.8
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.15,
+            "range_tolerance": 16.8,
+            "waypoints": [
+              {
+                "x": 794.67,
+                "y": 900.67
+              },
+              {
+                "x": 748.0,
+                "y": 920.0
+              },
+              {
+                "x": 701.33,
+                "y": 900.67
+              },
+              {
+                "x": 682.0,
+                "y": 854.0
+              },
+              {
+                "x": 701.33,
+                "y": 807.33
+              },
+              {
+                "x": 748.0,
+                "y": 788.0
+              },
+              {
+                "x": 794.67,
+                "y": 807.33
+              },
+              {
+                "x": 814.0,
+                "y": 854.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_02_wt02",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -86.0,
+        "y": -755.61,
+        "z": 30.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -86.0,
+                "y": -755.61
+              },
+              {
+                "x": -98.0,
+                "y": -755.61
+              },
+              {
+                "x": -104.0,
+                "y": -766.0
+              },
+              {
+                "x": -98.0,
+                "y": -776.39
+              },
+              {
+                "x": -86.0,
+                "y": -776.39
+              },
+              {
+                "x": -80.0,
+                "y": -766.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_05_wt05",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -490.0,
+        "y": -215.61,
+        "z": 30.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -490.0,
+                "y": -215.61
+              },
+              {
+                "x": -502.0,
+                "y": -215.61
+              },
+              {
+                "x": -508.0,
+                "y": -226.0
+              },
+              {
+                "x": -502.0,
+                "y": -236.39
+              },
+              {
+                "x": -490.0,
+                "y": -236.39
+              },
+              {
+                "x": -484.0,
+                "y": -226.0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_09_wt09",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -518.0,
+        "y": 324.39,
+        "z": 30.0,
+        "yaw": -2.0945
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -518.0,
+                "y": 324.39
+              },
+              {
+                "x": -524.0,
+                "y": 314.0
+              },
+              {
+                "x": -518.0,
+                "y": 303.61
+              },
+              {
+                "x": -506.0,
+                "y": 303.61
+              },
+              {
+                "x": -500.0,
+                "y": 314.0
+              },
+              {
+                "x": -506.0,
+                "y": 324.39
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_orbit_14_wt14",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -86.0,
+        "y": 864.39,
+        "z": 30.0,
+        "yaw": 3.1416
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": true,
+            "guidance_mode": "bang_bang",
+            "control_rate_hz": 20.0,
+            "linear_velocities_limits": [
+              0.0,
+              1.0
+            ],
+            "linear_accel_limit": 0.2,
+            "angular_velocities_limits": 0.6,
+            "angular_accel_limit": 0.5,
+            "range_tolerance": 4.0,
+            "waypoints": [
+              {
+                "x": -86.0,
+                "y": 864.39
+              },
+              {
+                "x": -98.0,
+                "y": 864.39
+              },
+              {
+                "x": -104.0,
+                "y": 854.0
+              },
+              {
+                "x": -98.0,
+                "y": 843.61
+              },
+              {
+                "x": -86.0,
+                "y": 843.61
+              },
+              {
+                "x": -80.0,
+                "y": 854.0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

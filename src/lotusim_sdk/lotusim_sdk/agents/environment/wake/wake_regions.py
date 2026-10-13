@@ -46,9 +46,32 @@ class WakeRegionGenerator:
         cell_diameters: float = 0.5,
         deficit_threshold: float = 0.05,
         max_downstream_diameters: float = 15.0,
+        turbulence: bool = False,
+        turbulence_sigma: float | None = None,
+        turbulence_only: bool = False,
+        radial_samples: int = 9,
     ):
         self._model = model
         self._threshold = float(deficit_threshold)
+        self._turbulence = bool(turbulence)
+        # Fixed amplitude in m/s instead of the Crespo-derived one. Exists for
+        # the factorial control cell that needs a wake carrying only AMBIENT
+        # turbulence: without it, disabling turbulence would put sigma 0 inside
+        # the wake while the air outside still had the ambient value, which is
+        # not "the deficit alone" but "the deficit, in unnaturally still air".
+        self._turbulence_sigma = None if turbulence_sigma is None else float(turbulence_sigma)
+        # Publish the freestream speed instead of the deficit, keeping segment
+        # geometry and sigma untouched. The control cell for the opposite
+        # question: the wake's turbulence delivered in the same places, with no
+        # slowdown. Not a physical field — a manipulation to separate two
+        # factors that a real wake always changes together.
+        self._turbulence_only = bool(turbulence_only)
+        # How many radii to sample across each segment. One sample would be
+        # the old behaviour: a single speed for the whole cross-section, which
+        # (evaluated on the axis, as it was) hands every point in the cone the
+        # centreline deficit and flattens the model's graded profile into a
+        # top-hat about 2.1x too deep in area-integrated terms.
+        self._radial_samples = max(1, int(radial_samples))
         step = float(cell_diameters) * model.diameter
         max_x = float(max_downstream_diameters) * model.diameter
         self._template = self._build_template(step, max_x)
@@ -105,8 +128,16 @@ class WakeRegionGenerator:
         ``turbines_named`` is ``[(name, x, y, z), ...]`` in ENU; ``wind_vector``
         is ``[vx, vy]``. Each descriptor is a plain dict — ``{"id", "origin_x",
         "origin_y", "origin_z", "axis_x", "axis_y", "length", "r_start",
-        "r_end", "vx", "vy", "vz"}`` — so this module stays free of any ROS
-        message dependency.
+        "r_end", "vx", "vy", "vz", "sigma"}`` — so this module stays free of
+        any ROS message dependency.
+
+        ``sigma`` is the standard deviation [m/s] of the turbulent fluctuation
+        inside the segment, 0.0 unless ``turbulence`` was enabled. It is
+        ``local_ti(x) * freestream_speed``: the freestream, not the local
+        deficit speed, because Crespo-type wake-added turbulence intensity is
+        defined against the freestream. Converting to sigma here rather than
+        shipping the ratio is what keeps that convention from having to be
+        re-guessed by the consumer.
 
         ``origin_z`` is the turbine's hub altitude: the wake is a horizontal
         tube centred on the rotor, and the consumer measures its radius
@@ -139,7 +170,65 @@ class WakeRegionGenerator:
                     continue
 
                 segment_origin = origin + x_start * unit_wind
-                vx, vy = unit_wind * speed
+                # The threshold test above still uses the real deficit, so the
+                # segment SET is identical whether or not the deficit is then
+                # published — which is what makes the two cells differ in one
+                # factor rather than in their geometry as well.
+                vx, vy = unit_wind * (og_speed if self._turbulence_only else speed)
+
+                # Speed across the segment radius, axis first, boundary last.
+                # Sampled from the same farm model as the centreline value,
+                # stepping perpendicular to the wind at the segment midpoint,
+                # so the vehicle gets the profile the model actually predicts
+                # instead of the axis value smeared over the whole cone.
+                # turbulence_only keeps its flat freestream: that cell exists
+                # to deliver the wake's turbulence with no slowdown, so giving
+                # it a graded profile would reintroduce the deficit it is
+                # defined to exclude.
+                r_mid = 0.5 * (r_start + r_end)
+                normal = np.array([-unit_wind[1], unit_wind[0]])
+                if self._turbulence_only:
+                    radial_speed = [float(og_speed)] * self._radial_samples
+                else:
+                    radial_speed = [
+                        float(self._model.farm_velocity_at_point(
+                            og_speed, wind_vector,
+                            centre[0] + normal[0] * f * r_mid,
+                            centre[1] + normal[1] * f * r_mid,
+                            turbines,
+                        ))
+                        for f in np.linspace(0.0, 1.0, self._radial_samples)
+                    ]
+
+                # Turbulence amplitude at this segment, from the same
+                # Crespo-form local TI the deficit model already uses to set
+                # how fast the wake mixes out (larsen.local_ti). Evaluated at
+                # the segment midpoint and against THIS turbine's distance
+                # only: where several wakes overlap, the plugin resolves the
+                # last matching region, so the drone gets that turbine's
+                # turbulence rather than a compounded one. Under-counts in a
+                # deep array; the mean deficit it rides on is already
+                # superposed, and compounding turbulence properly means
+                # summing variances, not intensities.
+                #
+                # The x/D >= 3 floor matters: Crespo's correlation carries an
+                # x^-0.32 term and is fitted for the far wake, so extrapolating
+                # it into the near wake diverges — at x/D = 0.25 it returns
+                # TI = 0.47, i.e. sigma = 4.7 m/s in a 10 m/s wind, which is
+                # not turbulence any more. Holding it at its x/D = 3 value
+                # inside that radius keeps the near wake at the ~0.26 the
+                # correlation itself tops out at. Clamped HERE and not in
+                # larsen.local_ti on purpose: local_ti also sets how fast the
+                # deficit mixes out, and changing it would move the mean field
+                # the wake benchmark was validated against.
+                sigma = 0.0
+                if self._turbulence:
+                    if self._turbulence_sigma is not None:
+                        sigma = self._turbulence_sigma
+                    else:
+                        x_mid = 0.5 * (x_start + x_end)
+                        x_eval = max(x_mid, 3.0 * self._model.diameter)
+                        sigma = float(self._model.larsen.local_ti(x_eval) * og_speed)
 
                 regions.append({
                     "id": f"wake_{name}_{i}",
@@ -149,6 +238,8 @@ class WakeRegionGenerator:
                     "length": float(x_end - x_start),
                     "r_start": float(r_start), "r_end": float(r_end),
                     "vx": float(vx), "vy": float(vy), "vz": 0.0,
+                    "sigma": sigma,
+                    "radial_speed": radial_speed,
                 })
 
         return regions

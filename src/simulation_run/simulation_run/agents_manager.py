@@ -45,6 +45,11 @@ from simulation_run import utils
 from lotusim_sdk import Environment
 from lotusim_sdk.agents.entity import send_batch_mas_cmd
 
+# How long one spawn wave is given to be confirmed, and how many waves are
+# sent before giving up on whatever is still missing.
+SPAWN_CONFIRM_TIMEOUT_S = 15.0
+SPAWN_CONFIRM_ATTEMPTS = 3
+
 
 
 
@@ -351,8 +356,21 @@ class AgentsManager:
             trajectory = agent_info.get("trajectory")
             loop = agent_info.get("loop", True)
         if trajectory is not None:
-            return agent_class(agent_sdf, world_name, xdyn_enabled, trajectory=trajectory, loop=loop, **px4_kwargs)
-        return agent_class(agent_sdf, world_name, xdyn_enabled, **px4_kwargs)
+            node = agent_class(agent_sdf, world_name, xdyn_enabled,
+                               trajectory=trajectory, loop=loop, **px4_kwargs)
+        else:
+            node = agent_class(agent_sdf, world_name, xdyn_enabled, **px4_kwargs)
+
+        # A scenario may give an agent its own xdyn port. One xdyn-for-cs
+        # process serves its clients in turn, so N vessels sharing one port
+        # each advance at 1/N of the intended rate; a port per vessel keeps
+        # them independent. Set after construction: the port is only read
+        # again when the SDF blocks are emitted at spawn.
+        port = agent_info.get("xdyn_port")
+        if xdyn_enabled and port is not None:
+            node.xdyn_port = int(port)
+            node.xdyn_ip = node.xdyn_ip or "127.0.0.1"
+        return node
 
     def _register_agent(
         self,
@@ -397,13 +415,38 @@ class AgentsManager:
                         ):
                             break
                         executor.spin_once(timeout_sec=0.05)
-        if executor is not None:
-            # Wait for results to set _spawn_confirmed; exit early once all done.
-            deadline = time.time() + 15.0
+        if executor is None:
+            return
+
+        # Wait for results to set _spawn_confirmed; exit early once all done.
+        # An unconfirmed agent is retried: its node lives on but no entity ever
+        # appears, so it publishes no pose and its missions never start. One
+        # lost goal is enough, and several processes sending their waves at
+        # once makes that likely.
+        for attempt in range(SPAWN_CONFIRM_ATTEMPTS):
+            deadline = time.time() + SPAWN_CONFIRM_TIMEOUT_S
             while time.time() < deadline:
                 if all(getattr(node, "_spawn_confirmed", True) for node, _ in spawn_queue):
-                    break
+                    return
                 executor.spin_once(timeout_sec=0.1)
+
+            pending = [(node, pose) for node, pose in spawn_queue
+                       if not getattr(node, "_spawn_confirmed", True)]
+            if not pending or attempt == SPAWN_CONFIRM_ATTEMPTS - 1:
+                break
+            logging.warning(
+                "Spawn unconfirmed for %s — resending.",
+                ", ".join(n.agent_name for n, _ in pending))
+            for agent_node, pose in pending:
+                try:
+                    agent_node.send_single_mas_cmd(pose)
+                except Exception as e:
+                    logging.error(f"Failed to resend mission command for {agent_node.agent_name}: {e}")
+
+        pending = [n.agent_name for n, _ in spawn_queue
+                   if not getattr(n, "_spawn_confirmed", True)]
+        if pending:
+            logging.error("Never spawned: %s", ", ".join(pending))
 
     # -------------------------------------------------------------------------
     # Dynamic Spawn / Despawn (runtime, called from DynamicSpawnService)

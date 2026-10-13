@@ -13,7 +13,7 @@ is the BT structure rather than the physics.
 | `waypoint_solo_accelerated50x.json` | `waypoint_solo.json` on `energy_accelerated50x.world` (50x real time, pose clock). |
 | `inspection_and_battery.json` | One `Bluerov2_heavy_inspection` running `fault_inspection` and `check_battery_state` under a `parallel` node with a `success_policy`. |
 | `sequence_and_parallel.json` | One `Bluerov2_heavy_inspection`: `waypoint_follower`, then `fault_inspection` and `check_battery_state` in parallel. Demonstrates `sequence` composed with `parallel`. |
-| `custom_task_demo.json` | One `CustomTaskDemoAgent`. Scaffold for a task that is not built in. |
+| `custom_task_demo.json` | One `Bluerov2_heavy_inspection` running `crack_detector` alongside a `waypoint_follower` patrol towards a cracked structure. |
 
 `waypoint_solo_file.json` reads `../waypoints/waypoint_windturbine1.json`.
 The path is resolved relative to the scenario JSON's own directory, so a

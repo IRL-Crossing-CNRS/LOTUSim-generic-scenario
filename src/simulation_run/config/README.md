@@ -18,6 +18,7 @@ resolved relative to this directory:
 | [`wind_wake_examples/`](wind_wake_examples/) | Wind regions, turbine wake, and PX4 aerial drones |
 | [`multi_vehicle_examples/`](multi_vehicle_examples/) | One scenario per vehicle class and control mode |
 | [`facet_demo/`](facet_demo/) | Full-fleet turbine-inspection demos |
+| [`iros_demo/`](iros_demo/) | The demo scenario: a full fleet working the 16-turbine farm |
 | [`waypoints/`](waypoints/) | Patrol waypoint data files referenced by `waypoints_file`; not scenarios |
 
 Every scenario here sets `"record_csv": true` at its top level, writing

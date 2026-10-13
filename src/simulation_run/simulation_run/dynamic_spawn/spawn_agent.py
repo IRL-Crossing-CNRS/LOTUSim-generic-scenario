@@ -68,8 +68,14 @@ def main():
         print("Simulation not reachable on /spawn_cmd (is it running?)", file=sys.stderr)
         sys.exit(1)
 
-    # Small buffer for our /spawn_status subscription to be discovered
-    time.sleep(0.1)
+    # The answer comes from whichever process ends up hosting the agent, not
+    # from the one reading /spawn_cmd, so wait for a /spawn_status publisher
+    # rather than assuming discovery is done. Publishing before it is
+    # discovered loses the reply and reports a failure for a spawn that worked.
+    deadline = time.time() + 5.0
+    while node.count_publishers("/spawn_status") == 0 and time.time() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    time.sleep(0.5)
 
     msg = String()
     msg.data = json_content
@@ -88,7 +94,8 @@ def main():
 
     r = result[0]
     if r.get("success"):
-        print(f"Spawned: {r['agent_name']}")
+        where = f" (shard {r['shard']})" if "shard" in r else ""
+        print(f"Spawned: {r['agent_name']}{where}")
     else:
         print(f"Failed: {r.get('error', 'unknown error')}", file=sys.stderr)
         sys.exit(1)

@@ -6,10 +6,12 @@ setup(
     name=package_name,
     version="0.1.0",
     packages=find_packages(exclude=["build*", "test*"]),
-    # Ship the detection module + model weights inside the wheel so the
-    # fault_inspection task can import them on host or remote machines alike.
+    # Ship the detection modules + model weights inside the wheel so the
+    # fault_inspection and crack_detector tasks can import them on host or
+    # remote machines alike.
     package_data={
         "lotusim_sdk.tasks.fault_inspection_assets": ["*.py", "*.pt"],
+        "lotusim_sdk.tasks.crack_detector_assets": ["*.py", "*.pt"],
     },
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
@@ -39,6 +41,7 @@ setup(
         "console_scripts": [],
         "lotusim.tasks": [
             "fault_inspection = lotusim_sdk.tasks.fault_inspection:FaultInspectionTask",
+            "crack_detector = lotusim_sdk.tasks.crack_detector:CrackDetector",
             "check_battery_state = lotusim_sdk.tasks.check_battery_state:CheckBatteryStateTask",
             "waypoint_follower = lotusim_sdk.tasks.waypoint_follower:WaypointFollowerTask",
             "waypoint_follower_avoidance = lotusim_sdk.tasks.waypoint_follower_avoidance:WaypointFollowerAvoidanceTask",

@@ -52,6 +52,7 @@ class CheckBatteryStateTask(TaskAgent):
                 reliability=ReliabilityPolicy.RELIABLE,
                 durability=DurabilityPolicy.TRANSIENT_LOCAL,
             ),
+            callback_group=self.callback_group,
         )
         # TRANSIENT_LOCAL so the light_actuator gets the last command even if it
         # subscribes slightly after the first publish.

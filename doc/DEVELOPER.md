@@ -124,7 +124,7 @@ comparison attributable to the model.
 - **Rebuild, then re-source.** `colcon build && source install/setup.bash`
   after any Python change: the scenario launcher runs the *installed* wheel,
   not your working tree. The core repo is rebuilt separately with
-  `lotusim clean_build`, never with a bare `colcon build`.
+  `lotusim_core clean_build`, never with a bare `colcon build`.
 - **Empty `external_packages/*/` directories** left behind by a branch switch
   are invisible to `git status` (git does not track empty directories) but
   visible to `colcon`. Delete them if a build complains about a package with
@@ -143,7 +143,7 @@ divergence to show (60–90 s, not 10 s). `scenario_logs/<timestamp>/config/`
 holds a snapshot of the exact scenario, world and agent files that ran, so a
 result stays reproducible after the live config changes.
 
-Always test through `scenario_launch.sh` or the `lotusim` CLI. A bare
+Always test through `scenario_launch.sh` or the `lotusim_core` CLI. A bare
 `gz sim` run bypasses the orchestration this repository is about, so it
 cannot confirm that a change works.
 

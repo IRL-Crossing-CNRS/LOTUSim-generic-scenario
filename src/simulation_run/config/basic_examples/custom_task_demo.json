@@ -2,17 +2,70 @@
   "world_file": "energy.world",
   "agents": [
     {
-      "id": "blinker",
-      "class": "CustomTaskDemoAgent",
+      "id": "patrol_then_inspect",
+      "class": "Bluerov2_heavy_inspection",
+      "sdf_file": "model.sdf",
       "nb_agents": 1,
-      "sdf_file": "model-battery.sdf",
       "xdyn": false,
       "spawn": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": -10.0,
-        "yaw": 0.0
-      }
+        "x": -467.2281,
+        "y": -792.3778,
+        "z": -13.7137,
+        "yaw": 1.5708
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "crack_inspection",
+          "type": "action",
+          "task": "crack_detector",
+          "params": {
+            "show_window": true,
+            "model": "simulation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "x500_crack_inspection",
+      "class": "X500_inspection",
+      "sdf_file": "model-battery.sdf",
+      "nb_agents": 1,
+      "xdyn": false,
+      "spawn": {
+        "x": -491.4567,
+        "y": -771.3045,
+        "z": 29.9252,
+        "yaw": 2.4608
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "x500_crack_inspection",
+          "type": "action",
+          "task": "crack_detector",
+          "params": {
+            "show_window": true,
+            "model": "simulation"
+          }
+        },
+        {
+          "id": "x500_hold_position",
+          "type": "action",
+          "task": "waypoint_follower",
+          "params": {
+            "loop": false,
+            "guidance_clock": "pose",
+            "range_tolerance": 0.5,
+            "waypoints": [
+              {
+                "x": -491.4567,
+                "y": -771.3045
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "renderer_unity": true,

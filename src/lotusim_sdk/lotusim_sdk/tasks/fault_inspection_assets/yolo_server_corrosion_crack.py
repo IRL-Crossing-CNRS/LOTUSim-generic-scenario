@@ -3,7 +3,7 @@ Detection module for corrosion and crack analysis.
 
 Provides:
   - HSV colour-based corrosion detection  (detect_corrosion_by_color)
-  - YOLO crack detection                  (yolo_model)
+  - Per-caller YOLO crack detector        (load_model, select_device)
   - Debug-window annotation               (draw_detections)
 
 Previously a standalone Flask HTTP server; now imported directly by
@@ -12,8 +12,10 @@ back-end for a ROS 2 pub/sub pipeline.
 """
 
 from ultralytics import YOLO
+import copy
 import numpy as np
 import cv2
+import threading
 import torch
 import os
 
@@ -51,13 +53,63 @@ MIN_CONTOUR_AREA = 400
 SHOW_WINDOW = False
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Load YOLO if enabled — runs once at import time; Python's module cache prevents
-# reloading across multiple FaultInspectionTask instances or on_enter re-activations.
-yolo_model = None
-if YOLO_MODEL_PATH:
-    print(f"[Detection] Loading YOLO model: {YOLO_MODEL_PATH}")
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-    print(f"[Detection] YOLO ready. Classes: {list(yolo_model.names.values())}")
+def select_device() -> str:
+    """GPU when one is usable, CPU otherwise. Never raises — CPU always works."""
+    try:
+        if torch.cuda.is_available():
+            return "cuda:0"
+    except Exception:
+        pass
+    return "cpu"
+
+
+# First model built in this process, used as the template for later callers.
+# The lock serialises construction so only one model is built at a time.
+_template_model = None
+_template_lock = threading.Lock()
+
+
+def load_model(logger=None):
+    """Build a YOLO instance for one caller.
+
+    Each caller gets its own instance, so inference needs no cross-agent lock.
+    The checkpoint is read once per process: the first instance becomes the
+    template and later ones are deep copies of it. Construction is serialised,
+    one model at a time.
+    """
+    if not YOLO_MODEL_PATH:
+        return None
+
+    global _template_model
+    with _template_lock:
+        if _template_model is None:
+            _template_model = YOLO(YOLO_MODEL_PATH)
+            model = _template_model
+        else:
+            try:
+                model = copy.deepcopy(_template_model)
+            except Exception as e:  # noqa: BLE001 - deep copy is best-effort
+                message = (
+                    f"[Detection] could not clone the loaded model ({e}); "
+                    "re-reading the weights"
+                )
+                print(message) if logger is None else logger.warning(message)
+                model = YOLO(YOLO_MODEL_PATH)
+
+    device = select_device()
+    try:
+        model.to(device)
+    except Exception as e:  # noqa: BLE001 - a GPU move can fail late (OOM, driver)
+        message = f"[Detection] {device} unavailable ({e}); falling back to CPU"
+        print(message) if logger is None else logger.warning(message)
+        device = "cpu"
+        model.to(device)
+
+    message = (
+        f"[Detection] YOLO ready on {device}. Classes: {list(model.names.values())}"
+    )
+    print(message) if logger is None else logger.info(message)
+    return model
 
 print("[Detection] Color-based corrosion detection: ENABLED" if COLOR_DETECTION_ENABLED else "")
 

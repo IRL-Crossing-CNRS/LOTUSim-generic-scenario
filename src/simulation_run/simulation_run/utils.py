@@ -67,7 +67,51 @@ def get_cli_args() -> argparse.Namespace:
     parser.add_argument("--config", type=str, required=True, help="Configuration JSON file name")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode for verbose simulation output")
     parser.add_argument("--gui", action="store_true", help="Enable Gazebo gui")
-    return parser.parse_args()
+    # Agent sharding: a scenario's agents are split across --shards processes,
+    # each running this entry point with its own --shard index. Shard 0 brings
+    # up the world and the scenario-wide observers; the others only host their
+    # own agents and talk to that world over ROS/DDS like any remote machine.
+    parser.add_argument("--shards", type=int, default=1,
+                        help="Number of processes the agents are split across")
+    parser.add_argument("--shard", type=int, default=0,
+                        help="Index of this process within --shards")
+    args = parser.parse_args()
+    if args.shards < 1 or not (0 <= args.shard < args.shards):
+        parser.error("--shard must be in [0, --shards)")
+    return args
+
+
+def shard_deal_order(shards: int) -> list:
+    """The order shards take agents in, one entry per turn.
+
+    Plain round-robin, except that shard 0 takes a turn only every other
+    round: it also carries the CSV recorder, the mission watcher and the
+    public spawn topic. Given an equal share it was the only shard whose
+    control loops fell behind — 3 Hz against the 20 Hz the others held.
+    """
+    if shards <= 1:
+        return [0]
+    order = list(range(1, shards)) * 2
+    order.insert(len(order) // 2, 0)
+    return order
+
+
+def select_shard(agents: Any, shard: int, shards: int) -> Any:
+    """Keep only the agents this process is responsible for.
+
+    Agents are dealt in turn so every shard gets a mix of cheap and expensive
+    vehicles. A scenario entry with ``nb_agents`` > 1 is dealt as a whole: its
+    copies share one entry and splitting it would need the entry rewritten,
+    while the scenarios that use it keep those copies small.
+    """
+    if shards <= 1:
+        return agents
+    order = shard_deal_order(shards)
+    items = agents.items() if isinstance(agents, dict) else enumerate(agents)
+    kept = [(k, v) for i, (k, v) in enumerate(items) if order[i % len(order)] == shard]
+    if isinstance(agents, dict):
+        return dict(kept)
+    return [v for _, v in kept]
 
 
 def parse_simulation_config(config: Dict[str, Any]) -> Tuple[str, Any]:

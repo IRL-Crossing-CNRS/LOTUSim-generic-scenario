@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+
 from lotusim_sdk.bt.node import BehaviorNode
 from lotusim_sdk.bt.status import Status
 
@@ -41,6 +43,26 @@ class TaskAgent(BehaviorNode, ABC):
         self.params = params or {}       # the "params" block from JSON
         self.blackboard = blackboard     # shared store (unused by the demo tasks)
         self._running = False
+        self._callback_group: Optional[MutuallyExclusiveCallbackGroup] = None
+
+    @property
+    def callback_group(self) -> MutuallyExclusiveCallbackGroup:
+        """This task's own executor queue. Pass it to every ``self.host.create_*``.
+
+        Without it a task's timers and subscriptions land in the host node's
+        *default* MutuallyExclusiveCallbackGroup — the same one that serves the
+        agent's behaviour-tree tick. Only one thread at a time services such a
+        group, so a callback that runs longer than the tick period holds the tick
+        off; and because a missed timer deadline is dropped rather than queued,
+        the mission tick rate silently halves instead of merely jittering.
+
+        One group per task, not one shared by all: tasks then cannot block each
+        other either, while each task's own callbacks stay serialised, which is
+        what they were written to assume (no internal locking).
+        """
+        if self._callback_group is None:
+            self._callback_group = MutuallyExclusiveCallbackGroup()
+        return self._callback_group
 
     @abstractmethod
     def update(self) -> Status:

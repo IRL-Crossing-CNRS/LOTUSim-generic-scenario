@@ -38,8 +38,18 @@ class ControlTask(TaskAgent):
     -- the default -- this task behaves exactly as before, so the
     pure-feedback baseline is unchanged.
 
+    The loop runs at ``control_rate_hz`` but steps only on a navigation
+    message carrying a NEW timestamp. Under sim time the clock advances by
+    the world's step, so a faster loop rate just re-reads the same pose: the
+    derivative term then differentiates a staircase, alternating between zero
+    and double depending on where the timer falls in the step. That drives a
+    limit cycle -- measured on energy.world (10 Hz) with a 20 Hz loop, 7 of 13
+    BlueROV2 held a +/-8 deg oscillation at 0.35 Hz. Stepping per measurement
+    leaves the rate free to be higher than the world's without harm.
+
     Params:
-        control_rate_hz  float   loop rate (default 20)
+        control_rate_hz  float   loop rate (default 20), capped in practice by
+                                 the rate at which navigation timestamps advance
         kp_z, ki_z, kd_z,
         kp_psi, ki_psi, kd_psi,
         kp_xy, ki_xy, kd_xy,
@@ -97,22 +107,42 @@ class ControlTask(TaskAgent):
         self._timer = None
         self._latest_nav = None
         self._latest_guidance = None
+        self._last_nav_t = None
 
     def on_enter(self) -> None:
         world = self.host.world_name
         agent = self.host.agent_name
-        self._pub = self.host.create_publisher(
-            WrenchStamped, f"/{world}/{agent}/control", 10)
+        # Created once and kept across re-activations: on_enter fires every time
+        # the leaf becomes RUNNING, so re-creating it would leave the previous
+        # publisher on the node for the life of the process.
+        if self._pub is None:
+            self._pub = self.host.create_publisher(
+                WrenchStamped, f"/{world}/{agent}/control", 10)
         self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10,
+            callback_group=self.callback_group)
         self._guidance_sub = self.host.create_subscription(
-            GuidanceSetpoint, f"/{world}/{agent}/guidance", self._on_guidance, 10)
-        self._timer = self.host.create_timer(self._dt, self._control_step)
+            GuidanceSetpoint, f"/{world}/{agent}/guidance", self._on_guidance, 10,
+            callback_group=self.callback_group)
+        self._timer = self.host.create_timer(
+            self._dt, self._control_step, callback_group=self.callback_group)
 
     def on_exit(self, status) -> None:
+        # cancel() only stops a timer firing; it stays registered on the node and
+        # in the executor's wait set. Same for a subscription left undestroyed:
+        # its callback keeps being dispatched. Across repeated activations both
+        # accumulate, and every executor spin costs a little more — the
+        # simulation runs fine at first and degrades as the mission loops.
         if self._timer is not None:
             self._timer.cancel()
+            self.host.destroy_timer(self._timer)
             self._timer = None
+        if self._nav_sub is not None:
+            self.host.destroy_subscription(self._nav_sub)
+            self._nav_sub = None
+        if self._guidance_sub is not None:
+            self.host.destroy_subscription(self._guidance_sub)
+            self._guidance_sub = None
 
     def update(self) -> Status:
         return Status.RUNNING
@@ -128,6 +158,19 @@ class ControlTask(TaskAgent):
             return                          # waiting for both inputs
         nav, g = self._latest_nav, self._latest_guidance
 
+        # One step per distinct measurement (see the class docstring). dt is
+        # the interval the states are actually separated by, which is what the
+        # derivative and integral terms need.
+        stamp = nav.header.stamp
+        nav_t = stamp.sec + stamp.nanosec * 1e-9
+        if self._last_nav_t is not None:
+            dt = nav_t - self._last_nav_t
+            if dt <= 0.0:
+                return                      # same pose as last step
+        else:
+            dt = self._dt
+        self._last_nav_t = nav_t
+
         pose = nav.pose.pose
         x, y, z = enu_to_ned_position(
             pose.position.x, pose.position.y, pose.position.z)
@@ -142,18 +185,18 @@ class ControlTask(TaskAgent):
 
         self._depth.setpoint = g.desired_depth
         self._head.setpoint = g.desired_heading
-        heave = self._depth.update(z, self._dt)
-        yaw = self._head.update(psi, self._dt)
+        heave = self._depth.update(z, dt)
+        yaw = self._head.update(psi, dt)
 
         if g.use_position_hold:
             self._pos.x_sp, self._pos.y_sp = g.target_x, g.target_y
-            fx, fy = self._pos.update(x, y, self._dt)
+            fx, fy = self._pos.update(x, y, dt)
             c, s = math.cos(psi), math.sin(psi)
             surge = fx * c + fy * s
             sway = -fx * s + fy * c
         else:
             self._speed.setpoint = g.desired_speed
-            surge = self._speed.update(u, self._dt)
+            surge = self._speed.update(u, dt)
             sway = 0.0
 
         # Model-based current feedforward, added to the feedback demand on the

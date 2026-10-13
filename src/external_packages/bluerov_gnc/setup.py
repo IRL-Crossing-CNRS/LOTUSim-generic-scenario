@@ -19,6 +19,7 @@ setup(
     entry_points={
         "lotusim.agents": [
             "bluerov2_heavy_current = bluerov_gnc:Bluerov2HeavyCurrent",
+            "bluerov2_heavy_current_inspection = bluerov_gnc:Bluerov2HeavyCurrentInspection",
         ],
         "lotusim.tasks": [
             "bluerov_navigation = bluerov_gnc:BlueRovNavigationTask",

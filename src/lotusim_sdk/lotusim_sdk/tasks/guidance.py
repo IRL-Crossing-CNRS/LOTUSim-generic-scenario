@@ -53,7 +53,8 @@ class _GuidanceTaskBase(TaskAgent):
         self._pub = self.host.create_publisher(
             GuidanceSetpoint, f"/{world}/{agent}/guidance", 10)
         self._nav_sub = self.host.create_subscription(
-            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10)
+            Odometry, f"/{world}/{agent}/navigation", self._on_navigation, 10,
+            callback_group=self.callback_group)
 
     def on_exit(self, status) -> None:
         if self._nav_sub is not None:

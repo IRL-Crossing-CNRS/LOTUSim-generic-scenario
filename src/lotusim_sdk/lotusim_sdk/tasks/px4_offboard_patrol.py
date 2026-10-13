@@ -255,7 +255,9 @@ class Px4OffboardPatrolTask(TaskAgent):
             b"COM_LOW_BAT_ACT": (0.0, mavutil.mavlink.MAV_PARAM_TYPE_INT32),
         }
 
-        self._timer = self.host.create_timer(self._setpoint_period_s, self._step)
+        self._timer = self.host.create_timer(
+            self._setpoint_period_s, self._step,
+            callback_group=self.callback_group)
 
     def on_exit(self, _status: Status) -> None:
         if self._timer is not None:

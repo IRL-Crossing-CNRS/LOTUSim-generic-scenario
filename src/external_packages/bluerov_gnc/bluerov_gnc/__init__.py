@@ -1,4 +1,4 @@
-from .bluerov_gnc import Bluerov2HeavyCurrent
+from .bluerov_gnc import Bluerov2HeavyCurrent, Bluerov2HeavyCurrentInspection
 from .navigation_task import BlueRovNavigationTask
 from .guidance_tasks import (BlueRovHoldGuidanceTask, BlueRovLOSGuidanceTask,
                               BlueRovPurePursuitGuidanceTask,
@@ -10,6 +10,7 @@ from .metrics_recorder_task import BlueRovMetricsRecorderTask
 
 __all__ = [
     "Bluerov2HeavyCurrent",
+    "Bluerov2HeavyCurrentInspection",
     "BlueRovNavigationTask",
     "BlueRovHoldGuidanceTask", "BlueRovLOSGuidanceTask",
     "BlueRovPurePursuitGuidanceTask",

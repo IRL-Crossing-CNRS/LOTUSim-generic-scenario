@@ -48,7 +48,12 @@ class X500(PhysicalEntity):
     # 0 -> same MAV_SYS_ID -> QGroundControl merges all heartbeats into one
     # vehicle, and all instances share one working directory (EEPROM/dataman),
     # each overwriting the previous one's.
-    _next_px4_instance = 0
+    #
+    # A scenario split across several processes numbers them per band, from
+    # LOTUSIM_PX4_INSTANCE_BASE: the counter is process-local, so without a
+    # band every process would ask for instance 0 and _kill_stale_px4_instance
+    # would kill the PX4 another process is already flying.
+    _next_px4_instance = int(os.environ.get("LOTUSIM_PX4_INSTANCE_BASE", "0"))
 
     def __init__(
         self,
@@ -105,8 +110,10 @@ class X500(PhysicalEntity):
         processes it flies, so an abrupt end to a previous scenario run
         (closed terminal, plain ``kill`` instead of Ctrl-C, crash) can leave
         a PX4 SITL process alive and orphaned. Each fresh scenario process
-        restarts its own ``_next_px4_instance`` counter at 0, so the next
-        launch requests the same instance number and is silently refused.
+        restarts its own ``_next_px4_instance`` counter at its band's base, so
+        the next launch requests the same instance number and is silently
+        refused. The band is what keeps this from reaching a PX4 that another
+        process of the same scenario is flying.
         This sweeps any matching leftover before starting.
         """
         pattern = f"^{re.escape(px4_binary)} -i {instance} -d$"

@@ -1,5 +1,6 @@
 {
   "world_file": "energy.world",
+  "bluerov_current": "ekman",
   "agents": [
     {
       "id": "wind",
@@ -143,7 +144,7 @@
     },
     {
       "id": "bluerov_wt1",
-      "class": "Bluerov2_heavy_current",
+      "class": "Bluerov2_heavy_current_inspection",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -197,7 +198,7 @@
     },
     {
       "id": "bluerov_wt5",
-      "class": "Bluerov2_heavy_current",
+      "class": "Bluerov2_heavy_current_inspection",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -251,7 +252,7 @@
     },
     {
       "id": "bluerov_wt9",
-      "class": "Bluerov2_heavy_current",
+      "class": "Bluerov2_heavy_current_inspection",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -305,7 +306,7 @@
     },
     {
       "id": "bluerov_wt10",
-      "class": "Bluerov2_heavy_current",
+      "class": "Bluerov2_heavy_current_inspection",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {
@@ -359,7 +360,7 @@
     },
     {
       "id": "bluerov_wt13",
-      "class": "Bluerov2_heavy_current",
+      "class": "Bluerov2_heavy_current_inspection",
       "nb_agents": 1,
       "xdyn": true,
       "spawn": {

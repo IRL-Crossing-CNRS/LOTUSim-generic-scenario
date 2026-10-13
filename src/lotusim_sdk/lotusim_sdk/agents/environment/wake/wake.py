@@ -200,6 +200,14 @@ class Wake(Environment):
             # turbine spacing; 8D matches the more loosely-spaced of the two
             # farms this model was validated on (Layout B, 9D).
             max_downstream_diameters=cfg.get("max_downstream_diameters", 8.0),
+            # Off by default: with turbulence disabled every region ships
+            # sigma=0 and the field stays exactly the deterministic one the
+            # wake benchmark was run against. Turning it on adds a zero-mean
+            # fluctuation on the vehicle force path only — the mean field,
+            # and so every number in the wake validation, is unchanged.
+            turbulence=bool(cfg.get("turbulence", False)),
+            turbulence_sigma=cfg.get("turbulence_sigma"),
+            turbulence_only=bool(cfg.get("turbulence_only", False)),
         )
         self._region_direction_hysteresis_deg = cfg.get("direction_hysteresis_deg", 5.0)
         self._region_speed_hysteresis_mps = cfg.get("speed_hysteresis_mps", 0.5)
@@ -236,6 +244,8 @@ class Wake(Environment):
             region_msg.cone.r_start = r["r_start"]
             region_msg.cone.r_end = r["r_end"]
             region_msg.linear_velocity = Vector3(x=r["vx"], y=r["vy"], z=r["vz"])
+            region_msg.turbulence_sigma = r["sigma"]
+            region_msg.radial_speed = [float(v) for v in r.get("radial_speed", [])]
             region_msg.enable_wind = True
             msg.regions.append(region_msg)
         self._regions_pub.publish(msg)

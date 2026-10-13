@@ -9,7 +9,10 @@ from geometry_msgs.msg import Pose
 from geographic_msgs.msg import GeoPoint
 from lotusim_msgs.msg import MASCmd, VesselPositionArray
 from rclpy.action import ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import (
+    MutuallyExclusiveCallbackGroup,
+    ReentrantCallbackGroup,
+)
 from rosidl_runtime_py.utilities import get_message
 from std_msgs.msg import String
 
@@ -372,6 +375,12 @@ class Entity(Agent):
         self.sensor_buffers = {}
         self.sensors_subscribers = []
         self._subscribed_topics = set()
+        # Entity-owned callbacks (sensor streams, spawn watchdog, pause timer)
+        # get their own queue. Left in the node's default group they would share
+        # it with the behaviour-tree tick, and sensor topics arrive at sensor
+        # rates: the tick then waits behind them and, since a missed timer
+        # deadline is dropped rather than queued, its rate silently drops.
+        self._entity_cb_group = MutuallyExclusiveCallbackGroup()
 
         # Shared per-process topic discovery (see _ensure_shared_discovery_timer):
         # register this entity so the one shared timer can dispatch matching
@@ -623,7 +632,8 @@ class Entity(Agent):
             self.send_single_delete_cmd()
             resend_fn()
 
-        timer = self.create_timer(timeout_sec, _check)
+        timer = self.create_timer(
+            timeout_sec, _check, callback_group=self._entity_cb_group)
 
     def send_single_mas_cmd_geo(
         self, lat, lon, alt=0.0, server_timeout_sec: float = 30.0, _retries_left: int = 2
@@ -696,6 +706,7 @@ class Entity(Agent):
             topic_name,
             lambda msg, b=buffer_name, t=topic_name: self._sensor_callback(msg, b, t),
             self.qos_profile,
+            callback_group=self._entity_cb_group,
         )
         self.sensors_subscribers.append(sub)
         self._subscribed_topics.add(topic_name)
@@ -707,7 +718,8 @@ class Entity(Agent):
             buffer.pop(0)
 
     def start_pause(self, duration: float):
-        self.timer = self.create_timer(duration, self.resume_agent)
+        self.timer = self.create_timer(
+            duration, self.resume_agent, callback_group=self._entity_cb_group)
 
     def resume_agent(self):
         if hasattr(self, "timer") and self.timer:

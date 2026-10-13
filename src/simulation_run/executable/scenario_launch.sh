@@ -51,10 +51,14 @@ echo -e "${GREEN}[INFO] Detected Ubuntu ${UBUNTU_VERSION} → ROS 2 ${ROS_DISTRO
 # specific run must be isolated on another domain.
 ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 
-# Set ROS_IP to the first local IP address if it is not already defined. 
-# To use a specific IP, set ROS_IP manually before using this file, 
-# e.g. export ROS_IP=192.168.1.42 
+# Set ROS_IP to the first local IP address if it is not already defined,
+# falling back to loopback: off any network `hostname -I` prints nothing, and
+# an empty ROS_IP stops the run before it starts. Everything a scenario needs
+# reaches Unity over loopback when both run on this machine.
+# To use a specific IP, set ROS_IP manually before using this file,
+# e.g. export ROS_IP=192.168.1.42
 export ROS_IP="${ROS_IP:-$(hostname -I | awk '{print $1}')}"
+export ROS_IP="${ROS_IP:-127.0.0.1}"
 
 # Unity mode options:
 #   "exe"    → run pre-built Unity executable (default)
@@ -96,7 +100,7 @@ UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -s
 # -------------------- Paths --------------------
 # LOTUSIM_* variables come from ~/.bashrc (set by the install script); the
 # fallbacks match that installer's layout. Everything is exported so child
-# processes (xdyn, ROS nodes, the lotusim CLI) always see these paths.
+# processes (xdyn, ROS nodes) always see these paths.
 export LOTUSIM_WS="${LOTUSIM_WS:-$HOME/lotusim_ws}"
 export LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
 export PATH=$LOTUSIM_PATH/physics:$LOTUSIM_PATH/launch:$PATH
@@ -243,17 +247,33 @@ sleep 3
 CONFIG_FILE=""
 DEBUG_MODE="false"
 GZ_GUI="false"
+# Helper processes (the ROS-Unity bridge, the xdyn servers) run detached and
+# write to their log file. --terminals puts each one back in its own
+# gnome-terminal window, which is useful to watch one of them live but takes
+# the keyboard focus every time a window opens.
+USE_TERMINALS="false"
+# Agents are Python nodes, so one process is capped at a single core by the
+# GIL and every control loop slows down as the fleet grows. --shards splits
+# them across that many processes sharing one world over ROS/DDS. "auto"
+# sizes that from the fleet; pass a number to pin it.
+AGENT_SHARDS="auto"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --config) CONFIG_FILE="$2"; shift 2 ;;
         --debug) DEBUG_MODE="true"; shift ;;
         --gui) GZ_GUI="true"; shift ;;
+        --terminals) USE_TERMINALS="true"; shift ;;
+        --shards) AGENT_SHARDS="$2"; shift 2 ;;
         *) echo -e "${YELLOW}[WARN] Unknown argument: $1${NC}"; shift ;;
     esac
 done
 
+# simulation_runner launches the Gazebo worlds itself, in its own process:
+# it reads this to place them the same way as the helpers above.
+export LOTUSIM_USE_TERMINALS="$USE_TERMINALS"
+
 if [[ -z "$CONFIG_FILE" ]]; then
-    die "Missing --config argument. Usage: $0 --config path/to/config.json"
+    die "Missing --config argument. Usage: $0 --config path/to/config.json [--terminals] [--shards N|auto] [--debug] [--gui]"
 fi
 
 # Resolve relative path
@@ -362,6 +382,7 @@ if [[ "$USE_UNITY" == "true" ]]; then
     UNITY_BASENAME="${WORLD_UNITY_BASENAMES[$WORLD_FILE]}"
     [[ -n "$UNITY_BASENAME" ]] || die "No Unity executable mapped for world_file '$WORLD_FILE'. Add an entry to WORLD_UNITY_BASENAMES in this script."
     UNITY_EXE_DIR="$UNITY_EXECUTABLES_DIR/${UNITY_BASENAME}_${UNITY_PLATFORM}"
+    [[ -d "$UNITY_EXE_DIR" ]] || die "No Unity build at '$UNITY_EXE_DIR'."
 fi
 
 # ============================================================
@@ -396,6 +417,12 @@ XDYN_CONFIGS["Commando"]="$LOTUSIM_PATH/assets/models/commando/commandoConfig.ya
 #           "copernicus_current" block. Mutually exclusive with "gauss".
 # See src/simulation_run/config/current_examples/README.md.
 XDYN_CONFIGS["Bluerov2_heavy_current"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12347"
+
+# Same xdyn model as Bluerov2_heavy_current, own port: one xdyn process is
+# started per agent class, so the two would fight over 12347 when a scenario
+# uses both. Listed explicitly rather than left to the substring fallback,
+# which could match the plain "Bluerov2_heavy" key instead.
+XDYN_CONFIGS["Bluerov2_heavy_current_inspection"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12353"
 
 # ============================================================
 # Agent Types
@@ -489,6 +516,21 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# Run a helper process, either detached with its output in a log file or in its
+# own terminal window. Appends the pid to CHILD_PIDS either way, so cleanup is
+# unchanged.
+run_helper() {
+    local log_file="$1"
+    local body="$2"
+    if [[ "$USE_TERMINALS" == "true" ]]; then
+        gnome-terminal -- bash -c "$body 2>&1 | tee \"$log_file\"
+exec bash" &
+    else
+        bash -c "$body" > "$log_file" 2>&1 &
+    fi
+    CHILD_PIDS+=($!)
+}
+
 # ============================================================
 # Unity Network Setup and ROS TCP Endpoint
 # ============================================================
@@ -513,15 +555,13 @@ if [[ "$USE_UNITY" == "true" ]]; then
   # forwarding to Unity. --debug restores DEBUG.
   TCP_LOG_LEVEL="WARN"
   [[ "$DEBUG_MODE" == "true" ]] && TCP_LOG_LEVEL="DEBUG"
-  gnome-terminal -- bash -c "
+  run_helper "$LOG_DIR/ros_tcp_endpoint.log" "
     source /opt/ros/${ROS_DISTRO}/setup.bash
     source \"$LOTUSIM_WS/install/setup.bash\"
     export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
     export ROS_IP=$ROS_IP
-    ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level $TCP_LOG_LEVEL 2>&1 | tee \"$LOG_DIR/ros_tcp_endpoint.log\"
-    exec bash
-  " &
-  CHILD_PIDS+=($!)
+    ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level $TCP_LOG_LEVEL
+  "
   echo -e "${GREEN}[INFO] ROS–Unity TCP bridge started (logging to $LOG_DIR/ros_tcp_endpoint.log).${NC}"
   sleep 1
 fi
@@ -530,6 +570,37 @@ fi
 # Launch XDyn
 # ============================================================
 declare -A XDYN_LAUNCHED
+
+# ---- One xdyn process per vessel -------------------------------------------
+# An agent may carry its own "xdyn_port". One xdyn-for-cs serves its clients in
+# turn, so N vessels on one port each advance at 1/N of the intended rate;
+# giving each vessel its own port keeps them independent. When any agent of a
+# class declares a port, every agent of that class must: the class-wide server
+# below is then skipped.
+while IFS=$'\t' read -r agent_id agent_cls agent_port; do
+    [[ -z "$agent_port" || "$agent_port" == "null" ]] && continue
+    xdyn_entry="${XDYN_CONFIGS[$agent_cls]}"
+    if [[ -z "$xdyn_entry" ]]; then
+        for key in "${!XDYN_CONFIGS[@]}"; do
+            [[ "$agent_cls" == *"$key"* ]] && xdyn_entry="${XDYN_CONFIGS[$key]}" && break
+        done
+    fi
+    [[ -n "$xdyn_entry" ]] || { echo -e "${YELLOW}[SKIP] No XDyn config for $agent_cls${NC}"; continue; }
+    read -r yml_file _ <<< "$xdyn_entry"
+    if [[ ! -f "$yml_file" ]]; then
+        echo -e "${YELLOW}[SKIP] YML not found for $agent_cls (${yml_file}).${NC}"
+        continue
+    fi
+    run_helper "$LOG_DIR/xdyn_${agent_id}.log" "
+        export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
+        export ROS_IP=$ROS_IP
+        xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $agent_port --dt 0.2 ${XDYN_VERBOSE:+-v -w}
+    "
+    echo -e "${GREEN}xdyn-for-cs for $agent_id on port $agent_port (PID ${CHILD_PIDS[-1]})${NC}"
+    XDYN_LAUNCHED[$agent_cls]=1
+    sleep 0.3
+done < <(jq -r '.agents[]? | select(.xdyn == true and .xdyn_port != null)
+                | "\(.id)\t\(.class)\t\(.xdyn_port)"' "$CONFIG_FILE")
 
 for agent_type in $AGENT_TYPES; do
     # Read xdyn field from JSON — same dict-vs-list distinction as above. In
@@ -572,13 +643,11 @@ for agent_type in $AGENT_TYPES; do
     if [[ -n "$xdyn_entry" ]]; then
         read -r yml_file port <<< "$xdyn_entry"
         if [ -f "$yml_file" ]; then
-            gnome-terminal -- bash -c "
+            run_helper "$LOG_DIR/xdyn_${agent_type}.log" "
                 export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
                 export ROS_IP=$ROS_IP
-                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt 0.2 ${XDYN_VERBOSE:+-v -w} 2>&1 | tee \"$LOG_DIR/xdyn_${agent_type}.log\";
-                exec bash
-            " &
-            CHILD_PIDS+=($!)
+                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt 0.2 ${XDYN_VERBOSE:+-v -w}
+            "
             echo -e "${GREEN}xdyn-for-cs for $agent_type started with PID ${CHILD_PIDS[-1]}${NC}"
             XDYN_LAUNCHED[$agent_type]=1
             sleep 0.5
@@ -632,12 +701,63 @@ ARGS=("--config" "$CONFIG_FILE")
 
 echo -e "${YELLOW}[INFO] Launching simulation with debug: $DEBUG_MODE${NC}"
 
+# Agents per process. Measured on demo_iros: at 15 a shard's 20 Hz control
+# loops ran at 3, at 8 they held 20 with the process pinned at a full core.
+# Six leaves the headroom an operator needs to keep spawning into the scene.
+AGENTS_PER_SHARD=6
+# Width of each shard's band of PX4 "-i" instance numbers.
+PX4_INSTANCES_PER_SHARD=50
+if [[ "$AGENT_SHARDS" == "auto" ]]; then
+    fleet=$(jq '[.agents[]? | (.nb_agents // 1)] | add // 0' "$CONFIG_FILE")
+    # Shard 0 takes half a share (it also runs the recorder and the router),
+    # hence the +0.5 worth of slack in the division.
+    AGENT_SHARDS=$(( (2 * fleet + 3 * AGENTS_PER_SHARD - 1) / (2 * AGENTS_PER_SHARD) ))
+    # Leave the cores the world, the xdyn servers and PX4 need.
+    shard_cap=$(( $(nproc) / 3 ))
+    (( shard_cap < 1 )) && shard_cap=1
+    if (( AGENT_SHARDS > shard_cap )); then
+        # The fleet wants more processes than this machine has cores for.
+        # Capping keeps the world real-time but leaves each shard over the
+        # GIL's ceiling, and it is the control loops that pay: measured at 30
+        # agents per shard, a 20 Hz loop ran at 2.6 Hz. Say so — the scenario
+        # is too large for this host, which is not visible from its output.
+        echo -e "${YELLOW}[WARN] $fleet agents want $AGENT_SHARDS processes, this machine allows $shard_cap.${NC}"
+        echo -e "${YELLOW}       Control loops will run below their configured rate. Budget about${NC}"
+        echo -e "${YELLOW}       0.07 core per agent, or split the fleet over several machines.${NC}"
+        AGENT_SHARDS=$shard_cap
+    fi
+    (( AGENT_SHARDS < 1 )) && AGENT_SHARDS=1
+    # A small fleet stays in one process: a second one costs more in startup
+    # than the contention it would relieve.
+    (( fleet <= AGENTS_PER_SHARD + 2 )) && AGENT_SHARDS=1
+    echo -e "${GREEN}[INFO] $fleet agents over $AGENT_SHARDS process(es).${NC}"
+fi
+
 PYTHON_PID=""
-# Single command with all arguments
-ros2 run simulation_run main "${ARGS[@]}" &
+# Shard 0 brings up the world and the scenario-wide observers, so it starts
+# first and stays the process whose exit ends the run; the other shards only
+# host their own agents and join that world.
+LOTUSIM_PX4_INSTANCE_BASE=0 \
+    ros2 run simulation_run main "${ARGS[@]}" --shards "$AGENT_SHARDS" --shard 0 &
 PYTHON_PID=$!
 
 CHILD_PIDS+=($PYTHON_PID)
+
+# Shards are started apart so their spawn waves reach the entity manager one
+# at a time: waves sent at once overflow its goal queue and a whole shard's
+# agents can end up with nodes but no entity.
+SHARD_START_INTERVAL_S=4
+for ((shard = 1; shard < AGENT_SHARDS; shard++)); do
+    sleep "$SHARD_START_INTERVAL_S"
+    run_helper "$LOG_DIR/agents_shard_${shard}.log" "
+        export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
+        export ROS_IP=$ROS_IP
+        # Own band of PX4 '-i' instance numbers: a shard kills stale PX4
+        # processes by instance number, and must never reach another's.
+        export LOTUSIM_PX4_INSTANCE_BASE=$((shard * PX4_INSTANCES_PER_SHARD))
+        ros2 run simulation_run main ${ARGS[*]} --shards $AGENT_SHARDS --shard $shard
+    "
+done
 
 # Wait for the Python simulation to finish
 wait $PYTHON_PID

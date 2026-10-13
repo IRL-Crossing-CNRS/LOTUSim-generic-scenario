@@ -38,3 +38,28 @@ class Bluerov2HeavyCurrent(PhysicalEntity):
     INITIAL_COMMANDS = {
         f"bluerov2_heavy_prop_{i}(T)": 0.0 for i in (1, 2, 3, 4, 5, 8)
     }
+
+
+class Bluerov2HeavyCurrentInspection(Bluerov2HeavyCurrent):
+    """:class:`Bluerov2HeavyCurrent` that Unity renders with the inspection
+    prefab, so the vehicle both feels the xdyn ocean current and carries a
+    camera.
+
+    The inspection camera is not in the SDF: Unity picks the prefab from
+    ``renderer_type_name``, and only the ``*_inspection`` agent classes set it.
+    Without this class an inspection task placed on a current-model BlueROV
+    waits forever on ``/{world}/{agent}/inspection/image``, because the plain
+    prefab publishes nothing.
+
+    **XDYN_PORT = 12353**, not the 12347 of the parent: scenario_launch.sh
+    starts one xdyn process per agent class, so sharing the port would make the
+    second process fail to bind whenever both classes appear in one scenario.
+    The xdyn model itself is the same, and scenario_launch.sh maps this class
+    to the same BlueROV2_current_<condition>.yml.
+    """
+
+    XDYN_PORT = 12353
+
+    def __init__(self, sdf_string: str, world_name: str, xdyn_enabled: bool, **kwargs):
+        super().__init__(sdf_string, world_name, xdyn_enabled, **kwargs)
+        self.renderer_type_name = "bluerov2_heavy_inspection"

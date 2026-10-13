@@ -59,6 +59,7 @@ Each entry of the `agents` list (host) or config object (remote, §6) accepts:
 | `nb_agents` | int | `1` | Number of instances to spawn of this entry. |
 | `sdf_file` | string | `""` (model's default `model.sdf`) | Picks a specific SDF variant inside the model's asset folder, e.g. `"model-battery.sdf"` (needed for `check_battery_state`/light-actuator demos). |
 | `xdyn` | bool | `false` | Enables the XDyn physics connection for this agent (needs a non-`Aerial` domain and the class's `XDYN_PORT`). A `waypoint_follower` task overrides this to a native `Kinematic` connection regardless (see [`MISSIONS.md` §4.3](MISSIONS.md#43-worked-example--waypointfollowertask)). |
+| `xdyn_port` | int | — (the class's shared port) | Gives this agent its own `xdyn-for-cs` process on that port instead of the one shared by its class. One server integrates its vessels one after another, so a class with several xdyn agents slows each of them down and, past a handful, drags the world's real-time factor with it — 24 xdyn agents on 16 servers measured RTF 0.85, the same 24 on 24 servers measured 1.00. Give every xdyn agent of a class a distinct port, or none of them. |
 | `spawn` | object `{x,y,z,roll,pitch,yaw}` | all fields `0.0` | Explicit ENU spawn pose. Highest-priority explicit form. |
 | `pose` | `[x,y,z,roll,pitch,yaw]` | — | Same as `spawn`, list form (remote only, see §6). |
 | `poses` | list of the above | — | One entry per instance index (`poses[i]` for the i-th of `nb_agents`); falls back if the index is out of range (host: random pose; remote: `poses[0]`). |
@@ -326,7 +327,8 @@ ros2 run simulation_run main --config basic_examples/sequence_and_parallel.json
 `scenario_launch.sh` reads `renderer_unity` via `jq`, cleans
 up stale processes, launches one `xdyn-for-cs` per agent type that has
 `"xdyn": true` (mapped by class name to a `.yml`/port in the script's
-`XDYN_CONFIGS` table), optionally the Unity executable and TCP bridge, then
+`XDYN_CONFIGS` table) plus one per agent carrying its own `xdyn_port`,
+optionally the Unity executable and TCP bridge, then
 `ros2 run simulation_run main --config ...` (see the full sequence diagram
 in [`ARCHITECTURE.md` §5](ARCHITECTURE.md#5-host-orchestration-flow-simulation_run)).
 `--debug` and `--gui` are also accepted and forwarded.

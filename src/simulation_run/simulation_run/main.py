@@ -107,13 +107,22 @@ def main():
     # Parse config
     world_file, agents = utils.parse_simulation_config(config)
 
+    # Agent sharding: every agent is a Python node, so a whole scenario in one
+    # process is capped at one core by the GIL and its control loops starve as
+    # the fleet grows. Each shard hosts its share and reaches the same world
+    # over ROS/DDS. Shard 0 owns the world and the scenario-wide observers.
+    agents = utils.select_shard(agents, args.shard, args.shards)
+    logger.info("Shard %d/%d hosts %d agent entries.",
+                args.shard, args.shards, len(agents))
+
     # Run simulation
     simulation_runner.run_simulation(
         world_file, agents,
         debug_mode=args.debug, gui=args.gui,
         config_dir=os.path.dirname(config_path),
-        record_csv=config.get("record_csv", False),
+        record_csv=config.get("record_csv", False) if args.shard == 0 else False,
         scenario=config,
+        shard=args.shard, shards=args.shards,
     )
 
 

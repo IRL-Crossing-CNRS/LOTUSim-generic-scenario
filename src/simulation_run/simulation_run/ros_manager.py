@@ -33,6 +33,7 @@ import time
 from typing import Any, Dict, Optional
 
 import rclpy
+from rclpy._rclpy_pybind11 import InvalidHandle
 from simulation_run import agents_manager
 from simulation_run.dynamic_spawn import DynamicSpawnService
 
@@ -54,6 +55,8 @@ def initialize_ros_components(
     world_name: str,
     world_file: str = "",
     config_dir: Optional[str] = None,
+    shard: int = 0,
+    shards: int = 1,
 ) -> agents_manager.AgentsManager:
     """
     Initialize simulation components using a full agents dictionary.
@@ -64,6 +67,9 @@ def initialize_ros_components(
         world_name: Name of the simulation world.
         config_dir: Directory containing the scenario JSON (forwarded to
             ``AgentsManager.add_agents`` — see its docstring).
+        shard, shards: this process's index among the agent-hosting processes
+            and how many there are, forwarded to ``DynamicSpawnService`` so a
+            runtime spawn lands on the least loaded of them.
 
     Returns:
         AgentsManager instance with all agents initialized and registered.
@@ -75,7 +81,8 @@ def initialize_ros_components(
     manager.add_agents(agents, world_name, executor, world_file, config_dir)
 
     # Register dynamic spawn/despawn service
-    spawn_service = DynamicSpawnService(manager, executor, world_name, world_file)
+    spawn_service = DynamicSpawnService(
+        manager, executor, world_name, world_file, shard=shard, shards=shards)
     executor.add_node(spawn_service)
 
     return manager
@@ -84,6 +91,30 @@ def initialize_ros_components(
 # -------------------------------------------------------------------------
 # Executor Management
 # -------------------------------------------------------------------------
+
+
+def _spin_forever(executor: Any) -> None:
+    """Drive the executor on its own thread so its worker pool is used.
+
+    Spinning is resumed after a transient failure: rclpy raises
+    InvalidHandle when an entity is destroyed while the wait set is being
+    built, which happens whenever an agent is added or removed while the
+    scenario runs. Letting that escape would stop every callback for good.
+    """
+    while True:
+        with shutdown_flag_lock:
+            if shutdown_flag:
+                return
+        if not rclpy.ok():
+            return
+        try:
+            executor.spin()
+            return
+        except InvalidHandle:
+            logger.debug("executor spin interrupted by an entity destruction, resuming")
+        except Exception:
+            logger.exception("executor spin stopped")
+            return
 
 
 def run_executor(executor: Any, max_simulation_time: Optional[float] = None) -> None:
@@ -101,10 +132,11 @@ def run_executor(executor: Any, max_simulation_time: Optional[float] = None) -> 
         max_simulation_time: Optional maximum runtime in seconds.
 
     Notes:
-        The executor is polled using `spin_once(timeout_sec=0.1)`
-        to periodically check shutdown conditions.
+        The executor spins on a dedicated thread so its worker pool is
+        used; this loop only watches the shutdown conditions.
     """
     start_time = time.time()
+    spin_thread = None
     try:
         while rclpy.ok():
             elapsed = time.time() - start_time
@@ -120,12 +152,17 @@ def run_executor(executor: Any, max_simulation_time: Optional[float] = None) -> 
                 logger.info("run_executor EXIT: max_simulation_time=%ss reached", max_simulation_time)
                 break
 
-            # Spin executor once
-            try:
-                executor.spin_once(timeout_sec=0.1)
-            except Exception:
-                logger.exception("run_executor EXCEPTION at t=%.1fs", elapsed)
-                break
+            # Let the executor's own threads drain the callbacks. spin_once()
+            # runs ONE callback per call on the calling thread and never
+            # touches the MultiThreadedExecutor's pool, so a scenario with
+            # dozens of agents serialised every timer and subscription onto
+            # this loop: a 20 Hz control task measured 0.29 Hz.
+            if spin_thread is None or not spin_thread.is_alive():
+                spin_thread = threading.Thread(
+                    target=_spin_forever, args=(executor,),
+                    name="executor-spin", daemon=True)
+                spin_thread.start()
+            time.sleep(0.05)
 
         if not rclpy.ok():
             logger.info("run_executor EXIT: rclpy.ok()=False at t=%.1fs", time.time() - start_time)

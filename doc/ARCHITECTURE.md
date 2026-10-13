@@ -387,6 +387,42 @@ gz-transport to the airframe already spawned in `aerialWorld`
 (`PX4_GZ_MODEL_NAME=<agent_name>`, `PX4_GZ_WORLD=aerialWorld`). `X500.
 destroy_node()` terminates that subprocess on agent teardown.
 
+### 5.2 Agent sharding
+
+Every agent is a Python node, so one host process is capped at a single core
+by the GIL however many executor threads it has. The cost lands on the
+control loops: with 59 agents in one process a 20 Hz `ControlTask` ran at
+0.4 Hz, which the vehicles show as oscillation along their paths. The fleet
+is therefore split across processes, each hosting its share and reaching the
+same world over ROS/DDS — the spawn path was already written for separate
+processes and remote machines (§3.1, §3.2), so nothing in it changes.
+
+- `scenario_launch.sh --shards N` starts N processes, each running
+  `simulation_run main --shards N --shard i`. The default, `auto`, sizes N
+  from the fleet (`AGENTS_PER_SHARD`, capped by `nproc / 3` to leave the
+  cores the world, the xdyn servers and PX4 need); a fleet that fits in one
+  process stays in one.
+- `utils.select_shard()` deals the scenario's agents in turn. Shard 0 takes
+  half a share: it also carries the CSV recorder, the mission watcher and
+  the spawn router, and on an equal share it was the only shard whose
+  control loops fell behind.
+- Shard 0 owns everything the scenario has once — the Gazebo reset and
+  launch, the recorder, the watcher, the public spawn topic. The others wait
+  for the world's entity manager to answer (`wait_for_world()`), then only
+  host their agents.
+- Shards are started a few seconds apart. Spawn waves sent at once overflow
+  the entity manager's goal queue and a whole shard can end up with nodes
+  but no entity; `AgentsManager._spawn_all_agents()` also resends whatever
+  is still unconfirmed.
+- Each shard gets its own band of PX4 `-i` instance numbers
+  (`LOTUSIM_PX4_INSTANCE_BASE`). The counter is process-local and
+  `X500._kill_stale_px4_instance()` kills by instance number, so without a
+  band each process would claim instance 0 and kill the PX4 another is
+  flying.
+
+Runtime spawns are placed on the least loaded shard — see §8.
+
+
 ---
 
 ## 6. Global architecture (all processes)
@@ -488,6 +524,27 @@ independent of the scenario that was initially launched.
   `despawn_agent()`.
 - `spawn_agent.py`, `despawn_agent.py`, `list_agents.py` — thin CLI wrappers
   (`ros2 run simulation_run spawn_agent ...`) around the same topics/service.
+
+Placement across shards (§5.2). One of these nodes runs per shard, and a
+spawn goes to the shard hosting the fewest agents — otherwise everything an
+operator adds to a running scene piles onto the one process that owns the
+public topic, and that process starves.
+
+- `/shard_status` — each shard publishes the agents it hosts at 1 Hz. An
+  advertisement older than 5 s is ignored, so a shard that dies stops
+  receiving spawns.
+- Shard 0 alone subscribes to `/spawn_cmd` and republishes each request on
+  `/spawn_cmd/shard<i>` of the least loaded shard. One decider means one
+  spawn per request whatever the shards know of each other; the public
+  topics are unchanged, so the CLI wrappers are unaffected.
+- `/despawn_cmd` is read by every shard and answered only by the one that
+  owns the name. `/list_agents` is served by shard 0, aggregating
+  `/shard_status`.
+
+The reply on `/spawn_status` comes from the shard that did the spawn, not
+from the one that read `/spawn_cmd`, so a client must wait for a
+`/spawn_status` publisher before sending — publishing before discovery
+completes loses the reply and reports a failure for a spawn that worked.
 
 ---
 

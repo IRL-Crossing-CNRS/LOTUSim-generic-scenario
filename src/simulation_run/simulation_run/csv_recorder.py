@@ -416,7 +416,16 @@ def _mission_specs_from_scenario(scenario: dict, ref_lat: float, ref_lon: float,
                 entry["tolerance"] = float(params.get("range_tolerance", 3.0))
                 path = [cursor]
                 for wp in waypoints:
-                    if "x" in wp and "y" in wp:
+                    if isinstance(wp, (list, tuple)):
+                        # Polyline guidance form: [dx, dy, z], relative to the
+                        # spawn in x/y and absolute in depth. Anchored on the
+                        # spawn, like the guidance laws, which resolve every
+                        # entry against the first pose rather than against the
+                        # previous waypoint.
+                        path.append(
+                            (base_cursor[0] + float(wp[0]), base_cursor[1] + float(wp[1]))
+                        )
+                    elif "x" in wp and "y" in wp:
                         path.append((float(wp["x"]), float(wp["y"])))
                     else:
                         path.append(

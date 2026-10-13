@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -20,9 +21,10 @@ from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
 
 # Populated on first on_enter (once; module cache is shared across instances).
-# The detection module loads the YOLO model at import time (seconds), so it is
-# loaded on a background thread to avoid blocking the executor worker.
-# Detection callbacks no-op while _det is None.
+# Importing it pulls in torch/ultralytics (seconds), so it happens on a
+# background thread rather than on an executor worker. The module holds only the
+# stateless helpers — colour thresholds, drawing, the model *factory*; the model
+# instances themselves belong to each task. Callbacks no-op while _det is None.
 _det = None
 _det_load_lock = threading.Lock()
 _det_loading = False
@@ -54,10 +56,11 @@ def _ensure_detection_module_loading(logger=None) -> None:
 
     threading.Thread(target=_load, name="yolo-model-load", daemon=True).start()
 
-# run_agent uses MultiThreadedExecutor, so multiple agents' _image_callbacks can
-# fire concurrently.  YOLO inference is not thread-safe — serialize with this lock.
-# Module-level so it is shared across all instances (one lock → one YOLO model).
-_yolo_lock = threading.Lock()
+# No cross-agent lock here on purpose. Agents' _image_callbacks do run
+# concurrently under MultiThreadedExecutor, but each task owns its own model
+# (see on_enter), so there is no shared state left to guard. The previous global
+# lock made every agent queue behind every other one, which is the opposite of
+# the autonomy the agent model is supposed to give.
 
 # Sensor-data QoS for incoming camera frames: drop stale frames, keep only latest.
 _IMAGE_QOS = QoSProfile(
@@ -162,14 +165,21 @@ class FaultInspectionTask(TaskAgent):
         self._window_title: str = ""
         self._image_sub = None
         self._detections_pub = None
+        # This agent's own YOLO instance, built on a background thread by
+        # _start_model_load. Crack detection is skipped while it is None, so a
+        # slow load degrades to colour-only detection instead of stalling.
+        self._model = None
+        self._model_loading = False
 
     # -- lifecycle ------------------------------------------------------------
 
     def on_enter(self) -> None:
-        # Load the YOLO/torch model on a background thread so it does not block
+        # Load the YOLO/torch module on a background thread so it does not block
         # this executor worker. Detection stays inactive until _det is set.
         if _det is None:
             _ensure_detection_module_loading(self.host.get_logger())
+        # The model is built on the first frame, not here: an agent that never
+        # receives one never pays for it.
 
         world = self.host.world_name
         # Use agent_name (the entity/topic name), NOT get_name() (the rclpy node
@@ -181,11 +191,16 @@ class FaultInspectionTask(TaskAgent):
         # so by here agent_name already holds the host-assigned name.
         agent = self.host.agent_name
 
+        # TaskAgent.callback_group keeps inference off the host's default queue —
+        # above all off the behaviour-tree tick, which a frame taking longer than
+        # the tick period would otherwise starve. One frame at a time per agent is
+        # what the depth=1 BEST_EFFORT QoS already implies anyway.
         self._image_sub = self.host.create_subscription(
             CompressedImage,
             f"/{world}/{agent}/inspection/image",
             self._image_callback,
             _IMAGE_QOS,
+            callback_group=self.callback_group,
         )
         # TRANSIENT_LOCAL so Unity receives the last detection burst even if it
         # subscribes slightly after the first frames arrive (matches the QoS Unity
@@ -215,14 +230,58 @@ class FaultInspectionTask(TaskAgent):
         if self._detections_pub is not None:
             self.host.destroy_publisher(self._detections_pub)
             self._detections_pub = None
+        # Release this agent's weights; with one model per agent, holding them
+        # past the mission would keep N copies resident for nothing.
+        self._model = None
         if self._window_title:
             _close_window(self._window_title)
+
+    # -- model ----------------------------------------------------------------
+
+    def _start_model_load(self) -> None:
+        """Build this agent's own YOLO instance on a background thread (once).
+
+        Waits for the detection module import to finish, then calls its factory.
+        Runs off the executor so neither the tick nor the camera callback pays
+        for weight loading and CUDA init.
+        """
+        if self._model is not None or self._model_loading:
+            return
+        self._model_loading = True
+        logger = self.host.get_logger()
+
+        def _load() -> None:
+            try:
+                # _det is set by another background thread; give it a bounded
+                # wait rather than racing it or blocking a worker forever.
+                deadline = time.monotonic() + 120.0
+                while _det is None and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                if _det is None:
+                    logger.error(
+                        "FaultInspectionTask: detection module never loaded; "
+                        "crack detection disabled"
+                    )
+                    return
+                self._model = _det.load_model(logger)
+            except Exception as e:  # noqa: BLE001 - degrade to colour-only detection
+                logger.error(f"FaultInspectionTask: model load failed: {e}")
+            finally:
+                self._model_loading = False
+
+        threading.Thread(
+            target=_load, name=f"yolo-load-{self.host.agent_name}", daemon=True
+        ).start()
 
     # -- detection callback ---------------------------------------------------
 
     def _image_callback(self, msg: CompressedImage) -> None:
         if _det is None or self._detections_pub is None:
             return
+
+        # Build this agent's model on the first frame. Idempotent, and it runs
+        # on a background thread, so frames are colour-only until it is ready.
+        self._start_model_load()
 
         # Decode JPEG → BGR
         buf = np.frombuffer(msg.data, dtype=np.uint8)
@@ -241,15 +300,15 @@ class FaultInspectionTask(TaskAgent):
             color_detections, mask = _det.detect_corrosion_by_color(pil_image)
             detections.extend(color_detections)
 
-        # 2) YOLO crack detection — serialize across concurrent agent callbacks
-        if _det.yolo_model is not None:
-            with _yolo_lock:
-                results = _det.yolo_model.predict(
-                    source=pil_image,
-                    conf=_det.YOLO_CONFIDENCE,
-                    iou=0.4,
-                    verbose=False,
-                )
+        # 2) YOLO crack detection — this agent's own model, no cross-agent lock
+        model = self._model
+        if model is not None:
+            results = model.predict(
+                source=pil_image,
+                conf=_det.YOLO_CONFIDENCE,
+                iou=0.4,
+                verbose=False,
+            )
             for result in results:
                 if result.boxes is None:
                     continue
@@ -257,7 +316,7 @@ class FaultInspectionTask(TaskAgent):
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     conf = float(box.conf[0])
                     cls_id = int(box.cls[0])
-                    label = _det.yolo_model.names[cls_id]
+                    label = model.names[cls_id]
                     detections.append({
                         "label": label,
                         "confidence": round(conf, 3),

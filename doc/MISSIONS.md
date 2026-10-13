@@ -63,6 +63,7 @@ lotusim_sdk/lotusim_sdk/
 │   ├── base.py             # TaskAgent (ABC): on_enter / update / on_exit
 │   ├── waypoint_follower.py    # built-in: closed-loop guidance to a waypoint list
 │   ├── fault_inspection.py     # built-in: camera + YOLO corrosion/crack detection
+│   ├── crack_detector.py       # built-in: camera + CLAHE + YOLO crack detection
 │   └── check_battery_state.py  # built-in: battery-driven status LED
 └── agents/agent.py         # Agent: set_missions() + the tick timer (the "motor")
 ```
@@ -356,13 +357,14 @@ that loops).
 |---|---|---|---|
 | `waypoint_follower` | `WaypointFollowerTask` | `RUNNING` until within `range_tolerance` of the last waypoint (`SUCCESS`); `FAILURE` if no waypoints resolved | Runs the guidance/control loop **on the agent node**, not in a Gazebo plugin — see §4.3. |
 | `fault_inspection` | `FaultInspectionTask` | event-driven: always `RUNNING`, detections published as they arrive | HSV corrosion + YOLO crack inference on `/{world}/{agent}/inspection/image`. |
+| `crack_detector` | `CrackDetector` | event-driven: always `RUNNING`, detections published as they arrive | Crack-only variant: CLAHE contrast enhancement (tuned for underwater imagery) then YOLO inference on `/{world}/{agent}/inspection/image`. `model` selects the checkpoint — `"simulation"` (default) or `"real"`. **Requires a CUDA GPU**: inference is pinned to device 0 and does not fall back to CPU. |
 | `check_battery_state` | `CheckBatteryStateTask` | event-driven: always `RUNNING` | Subscribes `/{world}/{agent}/battery/state`, edge-triggers a `Bool` on `/{world}/{agent}/light/cmd` when the percentage crosses `threshold`. |
 
-An **event-driven** task (`fault_inspection`, `check_battery_state`) does its
-real work in a ROS callback set up in `on_enter()`, and simply reports
-`RUNNING` from every `update()` — it is "alive" for as long as it stays in
-the tree, not something that completes. A **goal-directed** task
-(`waypoint_follower`) tracks its own progress and returns `SUCCESS`/`FAILURE`
+An **event-driven** task (`fault_inspection`, `crack_detector`,
+`check_battery_state`) does its real work in a ROS callback set up in
+`on_enter()`, and simply reports `RUNNING` from every `update()` — it is
+"alive" for as long as it stays in the tree, not something that completes.
+A **goal-directed** task (`waypoint_follower`) tracks its own progress and returns `SUCCESS`/`FAILURE`
 so a `Sequence` can move on to the next phase.
 
 ### 4.3 Worked example — `WaypointFollowerTask`
