@@ -407,14 +407,10 @@ def stop_simulation(executor: Optional[MultiThreadedExecutor]) -> None:
             logger.warning("Error killing Lotusim PID %s", pid, exc_info=True)
     lotusim_pids.clear()
 
-    # Kill any gnome-terminal windows (fallback cleanup)
-    try:
-        subprocess.run(["pkill", "-f", "gnome-terminal"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        logger.info("Terminated GNOME terminal processes.")
-    except Exception:
-        logger.warning("Error killing GNOME terminals", exc_info=True)
-
-    # Gracefully stop tracked simulation processes
+    # Gracefully stop tracked simulation processes. Each world runs in its own
+    # session (setsid), so its process group, terminal window included under
+    # --terminals, goes with it. Never pkill gnome-terminal: that closes every
+    # terminal of the user's desktop.
     for proc in (process or []):
         try:
             if proc.poll() is None:
