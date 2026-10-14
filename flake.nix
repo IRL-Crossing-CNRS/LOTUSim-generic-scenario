@@ -17,14 +17,52 @@
         pkgs = nixpkgs.legacyPackages.${system};
         coreShell = lotusim.devShells.${system}.default;
 
-        # pymavlink drives PX4 offboard patrol; opencv and pillow are only
-        # reached when a detection task handles a frame.
+        # pymavlink drives PX4 offboard patrol; pillow is only reached when a
+        # detection task handles a frame.
         scenarioPython = with pkgs.python3Packages; [
           pymavlink
           numpy
-          opencv4
           pillow
         ];
+
+        # The detection tasks open a window per camera (cv2.imshow). nixpkgs
+        # builds OpenCV without any GUI backend, and its GTK or Qt variants are
+        # in no binary cache, so they would compile on every machine. The
+        # opencv-python wheel from PyPI carries its own Qt and is used instead,
+        # first on PYTHONPATH so that it also shadows the cv2 ultralytics
+        # brings in.
+        opencvGui = pkgs.stdenv.mkDerivation {
+          pname = "opencv-python-wheel";
+          version = "4.14.0.94";
+          src = pkgs.fetchurl {
+            x86_64-linux = {
+              url = "https://files.pythonhosted.org/packages/13/09/c05887c383caa9080ef612febffd08c5da1c283418687a3bea6ef7fb6faa/opencv_python-4.14.0.94-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl";
+              sha256 = "4ae0b5a2acbcfb9813035f1644cfba751edd02797fac994e32180813eeef8420";
+            };
+            aarch64-linux = {
+              url = "https://files.pythonhosted.org/packages/84/ec/5777752567986b99222d52e22306e9616829480cc2d48ab241daa9d7e9ef/opencv_python-4.14.0.94-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl";
+              sha256 = "3198fcbcb8f98fd68063bf2c75d129b0f50d46e555a4e47578a6eb086eb38e1f";
+            };
+          }.${system};
+          nativeBuildInputs = [ pkgs.unzip pkgs.autoPatchelfHook ];
+          buildInputs = with pkgs; [
+            stdenv.cc.cc.lib
+            glib
+            libGL
+            zlib
+            libx11
+            libxcb
+            libxext
+            libice
+            libsm
+          ];
+          unpackPhase = "unzip -q $src";
+          installPhase = ''
+            site=$out/${pkgs.python3.sitePackages}
+            mkdir -p $site
+            cp -r cv2 opencv_python.libs $site/
+          '';
+        };
 
         # ultralytics (with torch) runs the YOLO crack and corrosion detection
         # of the fault_inspection and crack_detector tasks. It is put on
@@ -131,7 +169,7 @@
           # jq: scenario_launch.sh reads the scenario JSON with it.
           packages = scenarioPython ++ [ pkgs.jq ];
           shellHook = ''
-            export PYTHONPATH="${detectionEnv}/${pkgs.python3.sitePackages}''${PYTHONPATH:+:$PYTHONPATH}"
+            export PYTHONPATH="${opencvGui}/${pkgs.python3.sitePackages}:${detectionEnv}/${pkgs.python3.sitePackages}''${PYTHONPATH:+:$PYTHONPATH}"
             ${hook}
             echo "${banner}"
           '';

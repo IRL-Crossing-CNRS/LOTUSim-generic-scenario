@@ -737,14 +737,9 @@ if [[ "$DEBUG_MODE" == "true" ]]; then
     DEBUG_ARG="--debug"
 fi
 
-# A headless run renders its sensors through EGL. Leaving DISPLAY set sends
-# Ogre down the GLX path instead, which needs a usable X connection: from a
-# detached shell, or over a session that grants none, it fails to build the
-# context and every gpu_lidar and camera takes the whole world down with it.
-# The GUI genuinely needs the display, so this only applies without it.
-if [[ "$GZ_GUI" != "true" ]]; then
-  unset DISPLAY WAYLAND_DISPLAY
-fi
+# DISPLAY stays set: a headless world drops it itself (simulation_runner's
+# start_simulation_process), while the agents need it for their detection
+# windows.
 
 # Build argument list
 ARGS=("--config" "$CONFIG_FILE")

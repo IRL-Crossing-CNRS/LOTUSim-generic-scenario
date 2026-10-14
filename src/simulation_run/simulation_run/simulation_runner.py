@@ -176,15 +176,22 @@ def start_simulation_process(commands: List[str]) -> List[subprocess.Popen]:
     use_terminals = os.environ.get("LOTUSIM_USE_TERMINALS", "false") == "true"
 
     for cmd in commands:
+        # A headless world renders its sensors through EGL. Leaving DISPLAY set
+        # sends Ogre down the GLX path instead, which needs a usable X
+        # connection: from a detached shell, or over a session that grants
+        # none, it fails to build the context and every gpu_lidar and camera
+        # takes the whole world down with it. Only the world loses the display:
+        # the agents keep it for their detection windows.
+        run_cmd = cmd if " --gui" in cmd else f"unset DISPLAY WAYLAND_DISPLAY; {cmd}"
         if use_terminals:
-            full_cmd = f'gnome-terminal -- bash -c "{cmd}; exec bash"'
+            full_cmd = f'gnome-terminal -- bash -c "{run_cmd}; exec bash"'
             process = subprocess.Popen(full_cmd, shell=True, preexec_fn=os.setsid)
         else:
             # stdout goes nowhere: _with_log already tees it into scenario_logs,
             # and letting it through would repeat every world's output in the
             # launcher's own log.
             process = subprocess.Popen(
-                ["bash", "-c", cmd], preexec_fn=os.setsid, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ["bash", "-c", run_cmd], preexec_fn=os.setsid, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
         processes.append(process)
         time.sleep(1)  # Allow startup

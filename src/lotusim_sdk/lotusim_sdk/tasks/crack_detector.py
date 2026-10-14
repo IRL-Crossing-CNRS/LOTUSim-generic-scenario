@@ -221,6 +221,11 @@ class CrackDetector(TaskAgent):
 
         # final_image = image
 
+        # The enhancement runs on one channel, but YOLO takes 3: ultralytics
+        # 8.4 refuses a single-channel array ("expected input to have 3
+        # channels, but got 1"). The gray levels are copied to B, G and R.
+        final_image = cv2.cvtColor(final_image, cv2.COLOR_GRAY2BGR)
+
         if _det.yolo_model is not None:
             with _yolo_lock:
                 # The first CUDA GPU when there is one, the CPU otherwise (see
