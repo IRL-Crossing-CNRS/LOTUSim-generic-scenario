@@ -46,8 +46,9 @@ feedback loop):
   supplies a fixed near-idle resting command forever, with no feedback
   loop -- same drift-only guarantee, without touching the real Allocation
   gains at all. Not literally 0 rpm: LRAUV's `Kt(J)&Kq(J)` propeller curve
-  divides by the commanded rpm, so an exact 0 crashes xdyn outright;
-  `propeller(rpm)` is in radians/second despite the key name.
+  divides by the commanded rpm, so an exact 0 crashes xdyn outright. It
+  holds 15 rpm; `propeller(rpm)` is in rpm, and the core converts it to the
+  rad/s xdyn expects.
 
 **xdyn controllable**:
 - `lrauv_xdyn.json` (`LrauvAllocationTask`) -- surge to a single

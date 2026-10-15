@@ -12,12 +12,10 @@ desired heading/cross-track correction is received by Control but has
 nothing downstream to act on it -- LRAUV goes straight once launched, by
 design of the vehicle model, not a bug here.
 
-``propeller(rpm)`` is in radians/second despite the name (xdyn's
-``AbstractWageningen::advance_ratio`` computes
-``n = commands.at("rpm")/(2*PI)``). This class's own params (``rpm_gain``,
-``rpm_max``, ``rpm_min``) stay in real RPM, matching LRAUV's own "300 RPM
-normal" spec, and are converted to rad/s only at the point of publishing
-in ``_publish()``.
+``propeller(rpm)`` is sent in rpm, like every LOTUSim command: the core
+converts it to the rad/s xdyn expects (``XdynWebsocket::getNewState``). This
+class's own params (``rpm_gain``, ``rpm_max``, ``rpm_min``) are in rpm too,
+matching LRAUV's own "300 RPM normal" spec.
 
 The propeller uses an explicit ``Kt(J) & Kq(J)`` table (an MIT-PLL-measured
 curve, see that file's own comments). The advance ratio
@@ -71,7 +69,6 @@ from lotusim_sdk.control import enu_to_ned_position, enu_quat_to_ned_euler
 #: J estimate here to correspond to what xdyn actually computes.
 _PROPELLER_DIAMETER_M = 0.2539
 _WAKE_FRACTION = 0.13
-_RPM_TO_RAD_S = 2.0 * math.pi / 60.0
 
 
 class LrauvAllocationTask(TaskAgent):
@@ -175,9 +172,8 @@ class LrauvAllocationTask(TaskAgent):
         cmd.vessel_name = self.host.agent_name
         cmd.cmd_string = json.dumps(
             {
-                # xdyn expects rad/s here despite the "(rpm)" key name -- see
-                # module docstring. rpm (this class's own unit) -> rad/s.
-                "propeller(rpm)": rpm * _RPM_TO_RAD_S,
+                # rpm: the core converts it to rad/s for xdyn.
+                "propeller(rpm)": rpm,
                 "propeller(P/D)": self._pitch_ratio,
             }
         )

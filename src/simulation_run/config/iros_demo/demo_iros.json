@@ -3286,7 +3286,7 @@
           "task": "static_command_allocation",
           "params": {
             "commands": {
-              "propeller(rpm)": 1.5708,
+              "propeller(rpm)": 15.0,
               "propeller(P/D)": 0.88
             }
           }
@@ -3319,7 +3319,7 @@
           "task": "static_command_allocation",
           "params": {
             "commands": {
-              "propeller(rpm)": 1.5708,
+              "propeller(rpm)": 15.0,
               "propeller(P/D)": 0.88
             }
           }
@@ -3352,7 +3352,7 @@
           "task": "static_command_allocation",
           "params": {
             "commands": {
-              "propeller(rpm)": 1.5708,
+              "propeller(rpm)": 15.0,
               "propeller(P/D)": 0.88
             }
           }

@@ -23,8 +23,8 @@
     "closer visually overlaps neighbouring hulls even though the recorded",
     "xdyn/CSV positions (agent centres) are correctly separated.",
     "Lrauv appears once: lrauv_drift_only IS the propeller demo --",
-    "static_command_allocation holds propeller(rpm) at a fixed 1.5708",
-    "rad/s near-idle command (not 0, which crashes xdyn's Kt(J)/Kq(J)",
+    "static_command_allocation holds propeller(rpm) at a fixed 15 rpm",
+    "near-idle command (not 0, which crashes xdyn's Kt(J)/Kq(J)",
     "curve) with no feedback loop, same drift-only guarantee as the hulls",
     "with no thruster model at all."
   ],
@@ -98,7 +98,7 @@
       "missions": [
         { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
         { "id": "allocation", "type": "action", "task": "static_command_allocation",
-          "params": { "commands": { "propeller(rpm)": 1.5708, "propeller(P/D)": 0.88 } } }
+          "params": { "commands": { "propeller(rpm)": 15.0, "propeller(P/D)": 0.88 } } }
       ]
     },
     {
