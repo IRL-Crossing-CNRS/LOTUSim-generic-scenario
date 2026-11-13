@@ -8,7 +8,7 @@ tree ticked on an agent.
 > Scope note: this document covers **the BT framework itself** — engine,
 > lifecycle, built-in tasks, extension points. For the full JSON schema and a
 > parameter-by-parameter scenario-writing guide (host vs. remote), see the
-> planned `WRITE_SCENARIO.md`. For repository/package layout, see
+> [generic scenario reference](scenario/README.md). For repository/package layout, see
 > [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---

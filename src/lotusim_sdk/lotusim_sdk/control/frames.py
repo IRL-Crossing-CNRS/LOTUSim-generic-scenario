@@ -15,6 +15,25 @@ def enu_to_ned_position(x, y, z):
     return y, x, -z
 
 
+def world_to_body(vx, vy, vz, qx, qy, qz, qw):
+    """A world-frame vector expressed in the body frame of orientation q.
+
+    With an ENU world and a FLU body (Gazebo's conventions) this turns a
+    world-frame velocity into the body-frame twist of ``nav_msgs/Odometry``
+    (REP 105: the twist is given in ``child_frame_id``). Rotation by q^-1.
+    """
+    # Rotation by the conjugate (w, -r): v' = v + 2w (c x v) + 2 c x (c x v), c = -r.
+    cx, cy, cz = -qx, -qy, -qz
+    tx, ty, tz = cy * vz - cz * vy, cz * vx - cx * vz, cx * vy - cy * vx
+    ux, uy, uz = cy * tz - cz * ty, cz * tx - cx * tz, cx * ty - cy * tx
+    return vx + 2.0 * (qw * tx + ux), vy + 2.0 * (qw * ty + uy), vz + 2.0 * (qw * tz + uz)
+
+
+def body_flu_to_frd(x, y, z):
+    """A body-frame vector from FLU (Gazebo, ROS) to FRD (xdyn, marine)."""
+    return x, -y, -z
+
+
 def enu_quat_to_ned_euler(qx, qy, qz, qw):
     """ENU quaternion (Gazebo) -> (phi, theta, psi) in NED.
 

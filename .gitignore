@@ -46,5 +46,11 @@ results/
 
 .claude/
 /CLAUDE.md
+
+# Unity players, downloaded from this repository's releases
+# (lotusim_unity_executables/players.json, fetch_unity_player.sh)
+lotusim_unity_executables/*_linux/
+lotusim_unity_executables/*_windows/
+lotusim_unity_executables/.download.*
 # Unity Burst debug artifacts (leak local build paths; Unity marks them DoNotShip)
 *_BurstDebugInformation_DoNotShip/

@@ -1,7 +1,7 @@
 # Wake effect — forces and data flow
 
 Companion to [`ARCHITECTURE.md` §9](ARCHITECTURE.md#9-wind-and-wake-agentsenvironment)
-and the `wind_regions` section of [`WRITE_SCENARIO.md`](WRITE_SCENARIO.md).
+and the `wind_regions` section of [Wind and wake](scenario/wind.md).
 Two diagrams: the force actually applied to a wind-enabled vehicle at a given
 instant, and the full path a wind value takes from the Unity sliders to a
 PX4-controlled drone crossing the wind farm.
@@ -138,7 +138,7 @@ actually goes on the wire between every party in the diagram above.
 
 Published on `/aerialWorld/wind` by whoever currently owns the topic — the
 Unity sliders by default, or the `Wind` agent while one of its `missions` is
-running (§5.3 of `WRITE_SCENARIO.md`). `Wake` and `wind_regions_plugin` both
+running ([Wind and wake](scenario/wind.md)). `Wake` and `wind_regions_plugin` both
 subscribe to it directly; neither cares which of the two wrote it.
 
 ### `lotusim_msgs/WindRegionArray` — the whole region list, published atomically

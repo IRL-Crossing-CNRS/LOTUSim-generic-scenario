@@ -41,6 +41,7 @@ setup(
         "console_scripts": [],
         "lotusim.tasks": [
             "fault_inspection = lotusim_sdk.tasks.fault_inspection:FaultInspectionTask",
+            "gnss_imu = lotusim_sdk.tasks.gnss_imu:GnssImuTask",
             "crack_detector = lotusim_sdk.tasks.crack_detector:CrackDetector",
             "check_battery_state = lotusim_sdk.tasks.check_battery_state:CheckBatteryStateTask",
             "waypoint_follower = lotusim_sdk.tasks.waypoint_follower:WaypointFollowerTask",

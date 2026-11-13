@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "Full-scale WAM-V 16 (VRX model) via real xdyn dynamics in waves (JONSWAP",
+    "Hs 0.5 m, Tp 3 s, from the \"waves\" block, also sent to the renderer),",
+    "same generic Navigation/Guidance/Control pipeline as",
+    "BlueROV. Two stern thrusters: surge and yaw are controllable, sway is",
+    "not, so the vehicle follows the path by steering along it."
+  ],
+  "world_file": "energy.world",
+  "waves": { "hs_m": 0.5, "tp_s": 3.0, "gamma": 1.2, "direction_deg": 0.0, "spreading_s": 2.0, "seed": 2 },
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "wamv_xdyn",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": { "x": 20.0, "y": 0.0, "z": -0.078, "yaw": 0.0 },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
+        { "id": "path", "type": "action", "task": "guidance_los_polyline",
+          "params": { "waypoints": [[60.0, 0.0, 0.0], [60.0, 30.0, 0.0], [0.0, 30.0, 0.0]],
+                      "z_start_m": 0.0, "u_setpoint_ms": 1.0, "lookahead_m": 10.0 } },
+        { "id": "control", "type": "action", "task": "wamv_control",
+          "params": { "kp_psi": 1200.0, "ki_psi": 40.0, "kd_psi": 0.0, "n_max_nm": 300.0,
+                      "kp_u": 300.0, "ki_u": 60.0, "kd_u": 0.0, "f_max_n": 500.0,
+                      "hold_radius_m": 3.0 } },
+        { "id": "allocation", "type": "action", "task": "wamv_allocation",
+          "params": { "t_max_n": 250.0 } }
+      ]
+    }
+  ]
+}

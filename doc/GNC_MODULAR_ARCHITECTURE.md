@@ -205,7 +205,7 @@ actuator command keys (xdyn stalls until it receives a complete command set).
 |---|---|---|
 | `bluerov_gnc` | `bluerov_allocation` (`ThrusterAllocator`), `bluerov_control`, `bluerov_metrics_recorder` | Navigation and the guidance tasks are re-exported aliases of the generic ones, kept for the existing `bluerov_*` registry names. The allocator analytically inverts the 6 modelled thrusters of the 8 (4 vectored + 2 vertical), so roll and pitch are not commandable |
 | `lrauv_gnc` | `LrauvControlTask`, `LrauvAllocationTask` | Allocation drives a single propeller in surge; no yaw/fin actuation, so the vehicle goes straight once launched |
-| `wamv_gnc` | `WamvControlTask` | Kinematic only — `wamv.yaml` has no thruster model to allocate against |
+| `wamv_gnc` | `WamvControlTask`, `WamvAllocationTask` | Allocation splits surge and yaw between the two stern engines; no sway. See `WAMV_MODEL.md` |
 | `dtmb_hull_gnc` | `DtmbHullControlTask` | Kinematic only |
 
 `BlueRovMetricsRecorderTask` is **not** part of the pipeline: it subscribes to
@@ -241,11 +241,10 @@ Allocation are unchanged.
   through `kinematic_allocation`. A real mixer publishing
   `gz.msgs.Actuators` on `command/motor_speed`, consumed by the
   `gz-sim-multicopter-motor-model-system` plugin already present in every
-  X500 SDF, is work in progress on a separate branch and its trajectory is
-  not yet stable. PX4 SITL remains the separate, non-GNC path for a
-  natively-flown drone.
-- **xdyn allocation for WAMV, dtmb_hull and the hull-only surface vessels.**
-  Their xdyn YAMLs declare no thruster model, so there is nothing to allocate
-  against; they are drift-only in xdyn by nature, not by omission.
+  X500 SDF, would close this gap. PX4 SITL is the separate path for a
+  realistically flown drone.
+- **xdyn allocation for dtmb_hull and the hull-only surface vessels**
+  (Fremm, Commando, PHA). Their xdyn YAMLs declare no thruster model, so they
+  drift under xdyn.
 - **Sensor-based Navigation.** Navigation is ground truth. No noise model, no
   sensor fusion.

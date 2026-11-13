@@ -1,2 +1,4 @@
-lotusim_unity_executables/** filter=lfs diff=lfs merge=lfs -text
+# The Unity players are release assets, downloaded by
+# src/simulation_run/executable/fetch_unity_player.sh (see
+# lotusim_unity_executables/players.json), not git files.
 *.pt filter=lfs diff=lfs merge=lfs -text

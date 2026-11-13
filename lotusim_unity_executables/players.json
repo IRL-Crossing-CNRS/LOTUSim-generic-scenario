@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Unity players of this branch. They are not in git: each one is an asset of the",
+    "release of this repository whose tag is the version this branch becomes (v1.3),",
+    "downloaded and checked by src/simulation_run/executable/fetch_unity_player.sh (the",
+    "launcher calls it). To ship a new player: replace the asset in that release",
+    "(gh release upload <tag> <file> --clobber) and put its sha256 here."
+  ],
+  "repository": "IRL-Crossing-CNRS/LOTUSim-generic-scenario",
+  "players": {
+    "lotusimenergy_linux": {
+      "release": "v1.3",
+      "asset": "linux_executable.tar.gz",
+      "sha256": "e9dbf4a3aec4ea96658dcfe093c7030b2bbc746e9f48885bb9b32d79e51d757b"
+    },
+    "lotusimenergy_windows": {
+      "release": "v1.3",
+      "asset": "windows_executable.tar.gz",
+      "sha256": "8493f63d2809abbb44e0947eec24829e5de9dcec35e31851a919a5535450a2cd"
+    }
+  }
+}

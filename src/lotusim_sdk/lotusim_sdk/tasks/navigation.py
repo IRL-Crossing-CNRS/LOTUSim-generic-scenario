@@ -1,7 +1,10 @@
 """Navigation block: publishes the vehicle's state estimate.
 
 Publishes ``nav_msgs/Odometry`` on ``/<world>/<agent>/navigation``, at
-``control_rate_hz``. This implementation is a passthrough of the simulator's
+``control_rate_hz``, as REP 105 defines it: the pose in the world frame (ENU,
+``header.frame_id`` = the world) and the twist in the vehicle's body frame
+(FLU, ``child_frame_id`` = the agent), so that any ROS 2 state estimator, for
+instance robot_localization's EKF, can replace this block as it is. This implementation is a passthrough of the simulator's
 ground-truth pose (``host.current_pose``/``current_twist``): no sensor model,
 no estimation error. A different Navigation implementation (an EKF fusing
 IMU/DVL/pressure) publishes the same message on the same topic; Guidance and
@@ -18,6 +21,7 @@ from nav_msgs.msg import Odometry
 from rclpy.time import Time
 
 from lotusim_sdk.bt.status import Status
+from lotusim_sdk.control.frames import world_to_body
 from lotusim_sdk.tasks.base import TaskAgent
 
 
@@ -97,10 +101,10 @@ class NavigationTask(TaskAgent):
         msg.header.frame_id = self.host.world_name
         msg.child_frame_id = self.host.agent_name
         msg.pose.pose = pose
-        msg.twist.twist.linear.x = vx
-        msg.twist.twist.linear.y = vy
-        msg.twist.twist.linear.z = vz
-        msg.twist.twist.angular.x = wx
-        msg.twist.twist.angular.y = wy
-        msg.twist.twist.angular.z = wz
+        # The simulator gives world-frame velocities; the twist is body-frame.
+        q = pose.orientation
+        lin = world_to_body(vx, vy, vz, q.x, q.y, q.z, q.w)
+        ang = world_to_body(wx, wy, wz, q.x, q.y, q.z, q.w)
+        msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z = lin
+        msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z = ang
         self._pub.publish(msg)

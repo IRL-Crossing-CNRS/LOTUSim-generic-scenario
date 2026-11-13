@@ -171,7 +171,7 @@ class X500(PhysicalEntity):
         instance = X500._next_px4_instance
         X500._next_px4_instance += 1
         # Exposed so a mission task (e.g. px4_offboard_patrol) can compute
-        # this vehicle's MAVLink offboard port (14540 + instance, see PX4's
+        # this vehicle's MAVLink offboard port (14580 + instance, see PX4's
         # px4-rc.mavlink) without re-deriving the spawn-order counter.
         self.px4_instance = instance
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
@@ -17,10 +20,6 @@ _PX4_CUSTOM_MAIN_MODE_OFFBOARD = 6
 # velocity/acceleration/yaw/yaw_rate (bits 3-10 set, per MAVLink's
 # POSITION_TARGET_TYPEMASK bit layout).
 _POSITION_ONLY_TYPE_MASK = 0b0000_1111_1111_1000
-
-# MAV_LANDED_STATE_ON_GROUND (EXTENDED_SYS_STATE.landed_state) — PX4's own
-# land-detector output.
-_MAV_LANDED_STATE_ON_GROUND = 1
 
 
 @dataclass
@@ -71,7 +70,7 @@ class Px4OffboardPatrolTask(TaskAgent):
 
     ``spawn`` is passed as a task param rather than looked up elsewhere —
     this codebase has no cross-agent config lookup (see
-    ``doc/WRITE_SCENARIO.md``), matching ``waypoint_follower``'s own
+    ``doc/scenario/tasks_patrol.md``), matching ``waypoint_follower``'s own
     ``waypoints`` param. Use the same x/y/z already in this agent's own
     scenario-JSON ``"spawn"`` block.
 
@@ -96,8 +95,15 @@ class Px4OffboardPatrolTask(TaskAgent):
             stream before accepting OFFBOARD, and a data-link health check
             (cleared by our own outgoing heartbeats) before accepting arm.
             At the default 10 Hz setpoint rate this is a 3 s wait.
+        max_speed_m_s: float, optional — horizontal speed limit (PX4's
+            MPC_XY_VEL_MAX, 12 m/s by default). With position setpoints PX4 flies
+            at the speed its position gain asks for, far too fast for short legs.
         connect_timeout_s: float, default 15.0 — how long to wait for PX4's
             first heartbeat before giving up (FAILURE) in ``on_enter``.
+        start_time_s: float, default 0.0 — simulation time at which to arm.
+            PX4 becomes ready on the wall clock, so repeats of a scenario take
+            off at different simulation times unless this holds them to the
+            same one; leave PX4 time to become ready (about 15 s).
     """
 
     def __init__(self, host, params=None, blackboard=None, id: str = "") -> None:
@@ -128,10 +134,13 @@ class Px4OffboardPatrolTask(TaskAgent):
         self._setpoint_period_s: float = 1.0 / float(self.params.get("setpoint_rate_hz", 10.0))
         self._arm_after_setpoints: int = int(self.params.get("arm_after_setpoints", 30))
         self._connect_timeout_s: float = float(self.params.get("connect_timeout_s", 15.0))
+        self._start_time_s: float = float(self.params.get("start_time_s", 0.0))
+        self._max_speed_m_s = self.params.get("max_speed_m_s")
 
         self._master = None
         self._timer = None
         self._setpoints_sent = 0
+        self._motor_listener = None
 
         # Params this task needs PX4 to hold before arming (see on_enter's
         # docstring reference and _step's param stage) — name -> (value,
@@ -188,17 +197,22 @@ class Px4OffboardPatrolTask(TaskAgent):
             self._failed = True
             return
 
-        # PX4's offboard/companion-computer link: it sends its stream to
-        # "remote port" 14540 + instance (see PX4-Autopilot's
-        # ROMFS/px4fmu_common/init.d-posix/px4-rc.mavlink), and pymavlink's
-        # udpin mode both listens there AND learns the reply address from
-        # whatever source port that stream actually arrives from — no need to
-        # separately know PX4's own listening port (14580 + instance).
-        port = 14540 + instance
-        logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: connecting on udp:0.0.0.0:{port}...")
-        self._master = mavutil.mavlink_connection(f"udpin:0.0.0.0:{port}")
+        # PX4's offboard/companion-computer link, on the port PX4 listens to
+        # (14580 + instance). Its outgoing port is no use here: PX4 sends to
+        # 14540 + instance only up to instance 9, and every higher instance
+        # shares 14549 (ROMFS/px4fmu_common/init.d-posix/px4-rc.mavlink). PX4
+        # answers whoever it hears from first, so this side speaks first.
+        port = 14580 + instance
+        logger.info(f"[{self.host.agent_name}] px4_offboard_patrol: connecting on udp:127.0.0.1:{port}...")
+        self._master = mavutil.mavlink_connection(f"udpout:127.0.0.1:{port}")
 
-        if self._master.wait_heartbeat(timeout=self._connect_timeout_s) is None:
+        heartbeat = None
+        deadline = time.monotonic() + self._connect_timeout_s
+        while heartbeat is None and time.monotonic() < deadline:
+            self._master.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+            heartbeat = self._master.wait_heartbeat(timeout=1.0)
+
+        if heartbeat is None:
             logger.error(
                 f"[{self.host.agent_name}] px4_offboard_patrol: no MAVLink "
                 f"heartbeat on port {port} within {self._connect_timeout_s}s."
@@ -254,10 +268,18 @@ class Px4OffboardPatrolTask(TaskAgent):
             b"CBRK_SUPPLY_CHK": (894281.0, mavutil.mavlink.MAV_PARAM_TYPE_INT32),
             b"COM_LOW_BAT_ACT": (0.0, mavutil.mavlink.MAV_PARAM_TYPE_INT32),
         }
+        if self._max_speed_m_s is not None:
+            self._pending_params[b"MPC_XY_VEL_MAX"] = (
+                float(self._max_speed_m_s),
+                mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+            )
 
         self._timer = self.host.create_timer(self._setpoint_period_s, self._step, callback_group=self.callback_group)
 
     def on_exit(self, _status: Status) -> None:
+        if self._motor_listener is not None:
+            self._motor_listener.terminate()
+            self._motor_listener = None
         if self._timer is not None:
             self._timer.cancel()
             self.host.destroy_timer(self._timer)
@@ -304,13 +326,12 @@ class Px4OffboardPatrolTask(TaskAgent):
         )
 
         # Drain any pending telemetry (non-blocking): a position fix to judge
-        # arrival/altitude, EXTENDED_SYS_STATE for the land-detector's own
-        # airborne verdict, PARAM_VALUE confirming a param stage request, and
+        # arrival/altitude, PARAM_VALUE confirming a param stage request, and
         # any COMMAND_ACK for the flight-sequence requests below.
         pos = None
         while True:
             msg = self._master.recv_match(
-                type=["LOCAL_POSITION_NED", "EXTENDED_SYS_STATE", "COMMAND_ACK", "PARAM_VALUE"],
+                type=["LOCAL_POSITION_NED", "COMMAND_ACK", "PARAM_VALUE"],
                 blocking=False,
             )
             if msg is None:
@@ -318,9 +339,6 @@ class Px4OffboardPatrolTask(TaskAgent):
             msg_type = msg.get_type()
             if msg_type == "LOCAL_POSITION_NED":
                 pos = msg
-            elif msg_type == "EXTENDED_SYS_STATE":
-                if msg.landed_state != _MAV_LANDED_STATE_ON_GROUND:
-                    self._airborne = True
             elif msg_type == "PARAM_VALUE":
                 self._handle_param_value(msg)
             else:
@@ -356,18 +374,24 @@ class Px4OffboardPatrolTask(TaskAgent):
         )
         self._setpoints_sent += 1
 
-        # Airborne fallback: EXTENDED_SYS_STATE isn't guaranteed on every
-        # mavlink instance/PX4 build. If altitude has clearly left the
-        # ground, that's proof enough on its own.
-        if pos is not None and -pos.z > 1.0:
+        # Airborne means clear of the ground, on the height estimate, after the
+        # takeoff command. The land detector leaves ON_GROUND as the thrust ramps
+        # up, with the airframe still on the ground, and at times before arming.
+        # OFFBOARD then tilts towards the first waypoint from the ground: the
+        # motors saturate on the torque, their total thrust stays below the
+        # weight, and the airframe never lifts (5 runs in 16).
+        if pos is not None and self._takeoff_acked and not self._airborne and -pos.z > 1.0:
             self._airborne = True
+            self._last_command_attempt_step = -1_000_000  # request OFFBOARD at once, not on the 1 Hz retry grid
 
         if not self._params_confirmed:
             self._drive_param_stage()
             return
 
         if not self._offboard_engaged:
-            if self._setpoints_sent >= self._arm_after_setpoints:
+            if self._motor_listener is None and self._start_time_reached(lead_s=5.0):
+                self._listen_to_motor_topic()
+            if self._setpoints_sent >= self._arm_after_setpoints and self._start_time_reached():
                 self._drive_takeoff_sequence()
             return
 
@@ -380,6 +404,30 @@ class Px4OffboardPatrolTask(TaskAgent):
         distance = (dn * dn + de * de + dd * dd) ** 0.5
         if distance <= self._hold_radius_m:
             self._advance_target()
+
+    def _start_time_reached(self, lead_s: float = 0.0) -> bool:
+        now = self.host.current_pose_sim_time
+        return self._start_time_s <= 0.0 or (now is not None and now >= self._start_time_s - lead_s)
+
+    def _listen_to_motor_topic(self) -> None:
+        """Keep a subscriber on PX4's motor topic for as long as this task runs.
+
+        In some runs PX4 publishes its motor commands and Gazebo's motor plugin
+        never receives them: the rotors stay still at any commanded thrust. As
+        soon as another process subscribes to the topic the commands reach the
+        plugin, and they stop when it leaves, the rotors then holding their last
+        command.
+
+        shortcut: works around a gz-transport connection fault whose cause is not
+        identified, replace it once PX4 and the plugin connect reliably.
+        """
+        if shutil.which("gz") is None:
+            return
+        topic = f"/{self.host.agent_name}/command/motor_speed"
+        command = ["gz", "topic", "-e", "-t", topic]
+        if shutil.which("setpriv") is not None:  # so that it does not outlive a killed agent
+            command = ["setpriv", "--pdeathsig", "TERM"] + command
+        self._motor_listener = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def _ready_to_retry(self) -> bool:
         """1 Hz retry/step gate for the one-shot commands below, expressed in

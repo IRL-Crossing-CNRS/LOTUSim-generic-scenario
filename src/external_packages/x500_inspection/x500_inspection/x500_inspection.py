@@ -21,6 +21,14 @@ class X500Inspection(X500):
     from the mission JSON (see doc/MISSIONS.md).
     """
 
-    def __init__(self, sdf_string: str, world_name: str, xdyn_enabled: bool, **kwargs):
-        super().__init__(sdf_string, world_name, xdyn_enabled)
+    def __init__(
+        self,
+        sdf_string: str,
+        world_name: str,
+        xdyn_enabled: bool,
+        px4_enabled: bool = False,
+        px4_control: str = "manual",
+        **kwargs,
+    ):
+        super().__init__(sdf_string, world_name, xdyn_enabled, px4_enabled=px4_enabled, px4_control=px4_control)
         self.renderer_type_name = "x500_inspection"

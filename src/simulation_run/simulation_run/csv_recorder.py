@@ -101,7 +101,7 @@ config (not from what happens to arrive first at runtime):
   because this recorder has no handle on those values and writing zeros would
   claim the run was current-free. ``current_vz_mps`` reflects the agent's configured ``z``, but
   KinematicInterface's own pose integration is 2D (x/y + yaw) only, see
-  §5.4 of ``WRITE_SCENARIO.md`` — it has no physical effect yet.
+  ``doc/scenario/current.md`` — it has no physical effect yet.
 - Battery columns (only agents spawned with a battery sensor, e.g.
   ``sdf_file: "model-battery.sdf"``): ``battery_voltage, battery_charge_ah,
   battery_capacity_ah, battery_percentage, battery_status``.
@@ -428,13 +428,19 @@ def _mission_specs_from_scenario(scenario: dict, ref_lat: float, ref_lon: float,
                         # spawn in x/y and absolute in depth. Anchored on the
                         # spawn, like the guidance laws, which resolve every
                         # entry against the first pose rather than against the
-                        # previous waypoint.
-                        path.append((base_cursor[0] + float(wp[0]), base_cursor[1] + float(wp[1])))
+                        # previous waypoint. dx/dy are NED (north, east), as
+                        # the guidance laws read them, while this path is ENU
+                        # (east, north): swap them.
+                        path.append((base_cursor[0] + float(wp[1]), base_cursor[1] + float(wp[0])))
                     elif "x" in wp and "y" in wp:
                         path.append((float(wp["x"]), float(wp["y"])))
                     else:
                         path.append(_latlon_to_enu(wp["lat"], wp["lon"], ref_lat, ref_lon, ref_alt))
                 entry["path"] = path
+                # Polyline guidance switches segment once the vehicle passes
+                # the end of the current one, whether or not it came within
+                # the tolerance of the corner: track the same segment here.
+                entry["advance_on_pass"] = isinstance(waypoints[0], (list, tuple))
                 cursor = path[-1]  # next mission's leg starts where this one ended
             mission_list.append(entry)
         if not mission_list:
@@ -898,6 +904,10 @@ class CsvRecorder(Node):
         arrival_error_m = ""
         arrival_error_pct = ""
         mission_complete = 0
+
+        if not arrived and mission.get("advance_on_pass") and progress_pct >= 100.0 and leg_idx + 1 < len(path):
+            self._leg_idx[agent] = leg_idx + 1
+            self._leg_min_distance[agent] = float("inf")
 
         if arrived:
             leg_len = math.hypot(target_xy[0] - prev_xy[0], target_xy[1] - prev_xy[1])

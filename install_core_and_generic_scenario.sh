@@ -6,6 +6,7 @@
 #  Optional: PX4 SITL for aerial X500 drones (question 3 / INSTALL_PX4=1)
 #  Optional: YOLO detection on an NVIDIA GPU (question 4 / INSTALL_GPU=1)
 #  Unity player(s) to download (question 5 / INSTALL_UNITY_PLAYER=linux|windows|all)
+#  WSL only: open the simulation to other machines (question 6 / INSTALL_WSL_NETWORK=1)
 #
 #  Installs the LOTUSim core (~/lotusim_ws) and the generic scenario
 #  workspace (~/Documents/workspace/lotusim), built in their nix devshells,
@@ -281,7 +282,9 @@ fi
 #
 # The crack and corrosion detection tasks run on the CPU by default. On a
 # machine with an NVIDIA GPU and its driver, the scenario workspace's "gpu"
-# devshell runs them with CUDA instead, for about 7 GB more of downloads.
+# devshell runs them with CUDA instead: about 4 GB more once installed, but
+# NVIDIA's libraries are not in nix's public cache and are unpacked locally,
+# so the first install needs about 20 GB more free disk.
 # The choice is stored in ~/.config/lotusim/devshell ("default" or
 # "gpu"), which lotusim_shell reads; edit it to switch later.
 #
@@ -298,7 +301,8 @@ else
   echo "-------------------------------------------------------------"
   echo "  Run the YOLO detection on an NVIDIA GPU?"
   echo ""
-  echo "  Downloads NVIDIA's CUDA build of PyTorch (about 7 GB more)."
+  echo "  Adds NVIDIA's CUDA build of PyTorch: about 4 GB once installed,"
+  echo "  and about 20 GB more free disk during the first install."
   echo "  Without it the crack and corrosion detection runs on the CPU,"
   echo "  slower but with the same results."
   if [[ "$HAS_NVIDIA_GPU" == "1" ]]; then
@@ -307,7 +311,9 @@ else
     echo "  No NVIDIA GPU (nvidia-smi) was found on this machine."
   fi
   echo "-------------------------------------------------------------"
-  if [[ "$HAS_NVIDIA_GPU" == "1" ]]; then GPU_PROMPT="[Y/n]"; GPU_DEFAULT="1"; else GPU_PROMPT="[y/N]"; GPU_DEFAULT="0"; fi
+  # No by default even with a GPU: only the YOLO detection gets faster, and
+  # the CUDA libraries cost about 20 GB of disk on the first install.
+  GPU_PROMPT="[y/N]"; GPU_DEFAULT="0"
   INSTALL_GPU_FLAG=""
   while [[ -z "$INSTALL_GPU_FLAG" ]]; do
     read -rp "Use the GPU for detection? ${GPU_PROMPT}: " yn
@@ -381,6 +387,48 @@ case "$UNITY_PLAYER" in
 esac
 
 # -----------------------------------------------------------------------------
+# Question 6 (WSL only) — let Unity players on other machines connect
+#
+# By default WSL sits behind a NAT: a Unity player on another machine cannot
+# reach the simulation run here. wsl_network.sh setup switches WSL to mirrored
+# networking and opens port 10000 in the firewalls (one Windows administrator
+# prompt), at the end of this install. See doc/WINDOWS_WSL.md.
+#
+# Non-interactive override: INSTALL_WSL_NETWORK=1|0
+# -----------------------------------------------------------------------------
+WSL_NETWORK_FLAG="0"
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  if [[ "${INSTALL_WSL_NETWORK:-}" == "1" || "${INSTALL_WSL_NETWORK:-}" == "0" ]]; then
+    WSL_NETWORK_FLAG="${INSTALL_WSL_NETWORK}"
+  else
+    echo ""
+    echo "-------------------------------------------------------------"
+    echo "  Let Unity players on other machines join simulations run here?"
+    echo ""
+    echo "  Switches WSL to mirrored networking, so that it shares this"
+    echo "  PC's network address, and opens port 10000 (ROS-TCP) in the"
+    echo "  firewalls: one Windows administrator prompt at the end of the"
+    echo "  install, then 'wsl --shutdown' once. Without it, only the"
+    echo "  Unity player on this PC can connect."
+    echo "-------------------------------------------------------------"
+    WSL_NETWORK_FLAG=""
+    while [[ -z "$WSL_NETWORK_FLAG" ]]; do
+      read -rp "Open the simulation to other machines? [Y/n]: " yn
+      case "$yn" in
+        [yY]|[yY][eE][sS]|"") WSL_NETWORK_FLAG="1" ;;
+        [nN]|[nN][oO])        WSL_NETWORK_FLAG="0" ;;
+        *) warn "Please answer y or n" ;;
+      esac
+    done
+  fi
+  if [[ "$WSL_NETWORK_FLAG" == "1" ]]; then
+    success "WSL networking: mirrored, port 10000 open (set up at the end)"
+  else
+    info "WSL networking: unchanged (later: src/simulation_run/executable/wsl_network.sh setup)"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 # Create workspace and clone LOTUSim core
 # -----------------------------------------------------------------------------
 check_existing_remote() {
@@ -440,8 +488,12 @@ BASHRC_END="# <<< LOTUSim setup <<<"
 
 # A block written by an earlier installer is replaced rather than kept: the
 # apt-based one sources a system ROS 2 and points at directories the core no
-# longer has, and the first nix one always opened the CPU devshell.
-if grep -qF "$BASHRC_MARKER" ~/.bashrc && ! grep -qF ".config/lotusim/devshell" ~/.bashrc; then
+# longer has, the first nix one always opened the CPU devshell, and the second
+# left the devshells unprotected from nix-collect-garbage.
+# A block written by an older installer is replaced: one without the devshell
+# profiles, or one whose lotusim_shell starts the devshell's own bash
+# (built without readline: no completion, no copy-paste).
+if grep -qF "$BASHRC_MARKER" ~/.bashrc && { ! grep -qF "LOTUSIM_PROFILES" ~/.bashrc || ! grep -qF -- '--command "${BASH:-/bin/bash}"' ~/.bashrc; }; then
   info "Replacing the previous LOTUSim block in ~/.bashrc (backup: ~/.bashrc.lotusim.bak)..."
   cp ~/.bashrc ~/.bashrc.lotusim.bak
   sed -i "/^${BASHRC_MARKER}\$/,/^${BASHRC_END}\$/d" ~/.bashrc
@@ -458,10 +510,24 @@ export LOTUSIM_PATH="\$LOTUSIM_WS/src/LOTUSim"
 export LOTUSIM_MODELS_PATH="\$LOTUSIM_PATH/assets/models/"
 export LOTUSIM_SCENARIO_WS="\$HOME/Documents/workspace/lotusim/LOTUSim-generic-scenario"
 
+# nix develop registers nothing against nix-collect-garbage on its own: without
+# a profile, a garbage collection deletes the devshells and the next entry
+# downloads them again. Each entry below records its devshell as a profile here
+# and drops the older generations, so a collection frees only what is unused.
+export LOTUSIM_PROFILES="\$HOME/.local/state/lotusim_core"
+_lotusim_develop() {
+  local profile="\$LOTUSIM_PROFILES/\$1"; shift
+  mkdir -p "\$LOTUSIM_PROFILES"
+  nix develop --profile "\$profile" "\$@"
+  local status=\$?
+  nix-env --delete-generations old -p "\$profile" >/dev/null 2>&1
+  return \$status
+}
+
 # 'lotusim_core <task> [args]' runs a task of the core in its devshell:
-#   lotusim_core build | test | check | sim [--gui] <world>
+#   lotusim_core build | rebuild | test | check | sim [--gui] <world>
 lotusim_core() {
-  ( cd "\$LOTUSIM_PATH" && nix develop --command mise run "\$@" )
+  ( cd "\$LOTUSIM_PATH" && _lotusim_develop core --command mise run "\$@" )
 }
 
 # 'lotusim_shell' opens the scenario workspace's devshell, built
@@ -472,8 +538,8 @@ lotusim_shell() {
   local devshell
   devshell="\$(cat "\$HOME/.config/lotusim/devshell" 2>/dev/null || echo default)"
   cd "\$LOTUSIM_SCENARIO_WS" && \\
-    nix develop ".#\$devshell" --override-input lotusim "\$LOTUSIM_PATH" \\
-      --command bash --rcfile "\$HOME/.config/lotusim/shellrc"
+    _lotusim_develop scenario ".#\$devshell" --override-input lotusim "\$LOTUSIM_PATH" \\
+      --command "\${BASH:-/bin/bash}" --rcfile "\$HOME/.config/lotusim/shellrc"
 }
 # <<< LOTUSim setup <<<
 BASHRC_BLOCK
@@ -488,7 +554,13 @@ fi
 mkdir -p "$HOME/.config/lotusim"
 echo "$SCENARIO_DEVSHELL" > "$HOME/.config/lotusim/devshell"
 cat > "$HOME/.config/lotusim/shellrc" <<'SHELLRC'
-PS1="(lotusim_core) $PS1"
+# Read by lotusim_shell's interactive bash, inside the devshell.
+HISTCONTROL=ignoreboth
+shopt -s histappend checkwinsize
+[[ -f ~/.bash_aliases ]] && source ~/.bash_aliases
+alias ls='ls --color=auto' grep='grep --color=auto'
+[[ $- == *i* && -f /usr/share/bash-completion/bash_completion ]] && help complete &>/dev/null && source /usr/share/bash-completion/bash_completion
+PS1='(lotusim_core) \[\e[01;32m\]\u@\h\[\e[00m\]:\[\e[01;34m\]\w\[\e[00m\]\$ '
 [[ -f "$LOTUSIM_PATH/install/setup.bash" ]] && source "$LOTUSIM_PATH/install/setup.bash"
 [[ -f install/setup.bash ]] && source install/setup.bash
 SHELLRC
@@ -560,7 +632,8 @@ CORE_INSTALL="$LOTUSIM_PATH/install"
 if [[ ! -f "$CORE_INSTALL/setup.bash" ]]; then
   info "Building the LOTUSim core in its devshell (the first run downloads a lot)..."
   purge_foreign_colcon_artifacts "$LOTUSIM_PATH"
-  ( cd "$LOTUSIM_PATH" && nix develop --command mise run build ) \
+  mkdir -p "$HOME/.local/state/lotusim_core"
+  ( cd "$LOTUSIM_PATH" && nix develop --profile "$HOME/.local/state/lotusim_core/core" --command mise run build ) \
     || die "Core build failed. Enter it yourself with: cd $LOTUSIM_PATH && nix develop"
   success "Core built"
 else
@@ -608,6 +681,28 @@ info "Ensuring the LFS content is fetched (Unity ${UNITY_PLAYER} player, models)
 git lfs pull
 success "LFS content up to date"
 
+# Branches with lotusim_unity_executables/players.json no longer keep the
+# players in git: each is a release asset, downloaded with the GitHub CLI (the
+# a one-time `gh auth login` is needed). The launcher
+# downloads a missing player too; doing it here spares the first run the wait.
+FETCH_PLAYER="src/simulation_run/executable/fetch_unity_player.sh"
+if [[ -f lotusim_unity_executables/players.json && -x "$FETCH_PLAYER" ]]; then
+  case "$UNITY_PLAYER" in
+    all) PLAYERS_TO_FETCH="lotusimenergy_linux lotusimenergy_windows" ;;
+    *)   PLAYERS_TO_FETCH="lotusimenergy_${UNITY_PLAYER}" ;;
+  esac
+  if command -v gh >/dev/null 2>&1; then GH=(gh); else GH=(nix --extra-experimental-features "nix-command flakes" run nixpkgs#gh --); fi
+  if ! "${GH[@]}" auth status >/dev/null 2>&1; then
+    info "The Unity player is downloaded from GitHub: log in once with the GitHub CLI."
+    "${GH[@]}" auth login --git-protocol ssh || warn "GitHub CLI login failed: scenario_launch.sh will ask again"
+  fi
+  for player in $PLAYERS_TO_FETCH; do
+    "./$FETCH_PLAYER" "$player" \
+      && success "Unity player $player installed" \
+      || warn "Unity player $player not downloaded: run $FETCH_PLAYER $player once logged in (gh auth login)"
+  done
+fi
+
 # -----------------------------------------------------------------------------
 # Build
 #
@@ -626,7 +721,9 @@ PWD_SCENARIO="$PWD"
 # are built against one ROS 2 rather than against whatever github holds.
 info "Building LOTUSim generic scenario with colcon, in its devshell..."
 purge_foreign_colcon_artifacts "$PWD"
-( cd "$PWD_SCENARIO" && nix develop ".#$SCENARIO_DEVSHELL" --override-input lotusim "$LOTUSIM_PATH" \
+mkdir -p "$HOME/.local/state/lotusim_core"
+( cd "$PWD_SCENARIO" && nix develop --profile "$HOME/.local/state/lotusim_core/scenario" \
+    ".#$SCENARIO_DEVSHELL" --override-input lotusim "$LOTUSIM_PATH" \
     --command bash -c \
     "source '$LOTUSIM_PATH/install/setup.bash' && colcon build --symlink-install" ) \
   || die "Scenario build failed. Enter the shell yourself with: cd $PWD_SCENARIO && nix develop --override-input lotusim $LOTUSIM_PATH"
@@ -640,7 +737,7 @@ success "Scenario built"
 #   1. system + Python build dependencies
 #   2. clone ~/PX4-Autopilot (recursive)
 #   3. known clang>=18 VLA fix
-#   4. make px4_sitl gz_x500
+#   4. make px4_sitl
 #   5. persist PX4_AUTOPILOT_PATH in ~/.bashrc
 # Idempotent: an existing built checkout is only submodule-updated.
 # -----------------------------------------------------------------------------
@@ -810,50 +907,33 @@ if [[ "$INSTALL_PX4_FLAG" == "1" ]]; then
   fi
 
   if [[ ! -f "$PX4_DIR/build/px4_sitl_default/bin/px4" ]]; then
-    info "Building PX4 SITL gz_x500 (this may take 30-60 minutes; output in $PX4_DIR/build_px4_install.log)..."
-    # 'make px4_sitl gz_x500' ends by launching an interactive pxh> shell
-    # that would block forever, so run it in the background, wait for the
-    # auto-launched px4 process, kill it, then verify the binary directly.
+    info "Building PX4 SITL (this may take 30-60 minutes; output in $PX4_DIR/build_px4_install.log)..."
+    # 'make px4_sitl', not 'make px4_sitl gz_x500': gz_x500 is a run target
+    # (src/modules/simulation/gz_bridge/CMakeLists.txt) that depends on px4
+    # and px4_gz_plugins, both already in the default build, then launches
+    # px4 in an interactive pxh> shell. With no terminal that shell redraws
+    # its prompt forever, ~400 MB of log per minute: an installer that died
+    # before killing it once filled a 20 GB disk. Built in the foreground,
+    # so Ctrl+C or a closed terminal stops the build with the installer.
     #
     # CC/CXX pinned to clang: if the system's 'cc'/'c++' alternatives resolve
     # to different compiler families (e.g. cc -> gcc, c++ -> clang++), PX4's
     # CMake adds clang-only flags for C++ that GCC then rejects on .c files.
-    ( cd "$PX4_DIR" && CC=clang CXX=clang++ make px4_sitl gz_x500 > build_px4_install.log 2>&1 ) &
-    MAKE_PID=$!
-    for _ in $(seq 1 480); do   # up to ~2 h
-      if ! kill -0 "$MAKE_PID" 2>/dev/null; then break; fi
-      if pgrep -f "$PX4_DIR/build/px4_sitl_default/bin/px4" >/dev/null 2>&1; then
-        info "Build finished -- stopping the auto-launched pxh shell..."
-        sleep 5
-        pkill -f "$PX4_DIR/build/px4_sitl_default/bin/px4" 2>/dev/null || true
-        sleep 2
-        break
-      fi
-      sleep 15
-    done
-    kill "$MAKE_PID" 2>/dev/null || true
-    wait "$MAKE_PID" 2>/dev/null || true
-
-    # Best-effort cleanup of the few seconds of pxh session logs
-    find "$PX4_DIR/build" -type d -name microsd -exec rm -rf "{}"/* \; 2>/dev/null || true
+    ( cd "$PX4_DIR" && CC=clang CXX=clang++ make px4_sitl > build_px4_install.log 2>&1 ) || true
 
     if [[ ! -f "$PX4_DIR/build/px4_sitl_default/bin/px4" ]]; then
-      # Show WHY the build failed before dying (compiler error, OOM kill,
-      # or the ~2 h watcher timeout on slow machines).
+      # Show WHY the build failed before dying (compiler error, OOM kill).
       warn "PX4 build did not produce the binary -- last 40 lines of $PX4_DIR/build_px4_install.log:"
       tail -n 40 "$PX4_DIR/build_px4_install.log" || true
       die "PX4 binary not found after build. Inspect $PX4_DIR/build_px4_install.log, fix, then re-run this script (it will resume)."
     fi
     success "PX4 SITL built: $PX4_DIR/build/px4_sitl_default/bin/px4"
-
-    # The one-shot 'make ... gz_x500' run may leave a stray px4 process behind
-    pkill -f 'build/px4_sitl_default/bin/px4' 2>/dev/null || true
   else
     info "PX4 SITL binary already built -- skipping (delete $PX4_DIR/build to force a rebuild)"
   fi
 
   # Persist PX4_AUTOPILOT_PATH for future shells. Separate idempotent block,
-  # so adding PX4 later still works even though the main Draft block exists.
+  # so adding PX4 later still works even though the main block exists.
   PX4_MARKER="# >>> LOTUSim PX4 setup >>>"
   if ! grep -qF "$PX4_MARKER" ~/.bashrc; then
     cat >> ~/.bashrc <<PX4_BLOCK
@@ -898,6 +978,19 @@ if [[ "$USAGE_MODE" == "user" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# WSL only (question 6): mirrored networking and port 10000 in the firewalls
+# -----------------------------------------------------------------------------
+WSL_NETWORK_SCRIPT="$SCENARIO_WS/LOTUSim-generic-scenario/src/simulation_run/executable/wsl_network.sh"
+if [[ "$WSL_NETWORK_FLAG" == "1" ]]; then
+  if [[ -f "$WSL_NETWORK_SCRIPT" ]]; then
+    info "Opening the simulation to Unity players on other machines..."
+    bash "$WSL_NETWORK_SCRIPT" setup || warn "WSL network setup incomplete: run $WSL_NETWORK_SCRIPT setup again"
+  else
+    warn "$WSL_NETWORK_SCRIPT not found on this branch -- WSL networking left unchanged"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 # Done
 # -----------------------------------------------------------------------------
 echo ""
@@ -930,5 +1023,8 @@ echo "      an up-to-date WSL on Win10). If rendering glitches occur, try:"
 echo "        export LIBGL_ALWAYS_SOFTWARE=1"
 echo "    - PX4 agents ('px4': true) run fine headless in WSL; QGroundControl"
 echo "      is easiest inside WSLg too (AppImage), connecting to localhost."
+echo "    - The Windows Unity player is kept in %LOCALAPPDATA%\\LOTUSim\\players."
+echo "    - Unity players on other machines: see doc/WINDOWS_WSL.md; the"
+echo "      launcher prints the address to enter at every run."
 fi
 echo "=================================================================="

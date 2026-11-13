@@ -4,7 +4,7 @@ How to run a LOTUSim world at a real-time factor (RTF) greater than 1, and how
 the waypoint guidance stays correct when you do.
 
 > Scope: the RTF mechanism and the `guidance_clock` mission parameter. For the
-> full scenario JSON reference see [`WRITE_SCENARIO.md`](WRITE_SCENARIO.md); for
+> full scenario JSON reference see [the generic scenario reference](scenario/README.md); for
 > the BT task lifecycle see [`MISSIONS.md`](MISSIONS.md).
 
 ---
@@ -92,18 +92,18 @@ Launch:
 ./src/simulation_run/executable/scenario_launch.sh --config basic_examples/waypoint_solo_accelerated50x.json
 ```
 
-## 4. Measuring the achieved RTF
+## 4. Checking the achieved RTF
 
-The CSV recorder (`record_csv: true`) samples every agent on a **wall-clock**
-timer at `rate_hz` (default 2 Hz) and writes the Gazebo sim time (from `/stats`)
-into the `sim_time_s` column. So the achieved RTF is the sim-time advance per
-row times the sample rate:
+Read it from the world's own statistics topic while the scenario runs:
 
-```
-achieved_RTF = (sim_time_s[last] - sim_time_s[first]) / (num_rows - 1) * rate_hz
+```bash
+gz topic -e -t /world/energy/stats | grep real_time_factor
 ```
 
-For example, a 50× run producing 88 rows spanning 10.4 → 2169.3 sim-s measures
-`2158.9 / 87 * 2 ≈ 49.6×` — i.e. it reached the requested factor because the
-kinematic energy world is cheap to step. A heavier world (many XDyn hulls,
-sensors, collisions) will measure below its target.
+Use the topic of your world, `/world/<world>/stats`. The bare `/stats` topic
+is shared by every world of the run, the aerial world included, and shows
+whichever one answers.
+
+A world below its target is limited by the machine: many xdyn hulls, sensors
+or agents slow each step down. Lower the target, or the load, until the
+achieved factor holds.

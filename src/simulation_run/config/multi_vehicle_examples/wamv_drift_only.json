@@ -1,9 +1,9 @@
 {
   "_comment": [
     "WAMV hull, xdyn drift-only under its own embedded Ekman current and",
-    "wave spectrum -- no thruster model, no Allocation task. Spawn z=0.096",
-    "is the vessel's equilibrium draft. Distinct from wamv_kinematic.json,",
-    "which is Kinematic and controllable."
+    "wave spectrum -- no Allocation task, so both thrusters stay at zero.",
+    "Spawn z=-0.078 puts the keel at its equilibrium draft. wamv_xdyn.json is the",
+    "same vehicle under thrust, wamv_kinematic.json the Kinematic one."
   ],
   "world_file": "energy.world",
   "renderer_unity": true,
@@ -14,7 +14,7 @@
       "class": "Wamv",
       "nb_agents": 1,
       "xdyn": true,
-      "spawn": { "x": 20.0, "y": 0.0, "z": 0.096, "yaw": 0.0 },
+      "spawn": { "x": 20.0, "y": 0.0, "z": -0.078, "yaw": 0.0 },
       "tick_rate_hz": 1.0,
       "missions": [
         { "id": "navigation", "type": "action", "task": "navigation", "params": {} }

@@ -14,11 +14,12 @@ setup(
     zip_safe=True,
     maintainer="Juliette Grosset",
     maintainer_email="jgrosset10@gmail.com",
-    description="WAMV under the generic GNC pipeline (Kinematic today; xdyn Allocation once a thruster model exists).",
+    description="WAMV under the generic GNC pipeline (Kinematic or xdyn twin-thruster Allocation).",
     license="EPL-2.0",
     entry_points={
         "lotusim.tasks": [
             "wamv_control = wamv_gnc:WamvControlTask",
+            "wamv_allocation = wamv_gnc:WamvAllocationTask",
         ],
         "console_scripts": [],
     },

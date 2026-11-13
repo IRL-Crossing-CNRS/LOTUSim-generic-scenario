@@ -32,7 +32,9 @@ flowchart LR
 
 - **Host**: runs Gazebo, the LOTUSim systems, the Unity renderer, and launches
   scenarios from `src/simulation_run/config/*.json` via `simulation_run`.
-  Built with `lotusim clean_build`. Always launches **two** Gazebo worlds —
+  The core is built with `lotusim_core build` (`mise run build` in its
+  devshell), this workspace with `colcon build` inside `lotusim_shell`.
+  Always launches **two** Gazebo worlds —
   the scenario's own plus a hardcoded `aerialWorld.world` — see §5.1.
 - **Remote**: runs only `lotusim_client.run_agent` — no Gazebo. It spawns an
   agent into the host's simulation over ROS 2 and ticks that agent's BT
@@ -109,7 +111,7 @@ external_packages/
 │                                  # self._missions.add_task(...) instead of scenario JSON
 ├── bluerov_gnc/                  # BlueROV2 Heavy thruster Allocation + Control + metrics recorder
 ├── lrauv_gnc/                    # LRAUV Control + single-propeller Allocation
-├── wamv_gnc/                     # WAMV Control (Kinematic only: no thruster model in its xdyn YAML)
+├── wamv_gnc/                     # WAMV Control and Allocation (two stern engines)
 └── dtmb_hull_gnc/                # dtmb_hull Control (Kinematic only)
 ```
 
@@ -249,8 +251,8 @@ every agent in the process:
 - one discovery timer per world that queries the ROS graph once a second and
   dispatches matching `/{world}/{agent}/...` topics to the owning entity.
 
-This eliminates an `O(N²)` scaling bottleneck that previously starved the
-process (including spawn confirmations) once agent counts got large.
+Per-agent subscriptions and timers would cost `O(N²)` as the fleet grows, and
+starve the process, spawn confirmations included.
 
 `agent_name` is a **property**, not a plain attribute: its setter moves this
 entity's entry in the shared registry above whenever the name changes (host
@@ -311,8 +313,8 @@ sequenceDiagram
     SimRunner->>SimRunner: rclpy.init(); MultiThreadedExecutor()
     SimRunner->>SimRunner: reset_gazebo_state()
     SimRunner->>SimRunner: build_launch_command() -> [aerialWorld.world, world_file]
-    SimRunner->>Gazebo: terminal -> lotusim run aerialWorld.world
-    SimRunner->>Gazebo: terminal -> lotusim run *.world
+    SimRunner->>Gazebo: mise run --cd $LOTUSIM_PATH sim aerialWorld.world
+    SimRunner->>Gazebo: mise run --cd $LOTUSIM_PATH sim *.world
     SimRunner->>RosMgr: initialize_ros_components(executor, agents, world_name, ...)
 
     RosMgr->>AgentsMgr: AgentsManager(); add_agents(agents, ...)
@@ -380,7 +382,7 @@ enabled, `X500` spawns the `x500_px4` model (PX4-actuated via gz
 `confirm_spawn()` — fired once the host has assigned the entity's final name,
 for both the batch and single-send spawn paths — `X500._start_px4_sitl()`
 launches an external PX4 binary (`PX4_AUTOPILOT_PATH`, prebuilt via
-`make px4_sitl gz_x500`) as a subprocess, one per instance
+`make px4_sitl`) as a subprocess, one per instance
 (`X500._next_px4_instance`, so `MAV_SYS_ID` and the working directory —
 EEPROM/dataman/logs — never collide across instances), which attaches over
 gz-transport to the airframe already spawned in `aerialWorld`
@@ -647,7 +649,7 @@ wrote what is on it, or which shape any given region uses.
   slowly (`0.58 * (x/D)^-0.35`) that a 5% deficit is not reached until
   roughly `x/D=1100`, so the cap is what actually determines wake length for
   any realistic setting — see `Wake`'s `wind_regions` docs in
-  WRITE_SCENARIO.md. `wind_changed_enough` gates how often the whole thing is
+  [scenario/wind.md](scenario/wind.md). `wind_changed_enough` gates how often the whole thing is
   regenerated: doing it on every wind message would mean reshuffling every
   wake segment on a topic the Gazebo plugin re-scans per wind-enabled link,
   per physics tick, for a wind vector that may have barely moved.

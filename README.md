@@ -34,6 +34,12 @@ lotusim_shell
 colcon build --symlink-install
 ```
 
+After changing the core, rebuild it first, from any terminal:
+
+```bash
+lotusim_core build      # lotusim_core rebuild to start from a clean tree
+```
+
 ---
 
 ## Running a scenario
@@ -78,38 +84,63 @@ Launch it:
 
 `ROS_IP` is auto-detected (override by exporting it yourself before running,
 e.g. `export ROS_IP=192.168.1.42`, if Unity needs a specific interface).
-Add `--debug` for verbose output and `--gui` to show the Gazebo GUI. The
+Add `--debug` for verbose output and `--gui` to show the Gazebo GUI
+(every option and environment variable: [doc/LAUNCH_OPTIONS.md](doc/LAUNCH_OPTIONS.md)). The
 helper processes run detached and write to their log file; `--terminals`
 gives each one its own window instead. `--close-terminals` closes every GNOME terminal
 window at the end of the run, your own included.
 
-Agents are hosted by several processes, sized from the fleet. Every agent is
-a Python node and one process is capped at a single core by the GIL, so a
-large scenario in one process starves its own control loops — a 20 Hz loop
-measured at 0.4 Hz with 59 agents, enough to make the vehicles oscillate
-along their paths. `--shards N` pins the number of processes instead of
-letting the launcher choose; `--shards 1` keeps everything in one, as before.
-The processes share one world over ROS/DDS and spawn into it exactly like a
-remote machine would, so nothing about a scenario changes with the count.
+### Large fleets
 
-Budget about **0.07 core per agent**: measured at 300 agents, the hosting
-processes together drew 22 cores. The launcher caps itself at `nproc / 3`
-processes to leave the world, the xdyn servers and PX4 their cores, and warns
-when a fleet wants more than that — past the cap the world still runs in real
-time but the control loops drop below their configured rate. Splitting such a
-fleet over several machines is the way out, and the pieces are all in place
-(each shard is an ordinary ROS 2 process), but the launcher only starts them
-on the local host today.
+Every agent is a Python node, and one Python process uses a single core. The
+launcher therefore spreads the agents over several processes, sized from the
+fleet, so that each control loop keeps its configured rate. `--shards N`
+sets the number of processes yourself; `--shards 1` keeps every agent in one.
+The processes share one world over ROS 2, so a scenario behaves the same
+whatever the count.
+
+Count about **0.07 CPU core per agent**. The launcher uses at most `nproc / 3`
+processes, to leave cores to the world, the xdyn servers and PX4, and warns
+when a fleet needs more: the world still runs in real time, but the control
+loops run slower than configured. All the processes run on the local machine;
+to run agents elsewhere, see [deployment/README.md](deployment/README.md).
 
 **For the full JSON schema (every key, every built-in BT task and its
 parameters, host vs. remote differences) see
-[doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) — this section is only a
+[doc/scenario/](doc/scenario/README.md) — this section is only a
 quick start.**
 
 If Unity rendering is enabled (`renderer_unity: true`), launch the Unity
-executable, enter your local IP and ROS port `10000`, and pick **Spectator
+executable, enter the address the launcher prints ("Unity players connect
+to", or under WSL "Unity player on this PC" / "on other machines") and ROS
+port `10000`, and pick **Spectator
 Mode** (free-fly, `W`/`A`/`S`/`D`/`Q`/`E` + mouse) or target-follower mode
 (arrow keys to cycle agents).
+On Ubuntu, log in with an **Ubuntu on Xorg** session (gear icon on the login
+screen): under the default Wayland session the player runs at a lower frame
+rate.
+
+The Unity players are not in git. Each one is an asset of this repository's
+release `v1.3`, pinned with its sha256 in
+`lotusim_unity_executables/players.json`: the launcher downloads it into
+`lotusim_unity_executables/<player>/` the first time, and again whenever
+`players.json` changes. Under WSL, the Windows player goes in
+`%LOCALAPPDATA%\LOTUSim\players\<player>\` instead: Windows cannot start a
+Unity 6.6 player from the WSL filesystem (it fails to load `dstorage.dll`).
+To run the simulation from Windows and connect players on other machines,
+see [Running LOTUSim from Windows (WSL)](doc/WINDOWS_WSL.md).
+The download goes
+through the GitHub CLI: log in once with `gh auth login`. To fetch a player
+without running a scenario:
+
+```bash
+./src/simulation_run/executable/fetch_unity_player.sh lotusimenergy_linux
+```
+
+The Linux and Windows players are **Unity 6.6** builds (`6000.6.6f1`, HDRP
+17.6) of LOTUSim-Energy. When the scenario has a `"waves"` or
+`"weather"` block, they draw on the ocean the waves the xdyn vessels ride,
+2048 m around the camera (see [Waves and weather](doc/scenario/sea.md)).
 
 ### Scenario catalog
 
@@ -122,8 +153,11 @@ its files.
 | `basic_examples/` | Behaviour-tree fundamentals on a single BlueROV: waypoint following, sequence and parallel nodes, a custom-task scaffold, accelerated world clocks, and an empty world |
 | `current_examples/` | Ocean-current models (`ekman`, `gauss`, `copernicus`, `none`) with a BlueROV2 under PID, in station-keeping and transect form |
 | `wind_wake_examples/` | Wind regions, turbine wake, and PX4 aerial drones |
+| `wave_examples/` | One sea for every hull and the renderer: the weather of a date, unshared seas, a scheduled sea-state change |
 | `multi_vehicle_examples/` | One scenario per vehicle class and mode (Kinematic-controllable or xdyn drift-only) |
+| `example_rosbag/` | Recording a ROS 2 bag from the scenario file (`record_bag`) |
 | `facet_demo/` | Full-fleet turbine-inspection demos: BlueROV, WAMV, and X500 agents across a 16-turbine farm |
+| `iros_demo/` | The demo scenario: 59 agents (WAMV, BlueROV2, X500, LRAUV) working the 16-turbine farm, with wind and wake |
 | `waypoints/` | Patrol waypoint files referenced by `waypoints_file`. These are data files, not scenarios |
 
 Pass the path relative to the config directory:
@@ -143,105 +177,27 @@ they are not shared across files.
 
 ---
 
-## PX4 SITL (aerial drones)
+## Leap Motion
 
-An `X500` agent with `"px4": true` in its scenario JSON is flown by an
-external **PX4 SITL** process instead of a built-in BT controller — PX4
-attaches to the airframe LOTUSim spawns in the aerial world and reads its
-Gazebo sensors / writes its motor commands directly
-(see [doc/ARCHITECTURE.md §5.1](doc/ARCHITECTURE.md)). PX4 itself is not part
-of this repo: it's a separate checkout you build once.
-
-### 1. Install PX4-Autopilot
-
-The installer builds it when you answer yes to its PX4 question; the manual
-build, and how much disk it takes, are in
-[How_To_Install_LOTUSim — PX4 SITL](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim#optional-px4-sitl-aerial-drones).
-
-### 2. Point LOTUSim at your PX4 checkout
-
-`X500._start_px4_sitl()` (in `lotusim_sdk/agents/entity/physical/x500.py`)
-looks for a built PX4 checkout at `$PX4_AUTOPILOT_PATH`, defaulting to
-`~/PX4-Autopilot`. If you cloned it elsewhere, export the real path before
-launching:
+A Leap Motion needs the Ultraleap tracking service. On Linux, download the `.deb` from
+[Ultraleap Hand Tracking Software](https://www.ultraleap.com/downloads/) (the
+Ultraleap APT repository is no longer online), install it, then unplug and
+replug the camera:
 
 ```bash
-export PX4_AUTOPILOT_PATH=/path/to/PX4-Autopilot
+sudo apt install ./tracking-software-linux-x64-6.2.0.deb
+sudo leapctl eula
+sudo systemctl enable --now ultraleap-hand-tracking-service
 ```
 
-### 3. Enable PX4 on an X500 agent
+Red lights on the camera mean it is tracking.
 
-In the scenario JSON:
+---
 
-```json
-{
-  "id": "x500_px4",
-  "class": "X500",
-  "spawn": { "x": 20, "y": 30, "z": 0, "yaw": 0.0 },
-  "px4": true,
-  "px4_control": "manual",
-  "sdf_file": "model.sdf",
-  "xdyn": false
-}
-```
+## PX4 drones
 
-On a `"px4": true` agent, `spawn.z` must be `0`. An unarmed multirotor
-produces no thrust, so a spawn above the surface falls under gravity before
-PX4 finishes booting. The resulting impact corrupts EKF2's attitude and
-velocity estimates, which surfaces as a persistent "not ready to arm" in
-QGroundControl. To start a mission at altitude, climb after arming using
-`takeoff_alt_m` in `px4_offboard_patrol`'s params (below) instead of raising
-`spawn.z`. Agents without `"px4": true` are unaffected and may spawn at any
-altitude.
-
-Then launch the scenario as usual — PX4 SITL starts automatically once the
-agent's spawn is confirmed, one instance per PX4-enabled agent:
-
-```bash
-./src/simulation_run/executable/scenario_launch.sh --config facet_demo/demo_facet_physics.json
-```
-
-Per-instance PX4 console output lands in
-`scenario_logs/<timestamp>/px4_sitl_<agent_name>.log` — check there first if
-a PX4 drone isn't responding. A clean attach looks like `gazebo already
-running world: aerialWorld` / `PX4_GZ_MODEL_NAME set, PX4 will attach to
-existing model`, followed by MAVLink listening on UDP port 14550.
-
-### 4. Flying it: manual or offboard
-
-`px4_control: "manual"` — PX4 takes no commands from LOTUSim's BT framework.
-The drone is flown over MAVLink from QGroundControl (next subsection).
-Example: `wind_wake_examples/px4_manual_wake_flying.json`.
-
-`px4_control: "offboard"` — a `px4_offboard_patrol` mission task arms the
-vehicle, takes off, switches to OFFBOARD, and streams position setpoints
-through a waypoint list over MAVLink. No ground control station is required.
-Examples: `wind_wake_examples/wake_crossing_demo.json` and
-`wind_wake_examples/px4_offboard_patrol_test.json`. Parameters, under the
-task's `missions[].params`:
-
-| Param | Default | Meaning |
-|---|---|---|
-| `spawn` | required | This agent's own `{x, y, z}` spawn. MAVLink's local NED frame is zeroed there, so waypoints are converted from world coordinates relative to it. |
-| `waypoints` | required | `[{"name", "x", "y", "z"}, ...]` in the same world frame as `spawn`. `name` is optional. |
-| `loop` | `true` | Cycle back to the first waypoint after the last, instead of finishing. |
-| `hold_radius_m` | `5.0` | 3D distance to a waypoint that counts as "reached". |
-| `takeoff_alt_m` | `15.0` | Climb straight up to this altitude (above spawn) before heading to the first waypoint. |
-| `setpoint_rate_hz` | `10.0` | Offboard setpoint stream rate. PX4 leaves OFFBOARD mode if the stream drops below 2 Hz. |
-
-`px4_control` is descriptive only; the attached task is what drives the
-vehicle. Keep the two consistent, as setting `"manual"` while attaching
-`px4_offboard_patrol` (or the reverse) has no defined behaviour.
-
-#### QGroundControl
-
-Install it as described in
-[How_To_Install_LOTUSim — QGroundControl](https://github.com/IRL-Crossing-CNRS/How_To_Install_LOTUSim#qgroundcontrol),
-then start it (`~/Applications/QGroundControl-x86_64.AppImage`).
-QGroundControl connects automatically to any PX4 SITL instance listening on
-`localhost:14550`. With the scenario running it detects the vehicle within a
-few seconds and shows live telemetry. Arm and command takeoff or goto from
-its flight controls.
+X500 drones flown by PX4 SITL: installing PX4, enabling it on an agent, flying
+by hand or offboard. See [doc/PX4_DRONES.md](doc/PX4_DRONES.md).
 
 ---
 
@@ -252,7 +208,12 @@ its flight controls.
 | [doc/DEVELOPER.md](doc/DEVELOPER.md) | **Start here to modify the code.** Where everything lives, the four extension points, frame/rebuild conventions, how to verify a change, known gaps |
 | [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) | Repository/package organisation, agent class hierarchy, orchestration flow, global diagrams |
 | [doc/MISSIONS.md](doc/MISSIONS.md) | The Behaviour Tree framework: engine, task lifecycle, built-in tasks, diagrams, references |
-| [doc/WRITE_SCENARIO.md](doc/WRITE_SCENARIO.md) | Full scenario JSON reference — every parameter, host vs. remote |
+| [doc/scenario/](doc/scenario/README.md) | Generic scenario reference: every key, the behaviour trees, every task and its parameters, host vs. remote |
+| [doc/LAUNCH_OPTIONS.md](doc/LAUNCH_OPTIONS.md) | Every launcher option and environment variable: debug, full-screen Unity, xdyn, another clone of the core, logs |
+| [doc/ADD_A_VEHICLE.md](doc/ADD_A_VEHICLE.md) | Adding a vehicle end to end: Gazebo model, xdyn model, agent class, Unity prefab |
+| [doc/WAMV_MODEL.md](doc/WAMV_MODEL.md) | How the WAM-V model was built and checked: parameter sources, failures and fixes, tests |
+| [doc/PX4_DRONES.md](doc/PX4_DRONES.md) | X500 drones flown by PX4 SITL |
+| [doc/LRAUV_PROPELLER_DEMO.md](doc/LRAUV_PROPELLER_DEMO.md) | Driving the LRAUV propeller from a ROS topic |
 | [doc/ACCELERATED_SIMULATION.md](doc/ACCELERATED_SIMULATION.md) | Running a world faster than real time (real_time_factor, `guidance_clock`) |
 | [doc/GNC_MODULAR_ARCHITECTURE.md](doc/GNC_MODULAR_ARCHITECTURE.md) | Navigation / Guidance / Control / Allocation as separate ROS2 nodes — topics, message schemas, what is implemented today, how to plug in your own algorithm for one block |
 | [src/simulation_run/config/current_examples/](src/simulation_run/config/current_examples/) | BlueROV2 under PID across the four ocean-current models: the scenarios, what each current condition is, and how to run them |
@@ -262,43 +223,8 @@ its flight controls.
 
 ## LRAUV propeller demo
 
-The propeller has currently only been developed for the LRAUV, as a
-standalone (non-BT) demo of direct thruster control. Spawn an
-`Lrauv_Propeller` agent in your scenario JSON (same `agents` entry shape as
-above, no `missions` needed):
-
-```json
-{
-  "id": "lrauvpropeller",
-  "class": "Lrauv_Propeller",
-  "spawn": { "x": 0.0, "y": 0.0, "z": -100.0 }
-}
-```
-
-### Manual control via ROS topic
-
-With the scenario running, open a second terminal and enter the workspaces'
-environment with `lotusim_shell`, then:
-
-```bash
-# Start the propeller RPM sequence
-ros2 topic pub /defenseScenario/lrauvpropeller0/control_lrauv std_msgs/msg/Bool "data: true"
-
-# Stop it (also sends one command at rpm=100.0, pd=0.88)
-ros2 topic pub /defenseScenario/lrauvpropeller0/control_lrauv std_msgs/msg/Bool "data: false"
-```
-
-(Replace `defenseScenario` with your scenario's world name.) Tune the RPM
-values sent while running in
-`src/external_packages/lrauv_propeller/lrauv_propeller/lrauv_propeller.py`,
-in `send_propeller_command(rpm=..., pd=...)`.
-
-### Auto-start cycle
-
-To make the agent automatically cycle between its `propeller_phases` (high
-RPM / low RPM) on spawn instead of waiting for a manual `control_lrauv`
-command, uncomment the `self.start_sequence()` call in that file's
-`__init__`. Rebuild (`colcon build`) and re-source after any change.
+Driving the LRAUV's propeller directly from a ROS topic, outside any mission:
+[doc/LRAUV_PROPELLER_DEMO.md](doc/LRAUV_PROPELLER_DEMO.md).
 
 ---
 

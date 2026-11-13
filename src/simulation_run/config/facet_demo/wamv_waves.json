@@ -1,0 +1,2269 @@
+{
+  "_comment": [
+    "demo_facet.json with the WAM-Vs on xdyn,",
+    "riding one sea shared with every vessel and the Unity 6 renderer. The sea starts at",
+    "Beaufort 3 and follows the wind (Unity wind sliders, \"follow_wind\"). The WAM-Vs follow",
+    "the same patrol around their turbine as in demo_facet.json (three laps), with the xdyn",
+    "GNC pipeline of multi_vehicle_examples/wamv_xdyn.json instead of the kinematic model.",
+    "Each WAM-V has its own xdyn process (xdyn_port), so the five hulls are integrated in parallel."
+  ],
+  "world_file": "energy.world",
+  "agents": [
+    {
+      "id": "wake",
+      "class": "Wake",
+      "wake_model": "larsen",
+      "diameter": 61.0,
+      "ct": 0.8,
+      "cp": 0.35,
+      "air_density": 1.225,
+      "cut_in": 5.0,
+      "cut_out": 25.0,
+      "ambient_ti": 0.08,
+      "shear_exponent": 0.12,
+      "maintenance_cost": 100000.0,
+      "lcoe": {
+        "alpha_r_aud_per_hour": 50.0,
+        "alpha_e_aud_per_kwh": 0.5,
+        "publish_rate_hz": 1.0
+      },
+      "turbines": [
+        {
+          "name": "wind_turbine_1",
+          "x": -496.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_2",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_3",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_4",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -766.0
+        },
+        {
+          "name": "wind_turbine_5",
+          "x": -512.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_6",
+          "x": -92.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_7",
+          "x": 328.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_8",
+          "x": 748.0,
+          "z": 52.0,
+          "y": -226.0
+        },
+        {
+          "name": "wind_turbine_9",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_10",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_11",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_12",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 314.0
+        },
+        {
+          "name": "wind_turbine_13",
+          "x": -512.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_14",
+          "x": -92.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_15",
+          "x": 328.0,
+          "z": 52.0,
+          "y": 854.0
+        },
+        {
+          "name": "wind_turbine_16",
+          "x": 748.0,
+          "z": 52.0,
+          "y": 854.0
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt1",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_bluerov_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt5",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_bluerov_wt5",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt5",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt5",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt9",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_bluerov_wt9",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt9",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt9",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt10",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_bluerov_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bluerov_wt13",
+      "class": "Bluerov2_heavy_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": -10.0,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_bluerov_wt13",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt13",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
+              }
+            },
+            {
+              "id": "inspect_bluerov_wt13",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wamv_wt1",
+      "class": "Wamv_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": true,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": -0.078
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -614.61,
+                170.89,
+                0.0
+              ],
+              [
+                -633.13,
+                210.67,
+                0.0
+              ],
+              [
+                -641.9,
+                239.76,
+                0.0
+              ],
+              [
+                -679.21,
+                262.3,
+                0.0
+              ],
+              [
+                -725.63,
+                270.55,
+                0.0
+              ],
+              [
+                -761.5,
+                272.09,
+                0.0
+              ],
+              [
+                -797.43,
+                256.23,
+                0.0
+              ],
+              [
+                -819.19,
+                211.66,
+                0.0
+              ],
+              [
+                -823.21,
+                178.49,
+                0.0
+              ],
+              [
+                -818.3,
+                147.19,
+                0.0
+              ],
+              [
+                -802.55,
+                118.56,
+                0.0
+              ],
+              [
+                -770.37,
+                99.63,
+                0.0
+              ],
+              [
+                -728.81,
+                102.43,
+                0.0
+              ],
+              [
+                -694.59,
+                101.71,
+                0.0
+              ],
+              [
+                -674.14,
+                113.87,
+                0.0
+              ],
+              [
+                -662.63,
+                129.39,
+                0.0
+              ],
+              [
+                -642.46,
+                143.91,
+                0.0
+              ],
+              [
+                -626.22,
+                160.36,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -614.61,
+                170.89,
+                0.0
+              ],
+              [
+                -633.13,
+                210.67,
+                0.0
+              ],
+              [
+                -641.9,
+                239.76,
+                0.0
+              ],
+              [
+                -679.21,
+                262.3,
+                0.0
+              ],
+              [
+                -725.63,
+                270.55,
+                0.0
+              ],
+              [
+                -761.5,
+                272.09,
+                0.0
+              ],
+              [
+                -797.43,
+                256.23,
+                0.0
+              ],
+              [
+                -819.19,
+                211.66,
+                0.0
+              ],
+              [
+                -823.21,
+                178.49,
+                0.0
+              ],
+              [
+                -818.3,
+                147.19,
+                0.0
+              ],
+              [
+                -802.55,
+                118.56,
+                0.0
+              ],
+              [
+                -770.37,
+                99.63,
+                0.0
+              ],
+              [
+                -728.81,
+                102.43,
+                0.0
+              ],
+              [
+                -694.59,
+                101.71,
+                0.0
+              ],
+              [
+                -674.14,
+                113.87,
+                0.0
+              ],
+              [
+                -662.63,
+                129.39,
+                0.0
+              ],
+              [
+                -642.46,
+                143.91,
+                0.0
+              ],
+              [
+                -626.22,
+                160.36,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -614.61,
+                170.89,
+                0.0
+              ],
+              [
+                -633.13,
+                210.67,
+                0.0
+              ],
+              [
+                -641.9,
+                239.76,
+                0.0
+              ],
+              [
+                -679.21,
+                262.3,
+                0.0
+              ],
+              [
+                -725.63,
+                270.55,
+                0.0
+              ],
+              [
+                -761.5,
+                272.09,
+                0.0
+              ],
+              [
+                -797.43,
+                256.23,
+                0.0
+              ],
+              [
+                -819.19,
+                211.66,
+                0.0
+              ],
+              [
+                -823.21,
+                178.49,
+                0.0
+              ],
+              [
+                -818.3,
+                147.19,
+                0.0
+              ],
+              [
+                -802.55,
+                118.56,
+                0.0
+              ],
+              [
+                -770.37,
+                99.63,
+                0.0
+              ],
+              [
+                -728.81,
+                102.43,
+                0.0
+              ],
+              [
+                -694.59,
+                101.71,
+                0.0
+              ],
+              [
+                -674.14,
+                113.87,
+                0.0
+              ],
+              [
+                -662.63,
+                129.39,
+                0.0
+              ],
+              [
+                -642.46,
+                143.91,
+                0.0
+              ],
+              [
+                -626.22,
+                160.36,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        },
+        {
+          "id": "inspect_wamv_wt1",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ],
+      "xdyn_port": 12360
+    },
+    {
+      "id": "wamv_wt5",
+      "class": "Wamv_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": true,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": -0.078
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                4.49,
+                83.33,
+                0.0
+              ],
+              [
+                -13.32,
+                155.4,
+                0.0
+              ],
+              [
+                -70.51,
+                201.33,
+                0.0
+              ],
+              [
+                -107.48,
+                178.08,
+                0.0
+              ],
+              [
+                -130.93,
+                160.51,
+                0.0
+              ],
+              [
+                -157.84,
+                156.29,
+                0.0
+              ],
+              [
+                -177.51,
+                156.35,
+                0.0
+              ],
+              [
+                -199.49,
+                172.11,
+                0.0
+              ],
+              [
+                -215.69,
+                194.4,
+                0.0
+              ],
+              [
+                -223.73,
+                217.9,
+                0.0
+              ],
+              [
+                -223.77,
+                247.4,
+                0.0
+              ],
+              [
+                -212.89,
+                277.47,
+                0.0
+              ],
+              [
+                -195.82,
+                303.12,
+                0.0
+              ],
+              [
+                -172.16,
+                306.89,
+                0.0
+              ],
+              [
+                -152.06,
+                303.51,
+                0.0
+              ],
+              [
+                -132.48,
+                295.14,
+                0.0
+              ],
+              [
+                -110.69,
+                280.89,
+                0.0
+              ],
+              [
+                -106.2,
+                268.09,
+                0.0
+              ],
+              [
+                -96.32,
+                251.16,
+                0.0
+              ],
+              [
+                -73.35,
+                231.0,
+                0.0
+              ],
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                4.49,
+                83.33,
+                0.0
+              ],
+              [
+                -13.32,
+                155.4,
+                0.0
+              ],
+              [
+                -70.51,
+                201.33,
+                0.0
+              ],
+              [
+                -107.48,
+                178.08,
+                0.0
+              ],
+              [
+                -130.93,
+                160.51,
+                0.0
+              ],
+              [
+                -157.84,
+                156.29,
+                0.0
+              ],
+              [
+                -177.51,
+                156.35,
+                0.0
+              ],
+              [
+                -199.49,
+                172.11,
+                0.0
+              ],
+              [
+                -215.69,
+                194.4,
+                0.0
+              ],
+              [
+                -223.73,
+                217.9,
+                0.0
+              ],
+              [
+                -223.77,
+                247.4,
+                0.0
+              ],
+              [
+                -212.89,
+                277.47,
+                0.0
+              ],
+              [
+                -195.82,
+                303.12,
+                0.0
+              ],
+              [
+                -172.16,
+                306.89,
+                0.0
+              ],
+              [
+                -152.06,
+                303.51,
+                0.0
+              ],
+              [
+                -132.48,
+                295.14,
+                0.0
+              ],
+              [
+                -110.69,
+                280.89,
+                0.0
+              ],
+              [
+                -106.2,
+                268.09,
+                0.0
+              ],
+              [
+                -96.32,
+                251.16,
+                0.0
+              ],
+              [
+                -73.35,
+                231.0,
+                0.0
+              ],
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                4.49,
+                83.33,
+                0.0
+              ],
+              [
+                -13.32,
+                155.4,
+                0.0
+              ],
+              [
+                -70.51,
+                201.33,
+                0.0
+              ],
+              [
+                -107.48,
+                178.08,
+                0.0
+              ],
+              [
+                -130.93,
+                160.51,
+                0.0
+              ],
+              [
+                -157.84,
+                156.29,
+                0.0
+              ],
+              [
+                -177.51,
+                156.35,
+                0.0
+              ],
+              [
+                -199.49,
+                172.11,
+                0.0
+              ],
+              [
+                -215.69,
+                194.4,
+                0.0
+              ],
+              [
+                -223.73,
+                217.9,
+                0.0
+              ],
+              [
+                -223.77,
+                247.4,
+                0.0
+              ],
+              [
+                -212.89,
+                277.47,
+                0.0
+              ],
+              [
+                -195.82,
+                303.12,
+                0.0
+              ],
+              [
+                -172.16,
+                306.89,
+                0.0
+              ],
+              [
+                -152.06,
+                303.51,
+                0.0
+              ],
+              [
+                -132.48,
+                295.14,
+                0.0
+              ],
+              [
+                -110.69,
+                280.89,
+                0.0
+              ],
+              [
+                -106.2,
+                268.09,
+                0.0
+              ],
+              [
+                -96.32,
+                251.16,
+                0.0
+              ],
+              [
+                -73.35,
+                231.0,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        },
+        {
+          "id": "inspect_wamv_wt5",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ],
+      "xdyn_port": 12361
+    },
+    {
+      "id": "wamv_wt9",
+      "class": "Wamv_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": true,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": -0.078
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                9.39,
+                55.37,
+                0.0
+              ],
+              [
+                24.15,
+                94.2,
+                0.0
+              ],
+              [
+                42.14,
+                133.42,
+                0.0
+              ],
+              [
+                67.08,
+                161.08,
+                0.0
+              ],
+              [
+                66.57,
+                190.33,
+                0.0
+              ],
+              [
+                68.23,
+                216.31,
+                0.0
+              ],
+              [
+                80.01,
+                238.2,
+                0.0
+              ],
+              [
+                99.7,
+                250.58,
+                0.0
+              ],
+              [
+                140.35,
+                260.12,
+                0.0
+              ],
+              [
+                170.18,
+                254.18,
+                0.0
+              ],
+              [
+                201.02,
+                230.83,
+                0.0
+              ],
+              [
+                208.15,
+                200.02,
+                0.0
+              ],
+              [
+                205.77,
+                172.23,
+                0.0
+              ],
+              [
+                198.15,
+                143.37,
+                0.0
+              ],
+              [
+                184.05,
+                122.13,
+                0.0
+              ],
+              [
+                147.3,
+                111.57,
+                0.0
+              ],
+              [
+                114.0,
+                111.98,
+                0.0
+              ],
+              [
+                97.88,
+                117.3,
+                0.0
+              ],
+              [
+                78.71,
+                132.94,
+                0.0
+              ],
+              [
+                71.39,
+                152.07,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                9.39,
+                55.37,
+                0.0
+              ],
+              [
+                24.15,
+                94.2,
+                0.0
+              ],
+              [
+                42.14,
+                133.42,
+                0.0
+              ],
+              [
+                67.08,
+                161.08,
+                0.0
+              ],
+              [
+                66.57,
+                190.33,
+                0.0
+              ],
+              [
+                68.23,
+                216.31,
+                0.0
+              ],
+              [
+                80.01,
+                238.2,
+                0.0
+              ],
+              [
+                99.7,
+                250.58,
+                0.0
+              ],
+              [
+                140.35,
+                260.12,
+                0.0
+              ],
+              [
+                170.18,
+                254.18,
+                0.0
+              ],
+              [
+                201.02,
+                230.83,
+                0.0
+              ],
+              [
+                208.15,
+                200.02,
+                0.0
+              ],
+              [
+                205.77,
+                172.23,
+                0.0
+              ],
+              [
+                198.15,
+                143.37,
+                0.0
+              ],
+              [
+                184.05,
+                122.13,
+                0.0
+              ],
+              [
+                147.3,
+                111.57,
+                0.0
+              ],
+              [
+                114.0,
+                111.98,
+                0.0
+              ],
+              [
+                97.88,
+                117.3,
+                0.0
+              ],
+              [
+                78.71,
+                132.94,
+                0.0
+              ],
+              [
+                71.39,
+                152.07,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                9.39,
+                55.37,
+                0.0
+              ],
+              [
+                24.15,
+                94.2,
+                0.0
+              ],
+              [
+                42.14,
+                133.42,
+                0.0
+              ],
+              [
+                67.08,
+                161.08,
+                0.0
+              ],
+              [
+                66.57,
+                190.33,
+                0.0
+              ],
+              [
+                68.23,
+                216.31,
+                0.0
+              ],
+              [
+                80.01,
+                238.2,
+                0.0
+              ],
+              [
+                99.7,
+                250.58,
+                0.0
+              ],
+              [
+                140.35,
+                260.12,
+                0.0
+              ],
+              [
+                170.18,
+                254.18,
+                0.0
+              ],
+              [
+                201.02,
+                230.83,
+                0.0
+              ],
+              [
+                208.15,
+                200.02,
+                0.0
+              ],
+              [
+                205.77,
+                172.23,
+                0.0
+              ],
+              [
+                198.15,
+                143.37,
+                0.0
+              ],
+              [
+                184.05,
+                122.13,
+                0.0
+              ],
+              [
+                147.3,
+                111.57,
+                0.0
+              ],
+              [
+                114.0,
+                111.98,
+                0.0
+              ],
+              [
+                97.88,
+                117.3,
+                0.0
+              ],
+              [
+                78.71,
+                132.94,
+                0.0
+              ],
+              [
+                71.39,
+                152.07,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        },
+        {
+          "id": "inspect_wamv_wt9",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ],
+      "xdyn_port": 12362
+    },
+    {
+      "id": "wamv_wt10",
+      "class": "Wamv_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": true,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": -0.078
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -18.36,
+                276.49,
+                0.0
+              ],
+              [
+                7.79,
+                457.1,
+                0.0
+              ],
+              [
+                62.13,
+                576.69,
+                0.0
+              ],
+              [
+                193.98,
+                576.03,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -18.36,
+                276.49,
+                0.0
+              ],
+              [
+                7.79,
+                457.1,
+                0.0
+              ],
+              [
+                62.13,
+                576.69,
+                0.0
+              ],
+              [
+                193.98,
+                576.03,
+                0.0
+              ],
+              [
+                -0.0,
+                -0.0,
+                0.0
+              ],
+              [
+                -18.36,
+                276.49,
+                0.0
+              ],
+              [
+                7.79,
+                457.1,
+                0.0
+              ],
+              [
+                62.13,
+                576.69,
+                0.0
+              ],
+              [
+                193.98,
+                576.03,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        },
+        {
+          "id": "inspect_wamv_wt10",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ],
+      "xdyn_port": 12363
+    },
+    {
+      "id": "wamv_wt13",
+      "class": "Wamv_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": true,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": -0.078
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                609.3,
+                181.75,
+                0.0
+              ],
+              [
+                618.51,
+                214.46,
+                0.0
+              ],
+              [
+                629.57,
+                233.12,
+                0.0
+              ],
+              [
+                660.32,
+                245.2,
+                0.0
+              ],
+              [
+                691.9,
+                252.2,
+                0.0
+              ],
+              [
+                719.35,
+                248.63,
+                0.0
+              ],
+              [
+                744.47,
+                241.08,
+                0.0
+              ],
+              [
+                762.08,
+                218.07,
+                0.0
+              ],
+              [
+                765.75,
+                204.04,
+                0.0
+              ],
+              [
+                769.06,
+                166.5,
+                0.0
+              ],
+              [
+                770.72,
+                140.76,
+                0.0
+              ],
+              [
+                757.42,
+                120.99,
+                0.0
+              ],
+              [
+                730.1,
+                109.36,
+                0.0
+              ],
+              [
+                690.83,
+                107.05,
+                0.0
+              ],
+              [
+                667.12,
+                106.95,
+                0.0
+              ],
+              [
+                643.11,
+                111.6,
+                0.0
+              ],
+              [
+                628.38,
+                125.37,
+                0.0
+              ],
+              [
+                617.7,
+                141.62,
+                0.0
+              ],
+              [
+                611.1,
+                161.1,
+                0.0
+              ],
+              [
+                610.39,
+                175.11,
+                0.0
+              ],
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                609.3,
+                181.75,
+                0.0
+              ],
+              [
+                618.51,
+                214.46,
+                0.0
+              ],
+              [
+                629.57,
+                233.12,
+                0.0
+              ],
+              [
+                660.32,
+                245.2,
+                0.0
+              ],
+              [
+                691.9,
+                252.2,
+                0.0
+              ],
+              [
+                719.35,
+                248.63,
+                0.0
+              ],
+              [
+                744.47,
+                241.08,
+                0.0
+              ],
+              [
+                762.08,
+                218.07,
+                0.0
+              ],
+              [
+                765.75,
+                204.04,
+                0.0
+              ],
+              [
+                769.06,
+                166.5,
+                0.0
+              ],
+              [
+                770.72,
+                140.76,
+                0.0
+              ],
+              [
+                757.42,
+                120.99,
+                0.0
+              ],
+              [
+                730.1,
+                109.36,
+                0.0
+              ],
+              [
+                690.83,
+                107.05,
+                0.0
+              ],
+              [
+                667.12,
+                106.95,
+                0.0
+              ],
+              [
+                643.11,
+                111.6,
+                0.0
+              ],
+              [
+                628.38,
+                125.37,
+                0.0
+              ],
+              [
+                617.7,
+                141.62,
+                0.0
+              ],
+              [
+                611.1,
+                161.1,
+                0.0
+              ],
+              [
+                610.39,
+                175.11,
+                0.0
+              ],
+              [
+                -0.0,
+                0.0,
+                0.0
+              ],
+              [
+                609.3,
+                181.75,
+                0.0
+              ],
+              [
+                618.51,
+                214.46,
+                0.0
+              ],
+              [
+                629.57,
+                233.12,
+                0.0
+              ],
+              [
+                660.32,
+                245.2,
+                0.0
+              ],
+              [
+                691.9,
+                252.2,
+                0.0
+              ],
+              [
+                719.35,
+                248.63,
+                0.0
+              ],
+              [
+                744.47,
+                241.08,
+                0.0
+              ],
+              [
+                762.08,
+                218.07,
+                0.0
+              ],
+              [
+                765.75,
+                204.04,
+                0.0
+              ],
+              [
+                769.06,
+                166.5,
+                0.0
+              ],
+              [
+                770.72,
+                140.76,
+                0.0
+              ],
+              [
+                757.42,
+                120.99,
+                0.0
+              ],
+              [
+                730.1,
+                109.36,
+                0.0
+              ],
+              [
+                690.83,
+                107.05,
+                0.0
+              ],
+              [
+                667.12,
+                106.95,
+                0.0
+              ],
+              [
+                643.11,
+                111.6,
+                0.0
+              ],
+              [
+                628.38,
+                125.37,
+                0.0
+              ],
+              [
+                617.7,
+                141.62,
+                0.0
+              ],
+              [
+                611.1,
+                161.1,
+                0.0
+              ],
+              [
+                610.39,
+                175.11,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        },
+        {
+          "id": "inspect_wamv_wt13",
+          "type": "action",
+          "task": "fault_inspection",
+          "params": {
+            "show_window": false
+          }
+        }
+      ],
+      "xdyn_port": 12364
+    },
+    {
+      "id": "x500_wt1",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -675.35,
+        "y": -41.37,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt1",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt1",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine1.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt1",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt5",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -742.6,
+        "y": -66.35,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt5",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt5",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine5.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt5",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt9",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -709.45,
+        "y": 189.96,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt9",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt9",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine9.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt9",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt10",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -669.56,
+        "y": 93.57,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt10",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt10",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": false,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine10.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt10",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "x500_wt13",
+      "class": "X500_inspection",
+      "nb_agents": 1,
+      "sdf_file": "model-battery.sdf",
+      "xdyn": false,
+      "spawn": {
+        "x": -704.04,
+        "y": 155.09,
+        "z": 52.0
+      },
+      "tick_rate_hz": 2.0,
+      "missions": [
+        {
+          "id": "patrol_and_inspect_x500_wt13",
+          "type": "parallel",
+          "success_policy": "all",
+          "children": [
+            {
+              "id": "patrol_wt13",
+              "type": "action",
+              "task": "waypoint_follower",
+              "params": {
+                "loop": true,
+                "guidance_mode": "bang_bang",
+                "control_rate_hz": 10.0,
+                "linear_velocities_limits": [
+                  0.0,
+                  1.0
+                ],
+                "linear_accel_limit": 0.2,
+                "angular_velocities_limits": 0.5,
+                "angular_accel_limit": 0.1,
+                "range_tolerance": 3.0,
+                "waypoints_file": "../waypoints/waypoint_windturbine13.json"
+              }
+            },
+            {
+              "id": "inspect_x500_wt13",
+              "type": "action",
+              "task": "fault_inspection",
+              "params": {
+                "show_window": false
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "renderer_unity": true,
+  "record_csv": {
+    "rate": 10.0
+  },
+  "weather": {
+    "beaufort": 3,
+    "follow_wind": true,
+    "seed": 2
+  }
+}

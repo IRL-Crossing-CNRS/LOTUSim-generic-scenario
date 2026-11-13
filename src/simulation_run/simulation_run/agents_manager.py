@@ -280,6 +280,12 @@ class AgentsManager:
                     if profile and not os.path.isabs(profile) and config_dir:
                         copernicus["profile"] = os.path.normpath(os.path.join(config_dir, profile))
                     agent_node.copernicus_current = copernicus
+                elif not gauss_markov and agent_info.get("xdyn") and os.environ.get("LOTUSIM_WEATHER_CURRENT_PROFILE"):
+                    # "weather": {"date", "place"}: the launcher downloaded the
+                    # current profile of that place and date (and removed the
+                    # vehicle models' own current); every xdyn vehicle without
+                    # a current of its own replays it.
+                    agent_node.copernicus_current = {"profile": os.environ["LOTUSIM_WEATHER_CURRENT_PROFILE"]}
 
                 # Behaviour-tree missions (mission system): start the tick timer.
                 self._maybe_set_missions(agent_node, agent_info)

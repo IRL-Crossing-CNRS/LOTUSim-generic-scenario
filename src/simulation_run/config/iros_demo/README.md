@@ -10,10 +10,9 @@ The demo scenario: a full fleet working a 16-turbine farm.
 ./src/simulation_run/executable/scenario_launch.sh --config iros_demo/demo_iros.json
 ```
 
-The launcher spreads the 59 agents over several processes on its own (about
-ten here). One process cannot hold this fleet: a 20 Hz control loop ran at
-0.4 Hz and the vehicles oscillated along their paths. `--shards N` pins the
-count — see the repository README.
+The launcher spreads the 59 agents over about ten processes on its own: one
+process cannot run this fleet's control loops at their rate. `--shards N`
+sets the count, see the repository README.
 
 ## What the fleet does
 
@@ -40,15 +39,15 @@ Six agents carry a detector. The rest fly their trajectory without one.
 | X500 orbit | 6 | 12 m | 12 m | 30 m up |
 
 Each leg is long enough for the guidance to settle before the next turn, and
-the arrival tolerance is a third of a leg. Shorter legs made the vehicles
-overshoot, turn back and overshoot again: they spun in place instead of
+the arrival tolerance is a third of a leg. With shorter legs the vehicles
+overshoot each waypoint and turn back, spinning in place instead of
 advancing.
 
 ## Clearance to the foundations
 
 The foundation reaches 38 m from the mast axis. Closest approach along each
-group's whole path. The two BlueROV2 rows are measured on a flown run; the
-others are the nominal path geometry, which the guidance undercuts slightly
+group's whole path. The two BlueROV2 rows come from a run; the others are
+the nominal path geometry, which the guidance undercuts slightly
 at each corner — expect a few metres less in flight:
 
 | group | closest approach |
@@ -69,14 +68,12 @@ radius.
 ## One xdyn process per vessel
 
 Every xdyn agent here carries its own `xdyn_port` (12360-12383), so each gets
-its own `xdyn-for-cs`. This is what makes the scenario run in real time: a
-shared server integrates its vessels one after another, so the seven WAMV and
-three LRAUV that used to share two servers each ran at a fraction of the
-speed and held the world back with them. Measured on this scenario, 24 xdyn
-agents over 16 servers gave a real-time factor of 0.85; the same 24 over 24
-servers gave 1.00.
+its own `xdyn-for-cs`. This keeps the scenario in real time: a shared server
+integrates its vessels one after another and slows the whole world down. On
+this scenario, 24 xdyn agents on 16 servers run at a real-time factor of
+0.85, on 24 servers at 1.00.
 
-Add a distinct port to any xdyn agent added later, or it falls back to its
+Give a distinct port to every xdyn agent you add, or it falls back to its
 class's shared server.
 
 ## Ordering constraint
@@ -94,4 +91,4 @@ reason. This only matters for agents with no `xdyn_port` of their own.
 model was validated with, but also a geographic origin 370 km away, and the
 patrol files here are lat/lon projected from that origin.
 
-`crack_detector` pins `device=0`, so the host needs a CUDA GPU.
+`crack_detector` runs its detector on the GPU when CUDA is available, otherwise on the CPU, more slowly.

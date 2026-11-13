@@ -1,6 +1,6 @@
 # current_examples
 
-Minimal, generic worked examples of the three ocean-current models a BlueROV
+Worked examples of the three ocean-current models a BlueROV
 scenario can select via the top-level `bluerov_current` key: `ekman`,
 `gauss`, `copernicus`, plus the `none` control condition. See
 `doc/GNC_MODULAR_ARCHITECTURE.md` for how the pipeline (Navigation ->
@@ -11,11 +11,9 @@ See `../README.md` for the full per-vehicle capability table (this
 directory only covers BlueROV; other vehicles are in
 `../multi_vehicle_examples/`).
 
-This is not the full current-modelling evaluation suite. That suite
-(multi-date Copernicus replays, fitted-parameter sweeps, seeds, transects)
-lives in a separate repository, `LOTUSim_current_modelling_evaluation`.
-These scenarios exist so the current-model feature stays runnable from this
-repository alone, independent of that evaluation suite.
+For a full evaluation of the current models (Copernicus replays over many
+dates, fitted parameters, seeds), see the separate repository
+`LOTUSim_current_modelling_evaluation`.
 
 ## Scenarios
 

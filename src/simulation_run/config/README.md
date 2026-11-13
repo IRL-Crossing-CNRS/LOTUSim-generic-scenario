@@ -17,14 +17,15 @@ resolved relative to this directory:
 | [`current_examples/`](current_examples/) | Ocean-current models with a BlueROV2 under PID |
 | [`wind_wake_examples/`](wind_wake_examples/) | Wind regions, turbine wake, and PX4 aerial drones |
 | [`multi_vehicle_examples/`](multi_vehicle_examples/) | One scenario per vehicle class and control mode |
+| [`wave_examples/`](wave_examples/) | One sea for every hull and the renderer: the weather of a date, unshared seas (baseline), a scheduled sea-state change (see doc/scenario/sea.md) |
+| [`example_rosbag/`](example_rosbag/) | Recording a ROS 2 bag with `record_bag` |
 | [`facet_demo/`](facet_demo/) | Full-fleet turbine-inspection demos |
 | [`iros_demo/`](iros_demo/) | The demo scenario: a full fleet working the 16-turbine farm |
 | [`waypoints/`](waypoints/) | Patrol waypoint data files referenced by `waypoints_file`; not scenarios |
 
 Every scenario here sets `"record_csv": true` at its top level, writing
-position telemetry to `scenario_logs/<timestamp>/csv/<agent>.csv`. That
-telemetry is the only way to confirm a trajectory is correct rather than
-merely crash-free over the first few seconds. The value may also be an object
+position telemetry to `scenario_logs/<timestamp>/csv/<agent>.csv`: use it to
+check a trajectory over the whole run. The value may also be an object
 (`{"rate": 10.0}`) to set the sampling rate.
 
 The `current_*` columns come from a scenario's `OceanCurrent` agent and are
@@ -44,7 +45,7 @@ Navigation/Guidance/Control/Allocation pipeline
 |---|---|---|---|---|
 | **BlueROV2 heavy** | Underwater (+ Surface transition) | not used (has real thrusters) | Controllable -- fixed allocator over the 6 modelled thrusters of the 8 (4 vectored + 2 vertical; roll and pitch are not commandable), station-keeping and transects, all 4 current models | `current_examples/*.json` |
 | **X500** (aerial drone) | Aerial | Controllable -- generic pipeline, altitude/heading hold via `vz` | not modeled (no xdyn thruster/rotor model; PX4 SITL is the separate non-GNC path, see `wind_wake_examples/x500_px4.json`) | `multi_vehicle_examples/x500_kinematic.json` |
-| **WAMV** (surface) | Surface | Controllable -- generic pipeline | Drift-only -- `wamv.yaml` has no thruster model | `multi_vehicle_examples/wamv_kinematic.json`, `wamv_drift_only.json` |
+| **WAMV** (surface) | Surface | Controllable -- generic pipeline | Controllable in waves, full-scale WAM-V 16 (VRX model): two stern engines (surge + differential yaw, no sway), waypoint path following. Drift-only alternative: thrusters held at zero | `multi_vehicle_examples/wamv_kinematic.json`, `wamv_xdyn.json`, `wamv_drift_only.json` |
 | **LRAUV** (underwater) | Underwater | Controllable -- generic pipeline, depth/heading hold | Controllable, stable: single propeller, surge-only, no yaw/fin actuation -- goes straight once launched, `guidance_hold` can only correct depth. Drift-only alternative: propeller held at a near-idle resting command | `multi_vehicle_examples/lrauv_kinematic.json`, `lrauv_xdyn.json`, `lrauv_drift_only.json` |
 | **Fremm** (surface) | Surface | not demonstrated (would work like WAMV's Kinematic path) | Drift-only -- hull-only xdyn model, no propulsion | `multi_vehicle_examples/fremm_drift_only.json` |
 | **commando** (surface) | Surface | not demonstrated | Drift-only, same pattern as Fremm | `multi_vehicle_examples/commando_drift_only.json` |
@@ -53,22 +54,19 @@ Navigation/Guidance/Control/Allocation pipeline
 
 "Controllable" means a scenario demonstrates the vehicle holding
 position/heading or following a track under its own commanded thrust.
-"Drift-only" means the vehicle has no propulsion in that mode -- it only
-moves under hydrodynamics + current, a correct behavior for hull-only
-vessels, not a gap.
+"Drift-only" means the vehicle has no propulsion in that mode: it only
+moves under hydrodynamics and current, as a hull-only vessel does.
 
 Drift-only and controllable are independent, not tiers of the same thing. A
 vehicle can be xdyn-drift-only permanently, because it has no thruster model
-at all (WAMV, commando, pha, Fremm, Mine), or be xdyn-drift-only alongside an
-xdyn-controllable Allocation (LRAUV). Both cases use the same mechanism: a
+at all (commando, pha, Fremm, Mine), or be xdyn-drift-only alongside an
+xdyn-controllable Allocation (LRAUV, WAMV). Both cases use the same mechanism: a
 generic `static_command_allocation` task publishing a fixed resting command
 with no feedback loop. Every vehicle except Mine can switch between Kinematic
 and xdyn per scenario, independently of the controllable/drift-only question.
 
-There are no dtmb_hull scenarios. dtmb_hull has no corresponding Unity asset,
-so its example scenarios were removed rather than kept as headless
-gz-sim-only demos; every scenario in this tree runs with
-`renderer_unity: true`.
+dtmb_hull has an xdyn model but no Unity asset, so no scenario uses it: every
+scenario in this tree runs with `renderer_unity: true`.
 
 ## Why `bluerov_ekman.world` vs. `energy.world`
 

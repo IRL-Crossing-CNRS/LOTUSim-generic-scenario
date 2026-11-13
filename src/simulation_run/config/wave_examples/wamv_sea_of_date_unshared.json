@@ -1,0 +1,94 @@
+{
+  "_comment": [
+    "Baseline of wamv_sea_of_date.json: same weather, but \"shared\": false, so the vehicle model",
+    "and the renderer each draw their own random sea of the same spectrum, with other phases,",
+    "as before the shared sea. The WaterHullProbe lines of unity_Player.log measure, in both",
+    "runs, the rendered water under the hull against the hull's height."
+  ],
+  "world_file": "energy.world",
+  "weather": {
+    "date": "2024-08-10T12:00",
+    "place": {
+      "lat": 50.25,
+      "lon": -4.25
+    },
+    "seed": 2,
+    "shared": false
+  },
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "wamv_xdyn",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": 20.0,
+        "y": 0.0,
+        "z": -0.078,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                60.0,
+                0.0,
+                0.0
+              ],
+              [
+                60.0,
+                30.0,
+                0.0
+              ],
+              [
+                0.0,
+                30.0,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        }
+      ]
+    }
+  ]
+}

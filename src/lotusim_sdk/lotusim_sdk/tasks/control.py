@@ -30,6 +30,7 @@ from lotusim_sdk.control import (
     HeadingHoldPID,
     PositionHoldPID,
     SurgeSpeedPID,
+    body_flu_to_frd,
     build_feedforward,
     enu_quat_to_ned_euler,
     enu_to_ned_position,
@@ -183,9 +184,8 @@ class ControlTask(TaskAgent):
         _, _, psi = enu_quat_to_ned_euler(
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
         )
-        vx, vy, _ = enu_to_ned_position(nav.twist.twist.linear.x, nav.twist.twist.linear.y, nav.twist.twist.linear.z)
-        u = vx * math.cos(psi) + vy * math.sin(psi)
-        v = -vx * math.sin(psi) + vy * math.cos(psi)
+        # Body-frame twist (REP 105, FLU) to surge and sway (FRD).
+        u, v, _ = body_flu_to_frd(nav.twist.twist.linear.x, nav.twist.twist.linear.y, nav.twist.twist.linear.z)
 
         self._depth.setpoint = g.desired_depth
         self._head.setpoint = g.desired_heading

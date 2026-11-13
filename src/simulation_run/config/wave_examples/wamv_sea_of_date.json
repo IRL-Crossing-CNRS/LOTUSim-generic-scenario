@@ -1,0 +1,94 @@
+{
+  "_comment": [
+    "The WAM-V of multi_vehicle_examples/wamv_xdyn.json in the weather of a place and date:",
+    "Plymouth Sound approaches, 10 August 2024 at 12:00 (Copernicus Marine: waves Hs 0.92 m,",
+    "Tp 5.2 s; current profile; 10 m wind 6.2 m/s). One sea, fixed for the run: xdyn evaluates",
+    "the shared components with its own Airy model, the renderer draws the same components.",
+    "Needs the copernicusmarine tool and an account on the first run (then cached)."
+  ],
+  "world_file": "energy.world",
+  "weather": {
+    "date": "2024-08-10T12:00",
+    "place": {
+      "lat": 50.25,
+      "lon": -4.25
+    },
+    "seed": 2
+  },
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "wamv_xdyn",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": 20.0,
+        "y": 0.0,
+        "z": -0.078,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                60.0,
+                0.0,
+                0.0
+              ],
+              [
+                60.0,
+                30.0,
+                0.0
+              ],
+              [
+                0.0,
+                30.0,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        }
+      ]
+    }
+  ]
+}

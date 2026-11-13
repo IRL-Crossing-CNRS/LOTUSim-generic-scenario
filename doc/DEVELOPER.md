@@ -14,7 +14,7 @@ change, and which conventions will bite you if you ignore them.
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Always first. Package tree, agent class hierarchy, entry-point discovery, host orchestration flow, host vs. remote |
 | [MISSIONS.md](MISSIONS.md) | Before writing a behaviour-tree task. Engine, task lifecycle, tick semantics |
-| [WRITE_SCENARIO.md](WRITE_SCENARIO.md) | Full scenario JSON reference — every key of every built-in task |
+| [scenario/](scenario/README.md) | Generic scenario reference: every key of the scenario file, the behaviour trees, every task and its parameters |
 | [GNC_MODULAR_ARCHITECTURE.md](GNC_MODULAR_ARCHITECTURE.md) | Before touching Navigation / Guidance / Control / Allocation, or plugging your own algorithm into one of them |
 | [DIAGRAMS.md](DIAGRAMS.md) | Class, sequence and node/topic diagrams, when a written description is not enough |
 | [ACCELERATED_SIMULATION.md](ACCELERATED_SIMULATION.md) | Running faster than real time |
@@ -76,6 +76,9 @@ an xdyn YAML there and an entry in `scenario_launch.sh`'s `XDYN_CONFIGS` map
 (model file + a port unique to that vehicle class). A vehicle with no xdyn
 model runs Kinematic (`"xdyn": false`).
 
+Every step, the Unity side included, with the WAM-V as the example:
+[ADD_A_VEHICLE.md](ADD_A_VEHICLE.md).
+
 ### Plug your own GNC algorithm
 
 Replace one node, keep the topics. Each block is defined by exactly one
@@ -136,9 +139,9 @@ comparison attributable to the model.
 
 ## 5. Verifying a change
 
-A scenario that starts and does not crash proves almost nothing: several
-past bugs — an xdyn `external forces:` key silently parsed as empty, a
-diverging allocator gain — produced clean startup and a wrong trajectory.
+A scenario that starts without an error can still follow a wrong trajectory:
+an xdyn `external forces:` key parsed as empty, or an unstable allocator
+gain, both start cleanly.
 
 Add `"record_csv": true` at the scenario's top level and read
 `scenario_logs/<timestamp>/csv/<agent>.csv` afterwards. Check that position
@@ -151,18 +154,16 @@ Always test through `scenario_launch.sh` or the `lotusim_core` CLI. A bare
 `gz sim` run bypasses the orchestration this repository is about, so it
 cannot confirm that a change works.
 
-## 6. Known gaps
-
-Listed so nobody re-derives them from the code:
+## 6. Known limits
 
 - No live path source: `SetWaypoints` exists as a message type, but no
   Guidance task serves it. Missions are static scenario JSON.
-- No aerial rotor-mixer Allocation on this branch: X500 in the generic
-  pipeline runs through `kinematic_allocation`; the real mixer is work in
-  progress elsewhere. PX4 SITL is the separate, non-GNC path.
+- No rotor-mixer Allocation for the X500: in the generic pipeline it runs
+  through `kinematic_allocation`. PX4 SITL is the separate path for a
+  realistic drone.
 - Navigation is ground truth: no sensor model, no estimation error.
-- WAMV, dtmb_hull and the hull-only surface vessels have no xdyn thruster
-  model, so they are drift-only under xdyn by nature.
+- dtmb_hull, Fremm, Commando and PHA have no xdyn thruster model: under xdyn
+  they drift.
 
 The per-vehicle detail is in
 [../src/simulation_run/config/README.md](../src/simulation_run/config/README.md).

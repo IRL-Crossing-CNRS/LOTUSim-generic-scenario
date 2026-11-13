@@ -1,0 +1,95 @@
+{
+  "_comment": [
+    "The WAM-V of multi_vehicle_examples/wamv_xdyn.json in a sea raised from Beaufort force 3",
+    "to force 5 at t = 80 s over a 30 s ramp, from the mission's schedule. The sea is live:",
+    "xdyn re-reads the rays file the wave server rewrites, with the same fades as the renderer."
+  ],
+  "world_file": "energy.world",
+  "weather": {
+    "beaufort": 3,
+    "seed": 2,
+    "ramp_s": 30,
+    "schedule": [
+      {
+        "t_s": 80,
+        "beaufort": 5
+      }
+    ]
+  },
+  "renderer_unity": true,
+  "record_csv": true,
+  "agents": [
+    {
+      "id": "wamv_xdyn",
+      "class": "Wamv",
+      "nb_agents": 1,
+      "xdyn": true,
+      "spawn": {
+        "x": 20.0,
+        "y": 0.0,
+        "z": -0.078,
+        "yaw": 0.0
+      },
+      "tick_rate_hz": 1.0,
+      "missions": [
+        {
+          "id": "navigation",
+          "type": "action",
+          "task": "navigation",
+          "params": {}
+        },
+        {
+          "id": "path",
+          "type": "action",
+          "task": "guidance_los_polyline",
+          "params": {
+            "waypoints": [
+              [
+                60.0,
+                0.0,
+                0.0
+              ],
+              [
+                60.0,
+                30.0,
+                0.0
+              ],
+              [
+                0.0,
+                30.0,
+                0.0
+              ]
+            ],
+            "z_start_m": 0.0,
+            "u_setpoint_ms": 1.0,
+            "lookahead_m": 10.0
+          }
+        },
+        {
+          "id": "control",
+          "type": "action",
+          "task": "wamv_control",
+          "params": {
+            "kp_psi": 1200.0,
+            "ki_psi": 40.0,
+            "kd_psi": 0.0,
+            "n_max_nm": 300.0,
+            "kp_u": 300.0,
+            "ki_u": 60.0,
+            "kd_u": 0.0,
+            "f_max_n": 500.0,
+            "hold_radius_m": 3.0
+          }
+        },
+        {
+          "id": "allocation",
+          "type": "action",
+          "task": "wamv_allocation",
+          "params": {
+            "t_max_n": 250.0
+          }
+        }
+      ]
+    }
+  ]
+}

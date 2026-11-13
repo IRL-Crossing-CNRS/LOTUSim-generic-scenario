@@ -1,6 +1,6 @@
 from .pid import PID, DepthHoldPID, HeadingHoldPID, PositionHoldPID, SurgeSpeedPID
 from .guidance import LineOfSightGuidance, PurePursuitGuidance
-from .frames import enu_quat_to_ned_euler, enu_to_ned_position
+from .frames import body_flu_to_frd, enu_quat_to_ned_euler, enu_to_ned_position, world_to_body
 from .current_feedforward import (
     CurrentFeedforward,
     EkmanCurrentModel,
@@ -19,6 +19,8 @@ __all__ = [
     "PurePursuitGuidance",
     "enu_to_ned_position",
     "enu_quat_to_ned_euler",
+    "body_flu_to_frd",
+    "world_to_body",
     "CurrentFeedforward",
     "build_feedforward",
     "NoCurrentModel",

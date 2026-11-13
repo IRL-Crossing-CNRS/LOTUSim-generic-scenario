@@ -76,6 +76,9 @@ echo -e "${GREEN}[INFO] Scenario execution logs will be saved to: $LOG_DIR${NC}"
 # and just prints a reminder — open the Unity project in the Editor yourself
 # (via Unity Hub) and press Play, e.g.:
 #   UNITY_MODE=editor ./scenario_launch.sh --config raj_scenario.json
+# UNITY_EXE_DIR runs another player build than the one in
+# lotusim_unity_executables/, e.g. one being tested:
+#   UNITY_EXE_DIR=~/builds/lotusimenergy_linux ./scenario_launch.sh --config ...
 UNITY_MODE="${UNITY_MODE:-exe}"
 
 # XDYN_VERBOSE=1 passes -v -w to every xdyn-for-cs instance launched below,
@@ -188,6 +191,11 @@ kill_unity_processes() {
     pkill -f "lotusim_unity_executables/.*\.x86_64" \
       && echo -e "${GREEN}[INFO] Killed lotusim_unity_executables/.*\.x86_64${NC}" \
       || echo -e "${YELLOW}[INFO] No lotusim_unity_executables/.*\.x86_64 found.${NC}"
+    # A player started from UNITY_EXE_DIR lives outside lotusim_unity_executables/.
+    if [[ -n "${UNITY_EXE_DIR:-}" && "$UNITY_EXE_DIR" != *lotusim_unity_executables* ]]; then
+      pkill -f "${UNITY_EXE_DIR%/}/.*\.x86_64" \
+        && echo -e "${GREEN}[INFO] Killed the Unity player in $UNITY_EXE_DIR${NC}" || true
+    fi
   fi
 }
 
@@ -267,13 +275,15 @@ kill_unity_processes
 #     run, so the host applies competing commands.
 #   - "run_agent"/"ros_tcp_endpoint": decentralised agent launcher and Unity TCP
 #     bridge, same orphaned-python-child case.
-for proc in "ros2 launch" "ros2 run" "gz sim" "simulation_run/lib/simulation_run/main" "run_agent" "ros_tcp_endpoint"; do
+#   - "simulation_run.wave_server_node": a stale one keeps the wave port, and
+#     the new run's xdyn would read the old sea from it.
+for proc in "ros2 launch" "ros2 run" "gz sim" "simulation_run/lib/simulation_run/main" "run_agent" "ros_tcp_endpoint" "simulation_run.wave_server_node"; do
     pkill -f "$proc" && echo -e "${GREEN}[INFO] Killed '$proc'${NC}" || echo -e "${YELLOW}[INFO] No '$proc' found.${NC}"
 done
 sleep 2
 # Force-reap survivors (SIGTERM is unreliable for gz sim and an orphaned manager
 # mid-callback) so the new run shares its ROS domain with no ghost.
-for proc in "gz sim" "simulation_run/lib/simulation_run/main" "run_agent"; do
+for proc in "gz sim" "simulation_run/lib/simulation_run/main" "run_agent" "simulation_run.wave_server_node"; do
     pkill -9 -f "$proc" 2>/dev/null && echo -e "${GREEN}[INFO] Force-killed lingering '$proc'${NC}"
 done
 sleep 3
@@ -359,7 +369,7 @@ if [[ "$SCENARIO_USES_PX4" == "true" ]]; then
 "This scenario has \"px4\": true agents but no PX4 SITL binary at
         $PX4_AUTOPILOT_PATH/build/px4_sitl_default/bin/px4
   Build it once with:
-        (cd $PX4_AUTOPILOT_PATH && make px4_sitl gz_x500)
+        (cd $PX4_AUTOPILOT_PATH && make px4_sitl)
   or point PX4_AUTOPILOT_PATH at an existing built checkout."
 fi
 
@@ -420,11 +430,33 @@ done <<< "$(echo "$AGENT_SDF_PAIRS" | sort -u)"
 echo -e "${GREEN}[INFO] Saved scenario config + world file + agent SDFs to $CONFIG_SNAPSHOT_DIR${NC}"
 
 # Resolve the Unity executable directory for this world (only needed if Unity is enabled)
+UNITY_EXE_DIR_OVERRIDE="${UNITY_EXE_DIR:-}"
 UNITY_EXE_DIR=""
-if [[ "$USE_UNITY" == "true" ]]; then
+if [[ "$USE_UNITY" == "true" && -n "$UNITY_EXE_DIR_OVERRIDE" ]]; then
+    UNITY_EXE_DIR="$UNITY_EXE_DIR_OVERRIDE"
+    [[ -d "$UNITY_EXE_DIR" ]] || die "No Unity build at '$UNITY_EXE_DIR'."
+    if [[ "$UNITY_PLATFORM" == "windows" && "$(readlink -f "$UNITY_EXE_DIR")" != /mnt/* ]]; then
+        echo -e "${YELLOW}[WARN] '$UNITY_EXE_DIR' is in the WSL filesystem: Windows cannot start a Unity 6.6 player from there (dstorage.dll). Copy it to a Windows drive (/mnt/c/...).${NC}"
+    fi
+elif [[ "$USE_UNITY" == "true" ]]; then
     UNITY_BASENAME="${WORLD_UNITY_BASENAMES[$WORLD_FILE]}"
     [[ -n "$UNITY_BASENAME" ]] || die "No Unity executable mapped for world_file '$WORLD_FILE'. Add an entry to WORLD_UNITY_BASENAMES in this script."
-    UNITY_EXE_DIR="$UNITY_EXECUTABLES_DIR/${UNITY_BASENAME}_${UNITY_PLATFORM}"
+    UNITY_PLAYER_NAME="${UNITY_BASENAME}_${UNITY_PLATFORM}"
+    UNITY_EXE_DIR="$UNITY_EXECUTABLES_DIR/$UNITY_PLAYER_NAME"
+    # The players are release assets pinned in players.json, not git files:
+    # download this one if it is missing or older than the pinned version.
+    # fetch_unity_player.sh decides where it lives: under WSL, a Windows
+    # player is kept on the Windows drive, which is the only place it starts.
+    FETCH_PLAYER="$(dirname "$(readlink -f "$0")")/fetch_unity_player.sh"
+    if python3 -c 'import json,sys; sys.exit(0 if sys.argv[2] in json.load(open(sys.argv[1]))["players"] else 1)' \
+        "$UNITY_EXECUTABLES_DIR/players.json" "$UNITY_PLAYER_NAME" 2>/dev/null; then
+        UNITY_EXE_DIR="$("$FETCH_PLAYER" --path "$UNITY_PLAYER_NAME")" \
+            || die "Could not locate the Unity player $UNITY_PLAYER_NAME (see above)."
+        if [[ "$UNITY_MODE" == "exe" ]]; then
+            "$FETCH_PLAYER" "$UNITY_PLAYER_NAME" \
+                || die "Could not download the Unity player $UNITY_PLAYER_NAME (see above)."
+        fi
+    fi
     [[ -d "$UNITY_EXE_DIR" ]] || die "No Unity build at '$UNITY_EXE_DIR'."
 fi
 
@@ -466,6 +498,44 @@ XDYN_CONFIGS["Bluerov2_heavy_current"]="$LOTUSIM_PATH/assets/models/bluerov2_hea
 # uses both. Listed explicitly rather than left to the substring fallback,
 # which could match the plain "Bluerov2_heavy" key instead.
 XDYN_CONFIGS["Bluerov2_heavy_current_inspection"]="$LOTUSIM_PATH/assets/models/bluerov2_heavy/BlueROV2_current_${BLUEROV_CURRENT}.yml 12353"
+
+# Sea state ("waves", or "weather" with a Beaufort force or a place and date,
+# in the scenario json; see lotusim_sdk.waves.sea_state): one sea for every
+# vehicle and for the renderer. simulation_run.prepare_weather builds its components and
+# writes copies of the xdyn models, into the run's log directory, whose wave
+# model is that list of components, evaluated by xdyn's own Airy model. When
+# the sea state can change during the run ("live" / "follow_wind"),
+# simulation_run.wave_server_node rewrites the list at each change, with the
+# fades of the change, and xdyn re-reads it.
+# xdyn is started on the copies. The wave server node (started below, before
+# xdyn) sends the components to the renderer in both cases. Without either
+# block the models are used as they are, each with its own wave settings.
+# With a place and date, the current profile of that date is downloaded too:
+# LOTUSIM_WEATHER_CURRENT_PROFILE tells the agents to replay it.
+# xdyn's integration step. The WAM-V's mesh hydrostatics diverge (NaN) from Beaufort 8 at the
+# 0.1 s the physics plugin asks for; 0.05 s holds to force 10, at twice the cost of that hull.
+xdyn_dt() { [[ "$(basename "$1")" == wamv* ]] && echo 0.05 || echo 0.2; }
+
+WAVES_DIR=""
+if [[ "$(jq -r '.waves | type' "$CONFIG_FILE")" == "object" || "$(jq -r '.weather | type' "$CONFIG_FILE")" == "object" ]]; then
+    WAVES_DIR="$LOG_DIR/waves"
+    declare -A _xdyn_models=()
+    for key in "${!XDYN_CONFIGS[@]}"; do
+        read -r yml_file _ <<< "${XDYN_CONFIGS[$key]}"
+        _xdyn_models["$yml_file"]=1
+    done
+    python3 -m simulation_run.prepare_weather \
+        --config "$CONFIG_FILE" --out-dir "$WAVES_DIR" --world-file "$WORLD_FILE_PATH" "${!_xdyn_models[@]}" \
+        || die "Could not prepare the scenario's waves."
+    for key in "${!XDYN_CONFIGS[@]}"; do
+        read -r yml_file port <<< "${XDYN_CONFIGS[$key]}"
+        patched="$WAVES_DIR/$(basename "$yml_file")"
+        [[ -f "$patched" ]] && XDYN_CONFIGS["$key"]="$patched $port"
+    done
+    if [[ -f "$WAVES_DIR/current_profile.csv" ]]; then
+        export LOTUSIM_WEATHER_CURRENT_PROFILE="$WAVES_DIR/current_profile.csv"
+    fi
+fi
 
 # ============================================================
 # Agent Types
@@ -511,6 +581,12 @@ cleanup() {
 
   echo -e "${YELLOW}[INFO] Cleaning up all child processes...${NC}"
 
+  # The bag only gets its metadata.yaml if it is stopped cleanly, before what it records.
+  if [[ -n "$BAG_PID" ]] && kill -0 "$BAG_PID" 2>/dev/null; then
+    kill -TERM "$BAG_PID"
+    for _ in $(seq 1 50); do kill -0 "$BAG_PID" 2>/dev/null || break; sleep 0.1; done
+  fi
+
   # simulation_run/main.py (PYTHON_PID) is in the same foreground process
   # group, so it already received this same SIGINT and is doing its own
   # graceful shutdown (draining the ROS executor, halting BT missions,
@@ -546,7 +622,16 @@ cleanup() {
   # match it by its own cmdline so it can't linger and double-publish into the
   # next run (see the startup-cleanup comment for the full failure mode).
   pkill -f "simulation_run/lib/simulation_run/main"
+  pkill -f "simulation_run.wave_server_node"
   pkill -f yolo_server_corrosion_crack
+
+  # The player rewrites its log at every start: keep this run's copy (wave
+  # probes, frame rates) next to the other logs.
+  if [[ "$USE_UNITY" == "true" ]]; then
+    for player_log in "$HOME"/.config/unity3d/*/LOTUSimEnergy/Player.log; do
+      [[ -f "$player_log" ]] && cp "$player_log" "$LOG_DIR/unity_Player.log"
+    done
+  fi
 
   for pid in "${CHILD_PIDS[@]}"; do
     if kill -0 "$pid" 2>/dev/null; then
@@ -606,7 +691,42 @@ if [[ "$USE_UNITY" == "true" ]]; then
     ros2 run ros_tcp_endpoint default_server_endpoint --address 0.0.0.0 --tcp_ip 127.0.0.1 --ros-args --log-level $TCP_LOG_LEVEL
   "
   echo -e "${GREEN}[INFO] ROS–Unity TCP bridge started (logging to $LOG_DIR/ros_tcp_endpoint.log).${NC}"
+  # The address to enter in the Unity player's lobby. Under WSL it depends on
+  # the networking mode: players on other machines only reach a mirrored WSL.
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    "$(dirname "$(readlink -f "$0")")/wsl_network.sh" status || true
+  else
+    echo -e "${GREEN}[INFO] Unity players connect to: $ROS_IP, port 10000${NC}"
+  fi
   sleep 1
+fi
+
+# ============================================================
+# "record_bag" in the scenario: true records every topic, a list only those, into $LOG_DIR/bag
+# ============================================================
+BAG_TOPICS=$(jq -r 'if (.record_bag | type) == "array" then .record_bag | join(" ") elif .record_bag then "-a" else "" end' "$CONFIG_FILE")
+if [[ -n "$BAG_TOPICS" ]]; then
+    bash -c "
+        source \"$CORE_SETUP\"
+        export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
+        exec ros2 bag record -o \"$LOG_DIR/bag\" $BAG_TOPICS
+    " > "$LOG_DIR/rosbag.log" 2>&1 &
+    BAG_PID=$!
+    echo -e "${GREEN}[INFO] Recording a bag into $LOG_DIR/bag (PID $BAG_PID).${NC}"
+fi
+
+# ============================================================
+# Wave server: publishes the waves to the renderer and rewrites the rays and
+# Ekman weather files xdyn re-reads when the weather changes
+# ============================================================
+if [[ -n "$WAVES_DIR" ]]; then
+    WAVE_WORLD=$(grep -o '<world name="[^"]*"' "$WORLD_FILE_PATH" | head -1 | sed 's/.*name="//; s/"$//')
+    run_helper "$LOG_DIR/wave_server.log" "
+        export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
+        export ROS_IP=$ROS_IP
+        exec python3 -m simulation_run.wave_server_node --config \"$CONFIG_FILE\" --world $WAVE_WORLD --rays-file \"$WAVES_DIR/wave_rays.csv\"
+    "
+    echo -e "${GREEN}Wave server for world '$WAVE_WORLD' (PID ${CHILD_PIDS[-1]})${NC}"
 fi
 
 # ============================================================
@@ -637,7 +757,7 @@ while IFS=$'\t' read -r agent_id agent_cls agent_port; do
     run_helper "$LOG_DIR/xdyn_${agent_id}.log" "
         export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
         export ROS_IP=$ROS_IP
-        xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $agent_port --dt 0.2 ${XDYN_VERBOSE:+-v -w}
+        xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $agent_port --dt $(xdyn_dt "$yml_file") ${XDYN_VERBOSE:+-v -w}
     "
     echo -e "${GREEN}xdyn-for-cs for $agent_id on port $agent_port (PID ${CHILD_PIDS[-1]})${NC}"
     XDYN_LAUNCHED[$agent_cls]=1
@@ -689,7 +809,7 @@ for agent_type in $AGENT_TYPES; do
             run_helper "$LOG_DIR/xdyn_${agent_type}.log" "
                 export ROS_DOMAIN_ID=$ROS_DOMAIN_ID
                 export ROS_IP=$ROS_IP
-                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt 0.2 ${XDYN_VERBOSE:+-v -w}
+                xdyn-for-cs \"$yml_file\" --address 127.0.0.1 --port $port --dt $(xdyn_dt "$yml_file") ${XDYN_VERBOSE:+-v -w}
             "
             echo -e "${GREEN}xdyn-for-cs for $agent_type started with PID ${CHILD_PIDS[-1]}${NC}"
             XDYN_LAUNCHED[$agent_type]=1
@@ -780,6 +900,22 @@ if [[ "$AGENT_SHARDS" == "auto" ]]; then
     echo -e "${GREEN}[INFO] $fleet agents over $AGENT_SHARDS process(es).${NC}"
 fi
 
+# aerialWorld and every PX4 run on reserved cores (PX4_CPU_AFFINITY), the last
+# two by default. That is enough for one or two drones, not for a fleet: give
+# each PX4 a core, within half of the machine, which the rest of the scenario needs.
+px4_drones=$(jq '[.agents[]? | select(.px4 == true) | (.nb_agents // 1)] | add // 0' "$CONFIG_FILE")
+if (( px4_drones > 2 )) && [[ -z "${PX4_CPU_AFFINITY+set}" ]]; then
+    px4_cores=$(( px4_drones < $(nproc) / 2 ? px4_drones : $(nproc) / 2 ))
+    if (( px4_cores > 2 )); then
+        export PX4_CPU_AFFINITY="$(( $(nproc) - px4_cores ))-$(( $(nproc) - 1 ))"
+        echo -e "${GREEN}[INFO] $px4_drones PX4 drones on cores $PX4_CPU_AFFINITY.${NC}"
+    fi
+fi
+
+# PX4 derives its ports from the instance number: keep the numbers low, or the
+# ports of one instance land on those of another (14280 + 300 = 14580 + 0).
+(( px4_drones > 0 )) && PX4_INSTANCES_PER_SHARD=$px4_drones
+
 PYTHON_PID=""
 # Shard 0 brings up the world and the scenario-wide observers, so it starts
 # first and stays the process whose exit ends the run; the other shards only
@@ -802,6 +938,7 @@ for ((shard = 1; shard < AGENT_SHARDS; shard++)); do
         # Own band of PX4 '-i' instance numbers: a shard kills stale PX4
         # processes by instance number, and must never reach another's.
         export LOTUSIM_PX4_INSTANCE_BASE=$((shard * PX4_INSTANCES_PER_SHARD))
+        ${PX4_CPU_AFFINITY+export PX4_CPU_AFFINITY='$PX4_CPU_AFFINITY'}
         ros2 run simulation_run main ${ARGS[*]} --shards $AGENT_SHARDS --shard $shard
     "
 done
