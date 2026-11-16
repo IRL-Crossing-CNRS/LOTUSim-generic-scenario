@@ -132,6 +132,9 @@ comparison attributable to the model.
   own ROS 2, with its own Python. A workspace built against a system ROS and one
   built against the flake produce different message definitions, so their
   publishers and subscribers never match and nothing is delivered.
+- **The core version** this workspace runs on, when no clone of the core is
+  built, is the one `flake.lock` pins. To move to a newer core:
+  `nix flake update lotusim`, test, and commit `flake.lock`.
 - **Empty `external_packages/*/` directories** left behind by a branch switch
   are invisible to `git status` (git does not track empty directories) but
   visible to `colcon`. Delete them if a build complains about a package with

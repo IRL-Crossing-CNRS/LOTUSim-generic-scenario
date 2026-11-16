@@ -2,11 +2,16 @@
 # packages the agents import. Both workspaces must be built and run in the same
 # environment — a build against another ROS 2 produces different message
 # definitions, and nothing is ever delivered between the two.
+#
+# The default shells also hold the core itself, built by nix at the revision
+# flake.lock pins, so the scenarios run without a clone of the core. The
+# *-local-core shells leave it out, for a built clone passed with
+# --override-input lotusim <clone>: that clone's devshell, and its install/.
 {
   description = "LOTUSim generic scenario — ROS 2 workspace environment";
 
   inputs = {
-    lotusim.url = "github:naval-group/LOTUSim";
+    lotusim.url = "github:IRL-Crossing-CNRS/LOTUSim";
     nixpkgs.follows = "lotusim/nixpkgs";
     flake-utils.follows = "lotusim/flake-utils";
   };
@@ -16,6 +21,28 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         coreShell = lotusim.devShells.${system}.default;
+
+        # The core laid out as a built clone, read-only: install/ and assets/
+        # where scenario_launch.sh and the core's mise tasks look for them, so
+        # `mise run sim` starts worlds from it the same way as from a clone.
+        # mise.toml is copied, not linked: mise takes its config_root from it.
+        coreBuilt = pkgs.runCommand "lotusim-core-built" { } ''
+          mkdir $out
+          ln -s ${lotusim.packages.${system}.workspace} $out/install
+          ln -s ${lotusim.packages.${system}.assets} $out/assets
+          ln -s ${lotusim}/scripts $out/scripts
+          cp ${lotusim}/mise.toml $out/mise.toml
+          # The core logs to $LOTUSIM_PATH/lotus_logs, which must be writable:
+          # this is where its logger goes when LOTUSIM_PATH is unset.
+          # shortcut: one /tmp folder for every user, a per-user one if machines get shared.
+          ln -s /tmp/lotus_logs $out/lotus_logs
+        '';
+        coreHook = ''
+          export LOTUSIM_CORE_BUILT=${coreBuilt}
+          mkdir -p /tmp/lotus_logs
+          source ${coreBuilt}/install/local_setup.bash
+          mise trust --quiet ${coreBuilt}/mise.toml >/dev/null 2>&1 || true
+        '';
 
         # pymavlink drives PX4 offboard patrol; pillow is only reached when a
         # detection task handles a frame.
@@ -164,29 +191,36 @@
           fi
         '';
 
-        scenarioShell = { detectionEnv, hook ? "", banner }: pkgs.mkShell {
+        scenarioShell = { detectionEnv, hook ? "", banner, withCore ? true }: pkgs.mkShell {
           inputsFrom = [ coreShell ];
           # jq: scenario_launch.sh reads the scenario JSON with it.
           packages = scenarioPython ++ [ pkgs.jq ];
           shellHook = ''
             export PYTHONPATH="${opencvGui}/${pkgs.python3.sitePackages}:${detectionEnv}/${pkgs.python3.sitePackages}''${PYTHONPATH:+:$PYTHONPATH}"
             ${hook}
+            ${pkgs.lib.optionalString withCore coreHook}
             echo "${banner}"
           '';
         };
+        cpu = withCore: scenarioShell {
+          inherit withCore;
+          detectionEnv = cpuDetectionEnv;
+          banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the CPU)";
+        };
+        # CUDA, and NVIDIA's wheels, exist for Linux only.
+        gpu = withCore: scenarioShell {
+          inherit withCore;
+          detectionEnv = gpuDetectionEnv;
+          hook = hostCudaHook;
+          banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the GPU)";
+        };
       in {
         devShells = {
-          default = scenarioShell {
-            detectionEnv = cpuDetectionEnv;
-            banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the CPU)";
-          };
+          default = cpu true;
+          local-core = cpu false;
         } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          # CUDA, and NVIDIA's wheels, exist for Linux only.
-          gpu = scenarioShell {
-            detectionEnv = gpuDetectionEnv;
-            hook = hostCudaHook;
-            banner = "LOTUSim generic scenario — core devshell plus the agents' Python packages (detection on the GPU)";
-          };
+          gpu = gpu true;
+          gpu-local-core = gpu false;
         };
       });
 }

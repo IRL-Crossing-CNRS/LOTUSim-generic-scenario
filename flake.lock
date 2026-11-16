@@ -1,0 +1,335 @@
+{
+  "nodes": {
+    "flake-utils": {
+      "inputs": {
+        "systems": "systems"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "lotusim": {
+      "inputs": {
+        "flake-utils": [
+          "lotusim",
+          "nix-ros-overlay",
+          "flake-utils"
+        ],
+        "lotusim-ui-backend": "lotusim-ui-backend",
+        "lotusim-ui-frontend": "lotusim-ui-frontend",
+        "lxdyn": "lxdyn",
+        "nix-ros-overlay": "nix-ros-overlay",
+        "nixpkgs": [
+          "lotusim",
+          "nix-ros-overlay",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794548728,
+        "narHash": "sha256-0cyQpccRy+VnqXuRlTpLIeNxYOfBOS1RJaNV7wPn9KU=",
+        "owner": "IRL-Crossing-CNRS",
+        "repo": "LOTUSim",
+        "rev": "c5ebf51dd8b3fb92c902fa233becd10efd6964ed",
+        "type": "github"
+      },
+      "original": {
+        "owner": "IRL-Crossing-CNRS",
+        "repo": "LOTUSim",
+        "type": "github"
+      }
+    },
+    "lotusim-ui-backend": {
+      "inputs": {
+        "flake-utils": [
+          "lotusim",
+          "lotusim-ui-backend",
+          "nix-ros-overlay",
+          "flake-utils"
+        ],
+        "nix-ros-overlay": [
+          "lotusim",
+          "nix-ros-overlay"
+        ],
+        "nixpkgs": [
+          "lotusim",
+          "lotusim-ui-backend",
+          "nix-ros-overlay",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787291151,
+        "narHash": "sha256-pgAIA0n/yVkGUAAKJov9vI25VSA5WaBPvhXZplshnAo=",
+        "owner": "naval-group",
+        "repo": "LOTUSim-UI-backend",
+        "rev": "0861406e54844886f55a03479e59ffbe390bc012",
+        "type": "github"
+      },
+      "original": {
+        "owner": "naval-group",
+        "repo": "LOTUSim-UI-backend",
+        "type": "github"
+      }
+    },
+    "lotusim-ui-frontend": {
+      "inputs": {
+        "flake-utils": [
+          "lotusim",
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "lotusim",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787211194,
+        "narHash": "sha256-q8MdPyR0wsIYdZGTnmpzXlk86MR7CJsErO7ccnEdDaY=",
+        "owner": "naval-group",
+        "repo": "LOTUSim-UI-frontend",
+        "rev": "5f6775299aa3e9d0bf202445b82e5d5b6c832b0c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "naval-group",
+        "repo": "LOTUSim-UI-frontend",
+        "type": "github"
+      }
+    },
+    "lxdyn": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "src-boost": "src-boost",
+        "src-googletest": "src-googletest",
+        "src-grpc": "src-grpc",
+        "src-hdf5": "src-hdf5",
+        "src-mimalloc": "src-mimalloc",
+        "src-yaml-cpp": "src-yaml-cpp"
+      },
+      "locked": {
+        "lastModified": 1794527574,
+        "narHash": "sha256-bdRKI1ujpycCanNIzRUTb0jkc2QFqptGowilQ/E1Uec=",
+        "owner": "IRL-Crossing-CNRS",
+        "repo": "lxdyn",
+        "rev": "9a32a7cd1d0326736402864a986ef448ea152903",
+        "type": "github"
+      },
+      "original": {
+        "owner": "IRL-Crossing-CNRS",
+        "ref": "main",
+        "repo": "lxdyn",
+        "type": "github"
+      }
+    },
+    "nix-ros-overlay": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nixpkgs": "nixpkgs_2",
+        "rosdistro": "rosdistro"
+      },
+      "locked": {
+        "lastModified": 1785606873,
+        "narHash": "sha256-B4+EVJ+D1bKbIzQxdbOJuU/l7y9tJg1dHNAUyO6MQyg=",
+        "owner": "lopsided98",
+        "repo": "nix-ros-overlay",
+        "rev": "2004728f9f450421c9d44b62d6c707a5834139bb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lopsided98",
+        "ref": "master",
+        "repo": "nix-ros-overlay",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1793540411,
+        "narHash": "sha256-fiPJ88izTVucjeo2EQ3jk4aWmLg03I1D4vxnX2QjEgE=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "0bb2eedc20e4739f29e8045034f2828ad7054f8f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1782723713,
+        "narHash": "sha256-oPXCU/SSUokcGaJREHibG1CBX3+s/W7orDWQOZDsEeQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "flake-utils": [
+          "lotusim",
+          "flake-utils"
+        ],
+        "lotusim": "lotusim",
+        "nixpkgs": [
+          "lotusim",
+          "nixpkgs"
+        ]
+      }
+    },
+    "rosdistro": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785506537,
+        "narHash": "sha256-F/E9AWF3V2coFM0tz8Rpgjs7KZELZ617OUrfiF5Tb3I=",
+        "owner": "ros",
+        "repo": "rosdistro",
+        "rev": "16a90886be745b6ec535942294969c2228a8c59a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ros",
+        "repo": "rosdistro",
+        "type": "github"
+      }
+    },
+    "src-boost": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785952113,
+        "narHash": "sha256-w1uASkoqgwIBviozajZrOlPJXyUKRA617zlSCu45Z9o=",
+        "type": "tarball",
+        "url": "https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.bz2"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.bz2"
+      }
+    },
+    "src-googletest": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786382357,
+        "narHash": "sha256-rXsn2L0xeWvfxTjMAoWEu0UFZ7xOSfYmhbKgRF5J9co=",
+        "owner": "google",
+        "repo": "googletest",
+        "rev": "063de7e9578f82b369302001269680b4b1553359",
+        "type": "github"
+      },
+      "original": {
+        "owner": "google",
+        "ref": "v1.18.0",
+        "repo": "googletest",
+        "type": "github"
+      }
+    },
+    "src-grpc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793339113,
+        "narHash": "sha256-Z/V8UrCu76hoX957Mmsxeo3W0e3mxRS5RBeLPjjBLnI=",
+        "ref": "refs/tags/v1.85.1",
+        "rev": "558b7e3b09e42e2160018732acbbf56c9094c84d",
+        "revCount": 59049,
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/grpc/grpc"
+      },
+      "original": {
+        "ref": "refs/tags/v1.85.1",
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/grpc/grpc"
+      }
+    },
+    "src-hdf5": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785271196,
+        "narHash": "sha256-Tp2f8jJjVst0Fd07Wt4+EzjHRRI+8TlD1uWD9sDTw4g=",
+        "owner": "HDFGroup",
+        "repo": "hdf5",
+        "rev": "49df1b4e5ca4108d56e80f06321a749da1535268",
+        "type": "github"
+      },
+      "original": {
+        "owner": "HDFGroup",
+        "ref": "2.2.0",
+        "repo": "hdf5",
+        "type": "github"
+      }
+    },
+    "src-mimalloc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1749522185,
+        "narHash": "sha256-+8xZT+mVEqlqabQc+1buVH/X6FZxvCd0rWMyjPu9i4o=",
+        "owner": "microsoft",
+        "repo": "mimalloc",
+        "rev": "fbd8b99c2b828428947d70fdc046bb55609be93e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "microsoft",
+        "ref": "v2.2.4",
+        "repo": "mimalloc",
+        "type": "github"
+      }
+    },
+    "src-yaml-cpp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1770236785,
+        "narHash": "sha256-+FOsPQY44h1g9tEw3O281LkiYKXdW2jnFKw+oTRkhGw=",
+        "owner": "jbeder",
+        "repo": "yaml-cpp",
+        "rev": "56e3bb550c91fd7005566f19c079cb7a503223cf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jbeder",
+        "ref": "yaml-cpp-0.9.0",
+        "repo": "yaml-cpp",
+        "type": "github"
+      }
+    },
+    "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

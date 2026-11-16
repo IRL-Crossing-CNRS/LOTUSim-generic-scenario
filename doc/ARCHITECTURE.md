@@ -32,8 +32,9 @@ flowchart LR
 
 - **Host**: runs Gazebo, the LOTUSim systems, the Unity renderer, and launches
   scenarios from `src/simulation_run/config/*.json` via `simulation_run`.
-  The core is built with `lotusim_core build` (`mise run build` in its
-  devshell), this workspace with `colcon build` inside `lotusim_shell`.
+  The core comes ready-built from nix, or from your clone once built with
+  `lotusim_core build`; this workspace is built with `colcon build`
+  inside `lotusim_shell`.
   Always launches **two** Gazebo worlds —
   the scenario's own plus a hardcoded `aerialWorld.world` — see §5.1.
 - **Remote**: runs only `lotusim_client.run_agent` — no Gazebo. It spawns an

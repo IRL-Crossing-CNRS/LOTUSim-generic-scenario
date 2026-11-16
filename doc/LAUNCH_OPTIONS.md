@@ -61,7 +61,7 @@ variables, so another clone or another branch runs without moving anything:
 | Variable | Default | Effect |
 |---|---|---|
 | `LOTUSIM_WS` | `~/lotusim_ws` | Colcon workspace of the core simulator |
-| `LOTUSIM_PATH` | `$LOTUSIM_WS/src/LOTUSim` | Core simulator clone: worlds, models, plugins. When it holds a `mise.toml` and `mise` is installed, the worlds start with `mise run sim` from that clone, otherwise with `lotusim run` |
+| `LOTUSIM_PATH` | `$LOTUSIM_WS/src/LOTUSim` | Core simulator clone: worlds, models, plugins. When it holds a `mise.toml` and `mise` is installed, the worlds start with `mise run sim` from that clone, otherwise with `lotusim run`. Without a built clone (no `install/`), the core nix built is used instead |
 | `LOTUSIM_SCENARIO_WS` | `~/Documents/workspace/lotusim/LOTUSim-generic-scenario` | This workspace: the scenario configs and the Unity players are read from there, not from the directory you launch from |
 | `PX4_AUTOPILOT_PATH` | `~/PX4-Autopilot` | PX4 checkout, for scenarios with PX4 drones |
 

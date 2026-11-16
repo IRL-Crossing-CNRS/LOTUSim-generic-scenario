@@ -493,7 +493,9 @@ BASHRC_END="# <<< LOTUSim setup <<<"
 # A block written by an older installer is replaced: one without the devshell
 # profiles, or one whose lotusim_shell starts the devshell's own bash
 # (built without readline: no completion, no copy-paste).
-if grep -qF "$BASHRC_MARKER" ~/.bashrc && { ! grep -qF "LOTUSIM_PROFILES" ~/.bashrc || ! grep -qF -- '--command "${BASH:-/bin/bash}"' ~/.bashrc; }; then
+# Or one older than lotusim_core (once lotusim_core) and the shell on
+# the core nix builds when no clone is built (the local-core devshells).
+if grep -qF "$BASHRC_MARKER" ~/.bashrc && { ! grep -qF "LOTUSIM_PROFILES" ~/.bashrc || ! grep -qF -- '--command "${BASH:-/bin/bash}"' ~/.bashrc || ! grep -qF "local-core" ~/.bashrc; }; then
   info "Replacing the previous LOTUSim block in ~/.bashrc (backup: ~/.bashrc.lotusim.bak)..."
   cp ~/.bashrc ~/.bashrc.lotusim.bak
   sed -i "/^${BASHRC_MARKER}\$/,/^${BASHRC_END}\$/d" ~/.bashrc
@@ -530,15 +532,22 @@ lotusim_core() {
   ( cd "\$LOTUSIM_PATH" && _lotusim_develop core --command mise run "\$@" )
 }
 
-# 'lotusim_shell' opens the scenario workspace's devshell, built
-# against the core, with both workspaces sourced: scenario_launch.sh is
+# 'lotusim_shell' opens the scenario workspace's devshell, on the
+# built clone of the core when there is one, with both workspaces sourced: scenario_launch.sh is
 # run from there. ~/.config/lotusim/devshell names the devshell:
 # "default" (detection on the CPU) or "gpu".
 lotusim_shell() {
   local devshell
   devshell="\$(cat "\$HOME/.config/lotusim/devshell" 2>/dev/null || echo default)"
+  # Without a built clone of the core, the shell holds the core nix builds at
+  # the revision the scenario workspace's flake.lock pins.
+  local core=()
+  if [[ -f "\$LOTUSIM_PATH/install/setup.bash" ]]; then
+    [[ "\$devshell" == default ]] && devshell=local-core || devshell="\$devshell-local-core"
+    core=(--override-input lotusim "\$LOTUSIM_PATH")
+  fi
   cd "\$LOTUSIM_SCENARIO_WS" && \\
-    _lotusim_develop scenario ".#\$devshell" --override-input lotusim "\$LOTUSIM_PATH" \\
+    _lotusim_develop scenario ".#\$devshell" "\${core[@]}" \\
       --command "\${BASH:-/bin/bash}" --rcfile "\$HOME/.config/lotusim/shellrc"
 }
 # <<< LOTUSim setup <<<
@@ -716,6 +725,9 @@ fi
 # workspace built against any other ROS 2 gets different message definitions and
 # never exchanges a message with the simulation.
 PWD_SCENARIO="$PWD"
+# The *-local-core devshell leaves out the core nix would build itself, since
+# this install has just built one.
+[[ "$SCENARIO_DEVSHELL" == default ]] && LOCAL_CORE_DEVSHELL=local-core || LOCAL_CORE_DEVSHELL="$SCENARIO_DEVSHELL-local-core"
 # This workspace has its own devshell: the core's, plus the Python packages the
 # agents import. Its lotusim input is pointed at the core just cloned, so both
 # are built against one ROS 2 rather than against whatever github holds.
@@ -723,10 +735,10 @@ info "Building LOTUSim generic scenario with colcon, in its devshell..."
 purge_foreign_colcon_artifacts "$PWD"
 mkdir -p "$HOME/.local/state/lotusim_core"
 ( cd "$PWD_SCENARIO" && nix develop --profile "$HOME/.local/state/lotusim_core/scenario" \
-    ".#$SCENARIO_DEVSHELL" --override-input lotusim "$LOTUSIM_PATH" \
+    ".#$LOCAL_CORE_DEVSHELL" --override-input lotusim "$LOTUSIM_PATH" \
     --command bash -c \
     "source '$LOTUSIM_PATH/install/setup.bash' && colcon build --symlink-install" ) \
-  || die "Scenario build failed. Enter the shell yourself with: cd $PWD_SCENARIO && nix develop --override-input lotusim $LOTUSIM_PATH"
+  || die "Scenario build failed. Enter the shell yourself with: cd $PWD_SCENARIO && nix develop .#$LOCAL_CORE_DEVSHELL --override-input lotusim $LOTUSIM_PATH"
 success "Scenario built"
 
 # -----------------------------------------------------------------------------

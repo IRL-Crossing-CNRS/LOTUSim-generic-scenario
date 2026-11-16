@@ -105,7 +105,12 @@ UNITY_EXTRA_ARGS="${UNITY_EXTRA_ARGS:--screen-fullscreen 0 -screen-width 1280 -s
 # fallbacks match that installer's layout. Everything is exported so child
 # processes (xdyn, ROS nodes) always see these paths.
 export LOTUSIM_WS="${LOTUSIM_WS:-$HOME/lotusim_ws}"
-export LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
+LOTUSIM_PATH="${LOTUSIM_PATH:-$LOTUSIM_WS/src/LOTUSim}"
+# Without a built clone of the core, the one nix built for this devshell.
+if [[ ! -f "$LOTUSIM_PATH/install/setup.bash" && -n "${LOTUSIM_CORE_BUILT:-}" ]]; then
+  LOTUSIM_PATH="$LOTUSIM_CORE_BUILT"
+fi
+export LOTUSIM_PATH
 # The core ships neither a launcher script nor xdyn binaries: worlds are started
 # through gz sim directly (see simulation_runner.py) and xdyn comes from lxdyn's
 # published image, provided by the core's nix devshell or installed separately.

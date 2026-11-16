@@ -34,7 +34,9 @@ lotusim_shell
 colcon build --symlink-install
 ```
 
-After changing the core, rebuild it first, from any terminal:
+You do not need to build the core to run scenarios: without a clone,
+`lotusim_shell` uses one nix has already built. To work on the core,
+build your clone, from any terminal; the shell then uses it:
 
 ```bash
 lotusim_core build      # lotusim_core rebuild to start from a clean tree
