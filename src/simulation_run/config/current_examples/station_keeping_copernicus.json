@@ -19,7 +19,7 @@
       "missions": [
         { "id": "navigation", "type": "action", "task": "bluerov_navigation", "params": {} },
         { "id": "hold", "type": "action", "task": "bluerov_guidance_hold",
-          "params": { "z_setpoint_m": 10.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+          "params": { "z_setpoint_m": 10.0, "hold_origin": true } },
         { "id": "control", "type": "action", "task": "bluerov_control", "params": {} },
         { "id": "allocation", "type": "action", "task": "bluerov_allocation", "params": {} },
         { "id": "metrics", "type": "action", "task": "bluerov_metrics_recorder",

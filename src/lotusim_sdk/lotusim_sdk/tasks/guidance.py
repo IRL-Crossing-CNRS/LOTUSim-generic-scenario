@@ -28,7 +28,7 @@ from lotusim_msgs.msg import GuidanceSetpoint
 
 from lotusim_sdk.bt.status import Status
 from lotusim_sdk.tasks.base import TaskAgent
-from lotusim_sdk.control import LineOfSightGuidance, PurePursuitGuidance, enu_to_ned_position
+from lotusim_sdk.control import LineOfSightGuidance, PurePursuitGuidance, enu_quat_to_ned_euler, enu_to_ned_position
 
 
 def _ned_xy(pose) -> tuple:
@@ -79,11 +79,20 @@ class HoldGuidanceTask(_GuidanceTaskBase):
 
     Params:
         z_setpoint_m      float   target depth, positive down (default 3)
-        psi_setpoint_deg  float   target heading (default 0)
+        psi_setpoint_deg  float   target heading, NED (default: the vehicle's
+                                  own heading at the first pose received --
+                                  see note below)
         hold_origin       bool    True = hold the position of the first pose
                                   received; otherwise x/y_setpoint_m (default True)
         x_setpoint_m,
         y_setpoint_m      float   target point when hold_origin is False
+
+    ``psi_setpoint_deg`` is a NED heading, whereas a scenario's ``spawn.yaw``
+    is an ENU yaw -- they are not the same number for the same direction
+    (NED psi = 90 - ENU yaw). Omitting ``psi_setpoint_deg`` holds whatever
+    heading the vehicle actually has when this task starts (station keeping
+    in place), which is almost always what a config author means; pass it
+    explicitly only to command a heading different from the current one.
     """
 
     def __init__(self, host, params=None, blackboard=None, id: str = "") -> None:
@@ -93,6 +102,7 @@ class HoldGuidanceTask(_GuidanceTaskBase):
         self._x_sp = float(p.get("x_setpoint_m", 0.0))
         self._y_sp = float(p.get("y_setpoint_m", 0.0))
         self._z_sp = float(p.get("z_setpoint_m", 3.0))
+        self._psi_explicit = "psi_setpoint_deg" in p
         self._psi_sp = math.radians(float(p.get("psi_setpoint_deg", 0.0)))
         self._initialized = False
 
@@ -101,9 +111,13 @@ class HoldGuidanceTask(_GuidanceTaskBase):
         if not self._initialized:
             if self._hold_origin:
                 self._x_sp, self._y_sp = x, y
+            if not self._psi_explicit:
+                o = msg.pose.pose.orientation
+                _, _, self._psi_sp = enu_quat_to_ned_euler(o.x, o.y, o.z, o.w)
             self._initialized = True
             self.host.get_logger().info(
-                f"{type(self).__name__}: holding ({self._x_sp:.2f}, " f"{self._y_sp:.2f}) NED, depth {self._z_sp} m"
+                f"{type(self).__name__}: holding ({self._x_sp:.2f}, {self._y_sp:.2f}) NED, "
+                f"depth {self._z_sp} m, heading {math.degrees(self._psi_sp):.1f} deg NED"
             )
         self._publish(
             use_position_hold=True,

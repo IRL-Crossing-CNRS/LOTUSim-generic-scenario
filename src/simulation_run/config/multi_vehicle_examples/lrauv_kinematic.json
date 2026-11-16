@@ -17,7 +17,7 @@
       "missions": [
         { "id": "navigation", "type": "action", "task": "navigation", "params": {} },
         { "id": "hold", "type": "action", "task": "guidance_hold",
-          "params": { "z_setpoint_m": 15.0, "psi_setpoint_deg": 0.0, "hold_origin": true } },
+          "params": { "z_setpoint_m": 15.0, "hold_origin": true } },
         { "id": "control", "type": "action", "task": "lrauv_control", "params": {} },
         { "id": "allocation", "type": "action", "task": "kinematic_allocation", "params": {} }
       ]
